@@ -1,29 +1,184 @@
 {
   "expo": {
-    "name": "ryderIQDriver",
-    "slug": "ryderIQDriver",
+    "name": "RydeIQ Driver",
+    "slug": "rydeiq-driver",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#10B981"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rydeiq.driver",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
+        "NSLocationWhenInUseUsageDescription": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
+        "NSLocationAlwaysUsageDescription": "RydeIQ needs background location access to continue tracking rides and receive requests while the app is in background.",
+        "NSCameraUsageDescription": "RydeIQ needs camera access to verify customer identity and capture required documentation.",
+        "NSPhotoLibraryUsageDescription": "RydeIQ needs photo library access to upload profile pictures and vehicle documentation.",
+        "NSMicrophoneUsageDescription": "RydeIQ needs microphone access for emergency calling and voice commands.",
+        "NSContactsUsageDescription": "RydeIQ needs contacts access to add emergency contacts for safety features.",
+        "NSFaceIDUsageDescription": "RydeIQ uses Face ID for secure and convenient authentication.",
+        "NSBluetoothAlwaysUsageDescription": "RydeIQ uses Bluetooth to connect with vehicle systems for enhanced driver experience.",
+        "NSCalendarsUsageDescription": "RydeIQ can access your calendar to help schedule driving availability.",
+        "UIBackgroundModes": ["location", "background-fetch", "background-processing", "remote-notification"],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU"
+      },
+      "associatedDomains": ["applinks:rydeiq.com", "applinks:*.rydeiq.com"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#10B981"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.rydeiq.driver",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "READ_CONTACTS",
+        "CALL_PHONE",
+        "SEND_SMS",
+        "RECEIVE_SMS",
+        "VIBRATE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "FOREGROUND_SERVICE",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "INTERNET",
+        "SYSTEM_ALERT_WINDOW",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU"
+        }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "rydeiq.com"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
+          "locationAlwaysPermission": "RydeIQ needs background location access to continue tracking rides and receive requests while the app is in background.",
+          "locationWhenInUsePermission": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#10B981",
+          "defaultChannel": "ride-requests",
+          "sounds": ["./assets/sounds/ride-request.wav", "./assets/sounds/ride-completed.wav"]
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RydeIQ needs camera access to verify customer identity and capture required documentation."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RydeIQ needs photo library access to upload profile pictures and vehicle documentation.",
+          "cameraPermission": "RydeIQ needs camera access to capture photos for documentation."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "RydeIQ uses Face ID for secure and convenient authentication."
+        }
+      ],
+      [
+        "@react-native-firebase/app",
+        {
+          "android": {
+            "googleServicesFile": "./google-services.json"
+          },
+          "ios": {
+            "googleServicesFile": "./GoogleService-Info.plist"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "13.0"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      },
+      "firebaseConfig": {
+        "apiKey": "AIzaSyB9rIUiKOdcrEI3H8-OZ6STioLImUTfJ9o",
+        "authDomain": "ryde-9d4bf.firebaseapp.com",
+        "projectId": "ryde-9d4bf",
+        "storageBucket": "ryde-9d4bf.firebasestorage.app",
+        "messagingSenderId": "649308231342",
+        "appId": "1:649308231342:web:1e6e424c4195c2ba72ff3f"
+      },
+      "googleMapsApiKey": "AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU",
+      "environment": "development"
     }
   }
 }
