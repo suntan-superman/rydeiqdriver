@@ -27,14 +27,14 @@ export const useNetworkState = () => {
 
         // Listen for network changes
         networkSubscription = Network.addNetworkStateListener((networkState) => {
-          console.log('Network state changed:', networkState);
+          // Network state changed
           dispatch(setConnectionStatus(networkState.isConnected));
           
           // Log connectivity changes for debugging
           if (networkState.isConnected) {
-            console.log('Device is online');
+            // Device is online
           } else {
-            console.log('Device is offline');
+            // Device is offline
           }
         });
       } catch (error) {

@@ -1,166 +1,273 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import messaging from '@react-native-firebase/messaging';
+import { Platform, PermissionsAndroid } from 'react-native';
 
-// Configure how notifications are handled when the app is running
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+/**
+ * Firebase Cloud Messaging (FCM) service for RydeIQ Driver app
+ * Handles push notifications for ride requests, bid updates, and earnings
+ */
 
 export const initializeNotifications = async () => {
   try {
-    // Check if we're on a physical device
-    if (!Device.isDevice) {
-      console.log('Push notifications only work on physical devices');
-      return null;
+    // Request permission for iOS
+    if (Platform.OS === 'ios') {
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (!enabled) {
+        // Push notification permission denied
+        return null;
+      }
     }
 
-    // Get existing notification permissions
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    // Request permissions if not already granted
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    // Request permission for Android 13+
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+      
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        // Android notification permission denied
+        return null;
+      }
     }
 
-    if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
-      return null;
-    }
-
-    // Get the push token
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig.extra.eas.projectId,
-    });
-
-    console.log('Push notification token:', token.data);
+    // Get FCM token
+    const token = await messaging().getToken();
+    // FCM token received
 
     // Configure notification channels for Android
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('ride-requests', {
+      // Create high-priority channel for ride requests
+      await messaging().setNotificationChannelAsync?.('ride-requests', {
         name: 'Ride Requests',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: 'high',
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#10B981',
-        sound: 'ride-request.wav',
+        sound: 'ride_request',
       });
 
-      await Notifications.setNotificationChannelAsync('bid-updates', {
-        name: 'Bid Updates',
-        importance: Notifications.AndroidImportance.HIGH,
+      // Create channel for bid updates
+      await messaging().setNotificationChannelAsync?.('bid-updates', {
+        name: 'Bid Updates', 
+        importance: 'high',
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#10B981',
-        sound: 'bid-accepted.wav',
+        sound: 'bid_accepted',
       });
 
-      await Notifications.setNotificationChannelAsync('earnings', {
+      // Create channel for earnings
+      await messaging().setNotificationChannelAsync?.('earnings', {
         name: 'Earnings',
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: 'default',
         vibrationPattern: [0, 250],
         lightColor: '#F59E0B',
+        sound: 'default',
       });
 
-      await Notifications.setNotificationChannelAsync('system', {
+      // Create channel for system updates
+      await messaging().setNotificationChannelAsync?.('system', {
         name: 'System Updates',
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: 'default',
         vibrationPattern: [0, 250],
         lightColor: '#6B7280',
+        sound: 'default',
       });
     }
 
-    return token.data;
+    return token;
   } catch (error) {
-    console.error('Error initializing notifications:', error);
+    console.error('Error initializing Firebase notifications:', error);
     return null;
   }
 };
 
-export const sendLocalNotification = async (title, body, data = {}, channel = 'default') => {
+/**
+ * Get the current FCM token
+ */
+export const getNotificationToken = async () => {
   try {
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data,
-        sound: true,
-      },
-      trigger: null, // Send immediately
-    });
+    const token = await messaging().getToken();
+    return token;
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+    return null;
+  }
+};
+
+/**
+ * Handle background messages (when app is in background/killed)
+ */
+export const setBackgroundMessageHandler = () => {
+  messaging().setBackgroundMessageHandler(async remoteMessage => {
+    // Message handled in the background
     
-    return notificationId;
-  } catch (error) {
-    console.error('Error sending local notification:', error);
-    return null;
-  }
+    // Handle different notification types
+    const { data, notification } = remoteMessage;
+    
+    switch (data?.type) {
+      case 'ride_request':
+        // Background ride request received
+        break;
+      case 'bid_update':
+        // Background bid update received
+        break;
+      case 'earnings':
+        // Background earnings update received
+        break;
+      default:
+        // Background notification received
+    }
+  });
 };
 
-export const sendRideRequestNotification = async (rideRequest) => {
-  const title = 'New Ride Request';
-  const body = `$${rideRequest.estimatedFare} ride from ${rideRequest.pickup.address}`;
-  
-  return await sendLocalNotification(title, body, { rideRequest }, 'ride-requests');
-};
-
-export const sendBidUpdateNotification = async (bid, status) => {
-  const title = status === 'accepted' ? 'Bid Accepted!' : 'Bid Update';
-  const body = status === 'accepted' 
-    ? `Your $${bid.bidAmount} bid was accepted!`
-    : `Your bid for $${bid.bidAmount} was ${status}`;
-  
-  return await sendLocalNotification(title, body, { bid, status }, 'bid-updates');
-};
-
-export const sendEarningsNotification = async (amount, type = 'ride') => {
-  const title = 'Payment Received';
-  const body = `You earned $${amount.toFixed(2)} from your ${type}`;
-  
-  return await sendLocalNotification(title, body, { amount, type }, 'earnings');
-};
-
-export const cancelNotification = async (notificationId) => {
+/**
+ * Subscribe to notification topics
+ */
+export const subscribeToTopic = async (topic) => {
   try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    await messaging().subscribeToTopic(topic);
+    // Subscribed to topic
     return true;
   } catch (error) {
-    console.error('Error canceling notification:', error);
+    console.error(`Error subscribing to topic ${topic}:`, error);
     return false;
   }
 };
 
-export const cancelAllNotifications = async () => {
+/**
+ * Unsubscribe from notification topics
+ */
+export const unsubscribeFromTopic = async (topic) => {
   try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await messaging().unsubscribeFromTopic(topic);
+    // Unsubscribed from topic
     return true;
   } catch (error) {
-    console.error('Error canceling all notifications:', error);
+    console.error(`Error unsubscribing from topic ${topic}:`, error);
     return false;
   }
 };
 
-// Notification event listeners
-export const addNotificationReceivedListener = (callback) => {
-  return Notifications.addNotificationReceivedListener(callback);
+/**
+ * Subscribe to driver-specific topics based on location/preferences
+ */
+export const subscribeToDriverTopics = async (driverId, city, vehicleType) => {
+  const topics = [
+    `driver_${driverId}`,
+    `city_${city.toLowerCase().replace(/\s+/g, '_')}`,
+    `vehicle_${vehicleType.toLowerCase()}`,
+    'all_drivers'
+  ];
+
+  const results = await Promise.allSettled(
+    topics.map(topic => subscribeToTopic(topic))
+  );
+
+  const successful = results.filter(result => result.status === 'fulfilled').length;
+  // Subscribed to driver topics
+  
+  return successful === topics.length;
 };
 
-export const addNotificationResponseReceivedListener = (callback) => {
-  return Notifications.addNotificationResponseReceivedListener(callback);
+/**
+ * Handle foreground notifications (when app is active)
+ */
+export const addForegroundMessageListener = (callback) => {
+  return messaging().onMessage(async remoteMessage => {
+    // Foreground notification received
+    
+    if (callback) {
+      callback(remoteMessage);
+    }
+  });
+};
+
+/**
+ * Handle notification tap events (when user taps notification)
+ */
+export const addNotificationOpenedListener = (callback) => {
+  // Handle notification when app is opened from background
+  messaging().onNotificationOpenedApp(remoteMessage => {
+    // Notification caused app to open from background state
+    
+    if (callback) {
+      callback(remoteMessage, 'background');
+    }
+  });
+
+  // Handle notification when app is opened from killed state
+  messaging()
+    .getInitialNotification()
+    .then(remoteMessage => {
+      if (remoteMessage) {
+        // Notification caused app to open from killed state
+        
+        if (callback) {
+          callback(remoteMessage, 'killed');
+        }
+      }
+    });
+};
+
+/**
+ * Handle token refresh
+ */
+export const addTokenRefreshListener = (callback) => {
+  return messaging().onTokenRefresh(token => {
+    // FCM token refreshed
+    
+    if (callback) {
+      callback(token);
+    }
+  });
+};
+
+/**
+ * Check notification permission status
+ */
+export const checkNotificationPermission = async () => {
+  try {
+    const authStatus = await messaging().hasPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    
+    return enabled;
+  } catch (error) {
+    console.error('Error checking notification permission:', error);
+    return false;
+  }
+};
+
+/**
+ * Request notification permissions
+ */
+export const requestNotificationPermission = async () => {
+  try {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    
+    return enabled;
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return false;
+  }
 };
 
 export default {
   initializeNotifications,
-  sendLocalNotification,
-  sendRideRequestNotification,
-  sendBidUpdateNotification,
-  sendEarningsNotification,
-  cancelNotification,
-  cancelAllNotifications,
-  addNotificationReceivedListener,
-  addNotificationResponseReceivedListener,
+  getNotificationToken,
+  setBackgroundMessageHandler,
+  subscribeToTopic,
+  unsubscribeFromTopic,
+  subscribeToDriverTopics,
+  addForegroundMessageListener,
+  addNotificationOpenedListener,
+  addTokenRefreshListener,
+  checkNotificationPermission,
+  requestNotificationPermission,
 }; 

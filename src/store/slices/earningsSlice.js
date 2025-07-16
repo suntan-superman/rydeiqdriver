@@ -1,5 +1,17 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { firebaseFirestore } from '@/services/firebase/config';
+// Remove module-level Firebase import - make it lazy instead
+// import { firebaseFirestore } from '@/services/firebase/config';
+
+// Lazy Firebase firestore getter
+const getFirebaseFirestore = () => {
+  try {
+    const { firebaseFirestore } = require('@/services/firebase/config');
+    return firebaseFirestore;
+  } catch (error) {
+    // Firebase firestore not available in earningsSlice
+    return null;
+  }
+};
 
 // Initial state
 const initialState = {
@@ -38,6 +50,11 @@ export const loadEarnings = createAsyncThunk(
   'earnings/loadEarnings',
   async ({ driverId }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
       const driverDoc = await driverRef.get();
       
@@ -66,6 +83,11 @@ export const addEarning = createAsyncThunk(
   'earnings/addEarning',
   async ({ driverId, rideId, amount, type, breakdown }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const earningRef = firebaseFirestore.collection('earnings').doc();
       const earningData = {
         id: earningRef.id,
@@ -102,6 +124,11 @@ export const requestPayout = createAsyncThunk(
   'earnings/requestPayout',
   async ({ driverId, amount, payoutMethod }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const payoutRef = firebaseFirestore.collection('payouts').doc();
       const payoutData = {
         id: payoutRef.id,
@@ -133,6 +160,11 @@ export const loadEarningsHistory = createAsyncThunk(
   'earnings/loadHistory',
   async ({ driverId, limit = 50 }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const earningsQuery = firebaseFirestore
         .collection('earnings')
         .where('driverId', '==', driverId)
@@ -156,6 +188,11 @@ export const loadPayoutHistory = createAsyncThunk(
   'earnings/loadPayoutHistory',
   async ({ driverId, limit = 20 }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const payoutsQuery = firebaseFirestore
         .collection('payouts')
         .where('driverId', '==', driverId)
@@ -179,6 +216,11 @@ export const updateGoals = createAsyncThunk(
   'earnings/updateGoals',
   async ({ driverId, goals }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
       await driverRef.update({
         'earnings.goals': goals

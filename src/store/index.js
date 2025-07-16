@@ -4,32 +4,32 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { combineReducers } from '@reduxjs/toolkit';
 
 // Import slices
-import authSlice from './slices/authSlice';
-import driverSlice from './slices/driverSlice';
-import ridesSlice from './slices/ridesSlice';
-import biddingSlice from './slices/biddingSlice';
-import locationSlice from './slices/locationSlice';
-import earningsSlice from './slices/earningsSlice';
-import notificationSlice from './slices/notificationSlice';
-import appSlice from './slices/appSlice';
+import authSlice from './slices/authSlice'; // ✅ Fixed - uses lazy Firebase imports
+// import driverSlice from './slices/driverSlice'; // ❌ Has Firebase imports - temporarily disabled
+// import ridesSlice from './slices/ridesSlice'; // ❌ Has Firebase imports - temporarily disabled
+// import biddingSlice from './slices/biddingSlice'; // ❌ Has Firebase imports - temporarily disabled
+import locationSlice from './slices/locationSlice'; // ✅ Should work now with lazy Firebase config
+// import earningsSlice from './slices/earningsSlice'; // ❌ Has Firebase imports - temporarily disabled
+// import notificationSlice from './slices/notificationSlice'; // ❌ Has Firebase imports - temporarily disabled
+import appSlice from './slices/appSlice'; // ✅ No Firebase imports - safe
 
 // Persist configuration
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'driver', 'earnings', 'app'], // Only persist these slices
-  blacklist: ['rides', 'bidding', 'location', 'notification'] // Don't persist real-time data
+  whitelist: ['auth', 'app'], // Only persist safe slices for now
+  blacklist: ['location'] // Don't persist real-time location data
 };
 
-// Root reducer
+// Root reducer - testing with Firebase config fix
 const rootReducer = combineReducers({
   auth: authSlice,
-  driver: driverSlice,
-  rides: ridesSlice,
-  bidding: biddingSlice,
-  location: locationSlice,
-  earnings: earningsSlice,
-  notification: notificationSlice,
+  // driver: driverSlice, // Temporarily disabled
+  // rides: ridesSlice, // Temporarily disabled
+  // bidding: biddingSlice, // Temporarily disabled
+  location: locationSlice, // Re-enabled - should work now
+  // earnings: earningsSlice, // Temporarily disabled
+  // notification: notificationSlice, // Temporarily disabled
   app: appSlice
 });
 
@@ -48,11 +48,4 @@ export const store = configureStore({
   devTools: __DEV__
 });
 
-// Persistor
-export const persistor = persistStore(store);
-
-// Types for TypeScript (optional - since we're using JavaScript)
-export const getState = () => store.getState();
-export const dispatch = store.dispatch;
-
-export default store; 
+export const persistor = persistStore(store); 

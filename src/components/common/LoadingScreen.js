@@ -1,6 +1,23 @@
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+// import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+
+// Temporary constants
+const COLORS = {
+  primary: { 500: '#10B981' },
+  white: '#FFFFFF',
+  textPrimary: '#111827'
+};
+
+const TYPOGRAPHY = {
+  fontSizes: {
+    base: 16
+  }
+};
+
+const DIMENSIONS = {
+  paddingL: 24
+};
 
 const LoadingScreen = ({ message = 'Loading...', showMessage = true }) => {
   return (
@@ -8,7 +25,7 @@ const LoadingScreen = ({ message = 'Loading...', showMessage = true }) => {
       <View style={styles.content}>
         <ActivityIndicator 
           size="large" 
-          color={COLORS.primary} 
+          color={COLORS.primary[500]} 
           style={styles.spinner}
         />
         {showMessage && (

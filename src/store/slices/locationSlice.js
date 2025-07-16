@@ -69,14 +69,14 @@ export const startLocationTracking = createAsyncThunk(
       // Define the background task
       TaskManager.defineTask(LOCATION_TRACKING, ({ data, error }) => {
         if (error) {
-          console.log('Location tracking error:', error);
+          // Location tracking error
           return;
         }
         if (data) {
           const { locations } = data;
           // Handle location updates in background
           // You can dispatch actions here if needed
-          console.log('Background location update:', locations);
+          // Background location update received
         }
       });
 
@@ -116,12 +116,25 @@ export const stopLocationTracking = createAsyncThunk(
   }
 );
 
+// Lazy Firebase firestore getter
+const getFirebaseFirestore = () => {
+  try {
+    const { firebaseFirestore } = require('@/services/firebase/config');
+    return firebaseFirestore;
+  } catch (error) {
+    // Firebase firestore not available in locationSlice
+    return null;
+  }
+};
+
 export const updateLocationInFirestore = createAsyncThunk(
   'location/updateInFirestore',
   async ({ driverId, location }, { rejectWithValue }) => {
     try {
-      // Import firestore here to avoid circular dependencies
-      const { firebaseFirestore } = await import('@/services/firebase/config');
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
       
       const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
       await driverRef.update({

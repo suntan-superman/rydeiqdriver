@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>649308231342-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.649308231342-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</string>
+	<key>API_KEY</key>
+	<string>AIzaSyB9rIUiKOdcrEI3H8-OZ6STioLImUTfJ9o</string>
+	<key>GCM_SENDER_ID</key>
+	<string>649308231342</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.rydeiq.driver</string>
+	<key>PROJECT_ID</key>
+	<string>ryde-9d4bf</string>
+	<key>STORAGE_BUCKET</key>
+	<string>ryde-9d4bf.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:649308231342:ios:1e6e424c4195c2ba72ff3f</string>
+</dict>
+</plist> 

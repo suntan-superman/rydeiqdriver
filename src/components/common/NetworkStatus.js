@@ -2,7 +2,32 @@ import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useSelector } from 'react-redux';
 import { selectIsConnected } from '@/store/slices/appSlice';
-import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+// import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+
+// Temporary constants
+const COLORS = {
+  primary: { 500: '#10B981' },
+  white: '#FFFFFF',
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  error: '#EF4444',
+  warning: '#F59E0B'
+};
+
+const TYPOGRAPHY = {
+  fontSizes: {
+    xs: 12,
+    sm: 14
+  },
+  fontWeights: {
+    semibold: '600'
+  }
+};
+
+const DIMENSIONS = {
+  paddingS: 8,
+  paddingM: 16
+};
 
 const NetworkStatus = () => {
   const isConnected = useSelector(selectIsConnected);

@@ -1,6 +1,33 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { firebaseFirestore } from '@/services/firebase/config';
-import { RIDE_STATUS } from '@/constants';
+// Remove module-level Firebase import - make it lazy instead
+// import { firebaseFirestore } from '@/services/firebase/config';
+
+// Lazy Firebase firestore getter
+const getFirebaseFirestore = () => {
+  try {
+    const { firebaseFirestore } = require('@/services/firebase/config');
+    return firebaseFirestore;
+  } catch (error) {
+    // Firebase firestore not available in ridesSlice
+    return null;
+  }
+};
+
+// import { RIDE_STATUS } from '@/constants';
+
+// Temporary constants
+const RIDE_STATUS = {
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  EN_ROUTE_PICKUP: 'en_route_pickup',
+  ARRIVED_PICKUP: 'arrived_pickup',
+  CUSTOMER_ONBOARD: 'customer_onboard',
+  TRIP_ACTIVE: 'trip_active',
+  TRIP_COMPLETED: 'trip_completed'
+};
 
 // Initial state
 const initialState = {
@@ -27,6 +54,11 @@ export const acceptRide = createAsyncThunk(
   'rides/acceptRide',
   async ({ rideId, driverId }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
       const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
       
@@ -56,10 +88,10 @@ export const startRide = createAsyncThunk(
   'rides/startRide',
   async ({ rideId }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         status: RIDE_STATUS.TRIP_ACTIVE,
-        startedAt: firebaseFirestore.FieldValue.serverTimestamp()
+        startedAt: getFirebaseFirestore().FieldValue.serverTimestamp()
       });
       
       const rideDoc = await rideRef.get();
@@ -74,10 +106,10 @@ export const completeRide = createAsyncThunk(
   'rides/completeRide',
   async ({ rideId, finalFare, paymentMethod }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         status: RIDE_STATUS.TRIP_COMPLETED,
-        completedAt: firebaseFirestore.FieldValue.serverTimestamp(),
+        completedAt: getFirebaseFirestore().FieldValue.serverTimestamp(),
         finalFare: finalFare,
         paymentMethod: paymentMethod
       });
@@ -94,10 +126,10 @@ export const cancelRide = createAsyncThunk(
   'rides/cancelRide',
   async ({ rideId, reason }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         status: RIDE_STATUS.CANCELLED,
-        cancelledAt: firebaseFirestore.FieldValue.serverTimestamp(),
+        cancelledAt: getFirebaseFirestore().FieldValue.serverTimestamp(),
         cancellationReason: reason
       });
       
@@ -112,22 +144,22 @@ export const updateRideStatus = createAsyncThunk(
   'rides/updateStatus',
   async ({ rideId, status }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       const updateData = {
         status: status,
-        lastUpdated: firebaseFirestore.FieldValue.serverTimestamp()
+        lastUpdated: getFirebaseFirestore().FieldValue.serverTimestamp()
       };
       
       // Add specific timestamp fields based on status
       switch (status) {
         case RIDE_STATUS.EN_ROUTE_PICKUP:
-          updateData.enRouteAt = firebaseFirestore.FieldValue.serverTimestamp();
+          updateData.enRouteAt = getFirebaseFirestore().FieldValue.serverTimestamp();
           break;
         case RIDE_STATUS.ARRIVED_PICKUP:
-          updateData.arrivedAt = firebaseFirestore.FieldValue.serverTimestamp();
+          updateData.arrivedAt = getFirebaseFirestore().FieldValue.serverTimestamp();
           break;
         case RIDE_STATUS.CUSTOMER_ONBOARD:
-          updateData.customerOnboardAt = firebaseFirestore.FieldValue.serverTimestamp();
+          updateData.customerOnboardAt = getFirebaseFirestore().FieldValue.serverTimestamp();
           break;
       }
       
@@ -143,7 +175,7 @@ export const loadRideHistory = createAsyncThunk(
   'rides/loadHistory',
   async ({ driverId, limit = 50 }, { rejectWithValue }) => {
     try {
-      const ridesQuery = firebaseFirestore
+      const ridesQuery = getFirebaseFirestore()
         .collection('rideRequests')
         .where('driverId', '==', driverId)
         .where('status', 'in', [RIDE_STATUS.TRIP_COMPLETED, RIDE_STATUS.CANCELLED])
@@ -167,7 +199,7 @@ export const loadCurrentRide = createAsyncThunk(
   'rides/loadCurrentRide',
   async ({ driverId }, { rejectWithValue }) => {
     try {
-      const ridesQuery = firebaseFirestore
+      const ridesQuery = getFirebaseFirestore()
         .collection('rideRequests')
         .where('driverId', '==', driverId)
         .where('status', 'in', [
@@ -197,10 +229,10 @@ export const updateRideMetrics = createAsyncThunk(
   'rides/updateMetrics',
   async ({ rideId, metrics }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         metrics: metrics,
-        lastMetricsUpdate: firebaseFirestore.FieldValue.serverTimestamp()
+        lastMetricsUpdate: getFirebaseFirestore().FieldValue.serverTimestamp()
       });
       
       return metrics;
@@ -214,11 +246,11 @@ export const rateCustomer = createAsyncThunk(
   'rides/rateCustomer',
   async ({ rideId, rating, feedback }, { rejectWithValue }) => {
     try {
-      const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
+      const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         driverRating: rating,
         driverFeedback: feedback,
-        driverRatedAt: firebaseFirestore.FieldValue.serverTimestamp()
+        driverRatedAt: getFirebaseFirestore().FieldValue.serverTimestamp()
       });
       
       return { rideId, rating, feedback };

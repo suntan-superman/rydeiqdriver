@@ -12,7 +12,40 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialIcons, AntDesign, Ionicons } from '@expo/vector-icons';
-import { COLORS } from '@/constants';
+// import { COLORS } from '@/constants';
+
+// Temporary constants
+const COLORS = {
+  primary: {
+    50: '#ECFDF5',
+    200: '#A7F3D0',
+    400: '#34D399',
+    500: '#10B981',
+    600: '#059669',
+    700: '#047857'
+  },
+  secondary: {
+    200: '#E5E7EB',
+    400: '#9CA3AF',
+    500: '#6B7280',
+    600: '#4B5563',
+    700: '#374151',
+    900: '#111827'
+  },
+  background: {
+    secondary: '#F9FAFB',
+    tertiary: '#F3F4F6'
+  },
+  text: {
+    primary: '#111827',
+    secondary: '#6B7280'
+  },
+  white: '#FFFFFF',
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  error: '#EF4444',
+  surface: '#FFFFFF'
+};
 import { useAuth } from '@/contexts/AuthContext';
 
 const LoginScreen = ({ navigation }) => {
@@ -33,7 +66,7 @@ const LoginScreen = ({ navigation }) => {
           setPassword(result.credentials.password);
         }
       } catch (error) {
-        console.log('No saved credentials found');
+        // No saved credentials found
       }
     };
     
@@ -61,7 +94,7 @@ const LoginScreen = ({ navigation }) => {
         // Navigation will be handled by AuthContext state change
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Main' }],
+          routes: [{ name: 'Home' }],
         });
       } else {
         Alert.alert(

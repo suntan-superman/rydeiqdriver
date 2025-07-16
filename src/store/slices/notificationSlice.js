@@ -1,87 +1,133 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import * as Notifications from 'expo-notifications';
-import { NOTIFICATION_TYPES } from '@/constants';
+// Remove module-level Firebase import - make it lazy instead
+// import messaging from '@react-native-firebase/messaging';
+
+// Lazy Firebase messaging getter
+const getFirebaseMessaging = () => {
+  try {
+    return require('@react-native-firebase/messaging').default;
+  } catch (error) {
+    // Firebase messaging not available in notificationSlice
+    return null;
+  }
+};
+
+// Temporary constants
+const NOTIFICATION_TYPES = {
+  RIDE_REQUEST: 'ride_request',
+  BID_ACCEPTED: 'bid_accepted',
+  BID_DECLINED: 'bid_declined',
+  TRIP_COMPLETED: 'trip_completed',
+  EARNINGS: 'earnings',
+  SYSTEM: 'system'
+};
 
 // Initial state
 const initialState = {
   notifications: [],
   unreadCount: 0,
-  pushToken: null,
-  settings: {
-    sound: true,
-    vibration: true,
-    rideRequests: true,
-    bidUpdates: true,
-    earnings: true,
-    promotions: false,
-    systemUpdates: true
-  },
   isLoading: false,
-  error: null
+  error: null,
+  pushToken: null,
+  permissions: {
+    hasPermission: false,
+    provisional: false
+  },
+  settings: {
+    rideRequests: true,
+    updates: true,
+    earnings: true,
+    system: true,
+    sound: true,
+    vibration: true
+  }
 };
 
-// Async thunks
-export const registerForPushNotifications = createAsyncThunk(
-  'notification/registerForPush',
+// Async thunks for notification management
+export const requestNotificationPermission = createAsyncThunk(
+  'notification/requestPermission',
   async (_, { rejectWithValue }) => {
     try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
+      const messaging = getFirebaseMessaging();
+      if (!messaging) {
+        return rejectWithValue('Firebase messaging not available');
       }
       
-      if (finalStatus !== 'granted') {
-        return rejectWithValue('Push notification permission denied');
-      }
+      const permission = await messaging().requestPermission();
+      const enabled = permission === 1; // AuthorizationStatus.AUTHORIZED
       
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
-      
-      // Configure notification handling
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: false,
-        }),
-      });
-      
-      return { token, permission: finalStatus };
+      return {
+        hasPermission: enabled,
+        provisional: permission === 2 // AuthorizationStatus.PROVISIONAL
+      };
     } catch (error) {
       return rejectWithValue(error.message);
     }
   }
 );
 
-export const sendLocalNotification = createAsyncThunk(
-  'notification/sendLocal',
-  async ({ title, body, data, sound }, { rejectWithValue }) => {
+export const refreshPushToken = createAsyncThunk(
+  'notification/refreshToken',
+  async (_, { rejectWithValue }) => {
     try {
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data,
-          sound: sound !== false,
-        },
-        trigger: null, // Send immediately
-      });
-      
-      return { id: notificationId, title, body, data };
+      const messaging = getFirebaseMessaging();
+      if (!messaging) {
+        return rejectWithValue('Firebase messaging not available');
+      }
+      const token = await messaging().getToken();
+      return { token };
     } catch (error) {
       return rejectWithValue(error.message);
     }
   }
 );
 
-export const cancelNotification = createAsyncThunk(
-  'notification/cancel',
-  async ({ notificationId }, { rejectWithValue }) => {
+export const subscribeToDriverTopics = createAsyncThunk(
+  'notification/subscribeToTopics',
+  async ({ driverId, city, vehicleType }, { rejectWithValue }) => {
     try {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
-      return { notificationId };
+      const messaging = getFirebaseMessaging();
+      if (!messaging) {
+        return rejectWithValue('Firebase messaging not available');
+      }
+      const topics = [
+        `driver_${driverId}`,
+        `city_${city.toLowerCase().replace(/\s+/g, '_')}`,
+        `vehicle_${vehicleType.toLowerCase()}`,
+        'all_drivers'
+      ];
+
+      // Subscribe to all topics
+      await Promise.all(topics.map(topic => messaging().subscribeToTopic(topic)));
+      
+      // Subscribed to FCM topics
+      return { topics };
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const unsubscribeFromDriverTopics = createAsyncThunk(
+  'notification/unsubscribeFromTopics',
+  async ({ driverId, city, vehicleType }, { rejectWithValue }) => {
+    try {
+      const messaging = getFirebaseMessaging();
+      if (!messaging) {
+        return rejectWithValue('Firebase messaging not available');
+      }
+      const topics = [
+        `driver_${driverId}`,
+        `city_${city.toLowerCase().replace(/\s+/g, '_')}`,
+        `vehicle_${vehicleType.toLowerCase()}`,
+        'all_drivers'
+      ];
+
+      // Unsubscribe from all topics
+      await Promise.all(topics.map(topic => messaging().unsubscribeFromTopic(topic)));
+      
+      // Unsubscribed from FCM topics
+      return { topics };
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -92,8 +138,21 @@ export const updateNotificationSettings = createAsyncThunk(
   'notification/updateSettings',
   async ({ driverId, settings }, { rejectWithValue }) => {
     try {
-      // Import firestore here to avoid circular dependencies
-      const { firebaseFirestore } = await import('@/services/firebase/config');
+      // Use the same lazy loading pattern as other slices
+      const getFirebaseFirestore = () => {
+        try {
+          const { firebaseFirestore } = require('@/services/firebase/config');
+          return firebaseFirestore;
+        } catch (error) {
+          // Firebase firestore not available in notificationSlice
+          return null;
+        }
+      };
+      
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
       
       const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
       await driverRef.update({
@@ -136,6 +195,30 @@ const notificationSlice = createSlice({
       };
       
       state.notifications.unshift(notification);
+      state.unreadCount += 1;
+      
+      // Keep only last 100 notifications
+      if (state.notifications.length > 100) {
+        state.notifications = state.notifications.slice(0, 100);
+      }
+    },
+    addFCMNotification: (state, action) => {
+      // Add notification from Firebase Cloud Messaging
+      const { remoteMessage } = action.payload;
+      const { notification, data } = remoteMessage;
+      
+      const notificationObj = {
+        id: data?.id || Date.now().toString(),
+        type: data?.type || NOTIFICATION_TYPES.SYSTEM,
+        title: notification?.title || 'New Notification',
+        body: notification?.body || '',
+        data: data || {},
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: data?.priority || 'normal'
+      };
+      
+      state.notifications.unshift(notificationObj);
       state.unreadCount += 1;
       
       // Keep only last 100 notifications
@@ -220,30 +303,37 @@ const notificationSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Register for push notifications
-      .addCase(registerForPushNotifications.pending, (state) => {
+      .addCase(requestNotificationPermission.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(registerForPushNotifications.fulfilled, (state, action) => {
+      .addCase(requestNotificationPermission.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.pushToken = action.payload.token;
+        state.permissions = action.payload;
       })
-      .addCase(registerForPushNotifications.rejected, (state, action) => {
+      .addCase(requestNotificationPermission.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
       
-      // Send local notification
-      .addCase(sendLocalNotification.fulfilled, (state, action) => {
-        // Local notification sent successfully
-        // The notification will be added via addNotification action
+      // Refresh push token
+      .addCase(refreshPushToken.fulfilled, (state, action) => {
+        state.pushToken = action.payload.token;
       })
       
-      // Cancel notification
-      .addCase(cancelNotification.fulfilled, (state, action) => {
-        // Notification cancelled
-        const { notificationId } = action.payload;
-        state.notifications = state.notifications.filter(n => n.id !== notificationId);
+      // Subscribe to topics
+      .addCase(subscribeToDriverTopics.fulfilled, (state, action) => {
+        // Topics subscribed successfully
+        // Topics subscription successful
+      })
+      .addCase(subscribeToDriverTopics.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      
+      // Unsubscribe from topics
+      .addCase(unsubscribeFromDriverTopics.fulfilled, (state, action) => {
+        // Topics unsubscribed successfully
+        // Topics unsubscription successful
       })
       
       // Update settings
@@ -269,6 +359,7 @@ const notificationSlice = createSlice({
 export const {
   clearError,
   addNotification,
+  addFCMNotification,
   markNotificationAsRead,
   markAllAsRead,
   removeNotification,

@@ -5,30 +5,30 @@ const LOCATION_TRACKING = 'location-tracking';
 
 export const initializeLocationServices = async () => {
   try {
-    console.log('Initializing location services...');
+    // Initializing location services
     
     // Check if location services are enabled
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
-      console.log('Location services are not enabled');
+      // Location services are not enabled
       return { success: false, error: 'Location services disabled' };
     }
 
     // Request foreground permissions
     const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
     if (foregroundStatus !== 'granted') {
-      console.log('Foreground location permission denied');
+      // Foreground location permission denied
       return { success: false, error: 'Foreground location permission denied' };
     }
 
     // Request background permissions
     const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
     if (backgroundStatus !== 'granted') {
-      console.log('Background location permission denied');
+      // Background location permission denied
       // Continue without background location - not critical for basic functionality
     }
 
-    console.log('Location services initialized successfully');
+    // Location services initialized successfully
     return { 
       success: true, 
       foregroundPermission: foregroundStatus === 'granted',
@@ -66,12 +66,12 @@ export const startLocationTracking = async () => {
     // Define the background task for location tracking
     TaskManager.defineTask(LOCATION_TRACKING, ({ data, error }) => {
       if (error) {
-        console.log('Location tracking error:', error);
+        // Location tracking error
         return;
       }
       if (data) {
         const { locations } = data;
-        console.log('Received new locations:', locations);
+        // Received new locations
         // Here you would typically dispatch to Redux store or send to server
         // Note: In a real implementation, you'd need to set up a store listener
       }
@@ -91,7 +91,7 @@ export const startLocationTracking = async () => {
       },
     });
 
-    console.log('Location tracking started');
+    // Location tracking started
     return { success: true };
   } catch (error) {
     console.error('Error starting location tracking:', error);
@@ -105,7 +105,7 @@ export const stopLocationTracking = async () => {
     
     if (hasStarted) {
       await Location.stopLocationUpdatesAsync(LOCATION_TRACKING);
-      console.log('Location tracking stopped');
+      // Location tracking stopped
     }
 
     return { success: true };

@@ -1,7 +1,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { firebaseAuth } from '@/services/firebase/config';
+// Remove module-level Firebase import - make it lazy instead
+// import { firebaseAuth } from '@/services/firebase/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
+
+// Lazy Firebase getter
+const getFirebaseAuth = () => {
+  try {
+    const { firebaseAuth } = require('@/services/firebase/config');
+    return firebaseAuth;
+  } catch (error) {
+    // Firebase auth not available in authSlice
+    return null;
+  }
+};
 
 // Initial state
 const initialState = {
@@ -22,6 +34,10 @@ export const signInWithPhone = createAsyncThunk(
   'auth/signInWithPhone',
   async ({ phoneNumber }, { rejectWithValue }) => {
     try {
+      const firebaseAuth = getFirebaseAuth();
+      if (!firebaseAuth) {
+        return rejectWithValue('Firebase auth not available');
+      }
       const confirmation = await firebaseAuth.signInWithPhoneNumber(phoneNumber);
       return { phoneNumber, confirmation };
     } catch (error) {
@@ -71,6 +87,10 @@ export const signOut = createAsyncThunk(
   'auth/signOut',
   async (_, { rejectWithValue }) => {
     try {
+      const firebaseAuth = getFirebaseAuth();
+      if (!firebaseAuth) {
+        return rejectWithValue('Firebase auth not available');
+      }
       await firebaseAuth.signOut();
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('biometricEnabled');
@@ -139,6 +159,10 @@ export const checkAuthState = createAsyncThunk(
   'auth/checkAuthState',
   async (_, { rejectWithValue }) => {
     try {
+      const firebaseAuth = getFirebaseAuth();
+      if (!firebaseAuth) {
+        return rejectWithValue('Firebase auth not available');
+      }
       const user = firebaseAuth.currentUser;
       if (user) {
         const token = await user.getIdToken();

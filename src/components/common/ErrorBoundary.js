@@ -1,6 +1,42 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+// import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+
+// Temporary constants
+const COLORS = {
+  primary: { 500: '#10B981' },
+  white: '#FFFFFF',
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  error: '#EF4444',
+  surface: '#FFFFFF',
+  gray100: '#F3F4F6'
+};
+
+const TYPOGRAPHY = {
+  fontSizes: {
+    xs: 12,
+    sm: 14,
+    base: 16,
+    '2xl': 24
+  },
+  fontWeights: {
+    normal: '400',
+    semibold: '600',
+    bold: '700'
+  },
+  lineHeights: {
+    relaxed: 1.625
+  }
+};
+
+const DIMENSIONS = {
+  paddingS: 8,
+  paddingM: 16,
+  paddingL: 24,
+  paddingXL: 32,
+  radiusM: 8
+};
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -122,7 +158,7 @@ const styles = StyleSheet.create({
     marginBottom: DIMENSIONS.paddingS,
   },
   retryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary[500],
     paddingHorizontal: DIMENSIONS.paddingXL,
     paddingVertical: DIMENSIONS.paddingM,
     borderRadius: DIMENSIONS.radiusM,

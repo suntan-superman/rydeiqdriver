@@ -1,6 +1,27 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { firebaseFirestore } from '@/services/firebase/config';
-import { BID_STATUS } from '@/constants';
+// Remove module-level Firebase import - make it lazy instead
+// import { firebaseFirestore } from '@/services/firebase/config';
+
+// Lazy Firebase firestore getter
+const getFirebaseFirestore = () => {
+  try {
+    const { firebaseFirestore } = require('@/services/firebase/config');
+    return firebaseFirestore;
+  } catch (error) {
+    // Firebase firestore not available in biddingSlice
+    return null;
+  }
+};
+
+// import { BID_STATUS } from '@/constants';
+
+// Temporary constants
+const BID_STATUS = {
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  DECLINED: 'declined',
+  EXPIRED: 'expired'
+};
 
 // Initial state
 const initialState = {
@@ -23,6 +44,11 @@ export const submitBid = createAsyncThunk(
   'bidding/submitBid',
   async ({ rideId, driverId, bidAmount, message, estimatedArrival }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidRef = firebaseFirestore.collection('activeBids').doc();
       const bidData = {
         bidId: bidRef.id,
@@ -61,6 +87,11 @@ export const acceptCompanyBid = createAsyncThunk(
   'bidding/acceptCompanyBid',
   async ({ rideId, driverId, companyBid }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidRef = firebaseFirestore.collection('activeBids').doc();
       const bidData = {
         bidId: bidRef.id,
@@ -100,6 +131,11 @@ export const updateBid = createAsyncThunk(
   'bidding/updateBid',
   async ({ bidId, bidAmount, message }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidRef = firebaseFirestore.collection('activeBids').doc(bidId);
       const updateData = {
         bidAmount: parseFloat(bidAmount),
@@ -119,6 +155,11 @@ export const cancelBid = createAsyncThunk(
   'bidding/cancelBid',
   async ({ bidId }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidRef = firebaseFirestore.collection('activeBids').doc(bidId);
       await bidRef.update({
         status: BID_STATUS.EXPIRED,
@@ -136,6 +177,11 @@ export const loadActiveBids = createAsyncThunk(
   'bidding/loadActiveBids',
   async ({ driverId }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidsQuery = firebaseFirestore
         .collection('activeBids')
         .where('driverId', '==', driverId)
@@ -159,6 +205,11 @@ export const loadBidHistory = createAsyncThunk(
   'bidding/loadBidHistory',
   async ({ driverId, limit = 50 }, { rejectWithValue }) => {
     try {
+      const firebaseFirestore = getFirebaseFirestore();
+      if (!firebaseFirestore) {
+        return rejectWithValue('Firebase firestore not available');
+      }
+      
       const bidsQuery = firebaseFirestore
         .collection('activeBids')
         .where('driverId', '==', driverId)
@@ -181,30 +232,77 @@ export const loadBidHistory = createAsyncThunk(
 
 export const calculateOptimalBid = createAsyncThunk(
   'bidding/calculateOptimalBid',
-  async ({ companyBid, distance, duration, driverRating, demandMultiplier = 1 }, { rejectWithValue }) => {
+  async ({ 
+    companyBid, 
+    distance, 
+    duration, 
+    driverRating, 
+    demandMultiplier = 1,
+    vehicle = null,
+    trafficFactor = 1.0,
+    targetProfit = 10
+  }, { rejectWithValue, getState }) => {
     try {
-      // Simple algorithm to suggest optimal bid
       const baseBid = parseFloat(companyBid);
       
-      // Factors that influence bid suggestion
-      let multiplier = 1;
+      // Import fuel estimation utility
+      const { suggestOptimalBid, calculateProfitEstimate } = require('../../utils/fuelEstimation');
       
-      // Distance factor (longer trips can justify higher bids)
-      if (distance > 10) multiplier += 0.1;
-      if (distance > 20) multiplier += 0.1;
+      let suggestedBid;
+      let profitAnalysis = null;
+      let fuelCostEstimate = null;
       
-      // Duration factor (time is money)
-      if (duration > 30) multiplier += 0.05;
-      if (duration > 60) multiplier += 0.1;
-      
-      // Driver rating factor (higher rated drivers can bid higher)
-      if (driverRating >= 4.8) multiplier += 0.1;
-      else if (driverRating >= 4.5) multiplier += 0.05;
-      
-      // Demand factor (external parameter based on area demand)
-      multiplier *= demandMultiplier;
-      
-      const suggestedBid = baseBid * multiplier;
+      if (vehicle && distance) {
+        // Use advanced fuel-based calculation
+        const fuelOptimization = await suggestOptimalBid({
+          companyBid: baseBid,
+          distance,
+          vehicle,
+          targetProfit,
+          trafficFactor
+        });
+        
+        suggestedBid = fuelOptimization.suggestedBid;
+        profitAnalysis = fuelOptimization.profitAnalysis;
+        fuelCostEstimate = profitAnalysis.fuelDetails;
+        
+        // Apply additional factors on top of fuel-optimized bid
+        let adjustmentMultiplier = 1;
+        
+        // Driver rating factor (higher rated drivers can bid higher)
+        if (driverRating >= 4.8) adjustmentMultiplier += 0.05;
+        else if (driverRating >= 4.5) adjustmentMultiplier += 0.025;
+        
+        // Demand factor
+        adjustmentMultiplier *= demandMultiplier;
+        
+        // Duration factor (time is money) - for very long trips
+        if (duration > 60) adjustmentMultiplier += 0.05;
+        if (duration > 90) adjustmentMultiplier += 0.05;
+        
+        suggestedBid *= adjustmentMultiplier;
+        
+      } else {
+        // Fall back to simple algorithm if no vehicle data
+        let multiplier = 1;
+        
+        // Distance factor (longer trips can justify higher bids)
+        if (distance > 10) multiplier += 0.1;
+        if (distance > 20) multiplier += 0.1;
+        
+        // Duration factor (time is money)
+        if (duration > 30) multiplier += 0.05;
+        if (duration > 60) multiplier += 0.1;
+        
+        // Driver rating factor (higher rated drivers can bid higher)
+        if (driverRating >= 4.8) multiplier += 0.1;
+        else if (driverRating >= 4.5) multiplier += 0.05;
+        
+        // Demand factor (external parameter based on area demand)
+        multiplier *= demandMultiplier;
+        
+        suggestedBid = baseBid * multiplier;
+      }
       
       // Ensure bid is within reasonable bounds
       const minBid = baseBid * 0.9; // 10% below company bid
@@ -212,16 +310,31 @@ export const calculateOptimalBid = createAsyncThunk(
       
       const optimalBid = Math.max(minBid, Math.min(maxBid, suggestedBid));
       
+      // Calculate profit for final bid if we have vehicle data
+      if (vehicle && distance && !profitAnalysis) {
+        profitAnalysis = await calculateProfitEstimate({
+          bidAmount: optimalBid,
+          distance,
+          vehicle,
+          trafficFactor
+        });
+        fuelCostEstimate = profitAnalysis.fuelDetails;
+      }
+      
       return {
         originalBid: baseBid,
-        suggestedBid: Math.round(optimalBid * 100) / 100, // Round to 2 decimal places
+        suggestedBid: Math.round(optimalBid * 100) / 100,
+        profitAnalysis,
+        fuelCostEstimate,
         factors: {
           distance,
           duration,
           driverRating,
           demandMultiplier,
-          multiplier
-        }
+          trafficFactor,
+          hasFuelData: !!vehicle
+        },
+        recommendations: profitAnalysis?.recommendations || []
       };
     } catch (error) {
       return rejectWithValue(error.message);

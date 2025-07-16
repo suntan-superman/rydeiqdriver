@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import auth from '@react-native-firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
+import { auth, AuthService } from '../services/firebase/config';
 
 const AuthContext = createContext({});
 
@@ -17,13 +17,22 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize authentication state
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged((user) => {
-      setUser(user);
-      setIsAuthenticated(!!user);
-      setLoading(false);
-    });
+    try {
+      if (!AuthService.isAuthAvailable()) {
+        setLoading(false);
+        return;
+      }
 
-    return unsubscribe;
+      const unsubscribe = AuthService.onAuthStateChanged((user) => {
+        setUser(user);
+        setIsAuthenticated(!!user);
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      setLoading(false);
+    }
   }, []);
 
   // Test SecureStore functionality
@@ -85,54 +94,31 @@ export const AuthProvider = ({ children }) => {
   // Sign in with email and password
   const signIn = async (email, password) => {
     try {
-      const userCredential = await auth().signInWithEmailAndPassword(email, password);
-      const user = userCredential.user;
+      const result = await AuthService.signIn(email, password);
       
-      // Save user data
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        emailVerified: user.emailVerified,
-        lastSignIn: new Date().toISOString(),
-      };
-      
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
-      
-      return { success: true, user: userData };
+      if (result.success) {
+        // Save user data to SecureStore
+        const userData = {
+          uid: result.user.id,
+          email: result.user.email,
+          displayName: result.user.name,
+          photoURL: result.user.photoURL || null,
+          emailVerified: result.user.emailVerified,
+          lastSignIn: new Date().toISOString(),
+        };
+        
+        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        
+        return { success: true, user: userData };
+      } else {
+        return result; // Return the error from AuthService
+      }
     } catch (error) {
       console.error('Sign in error:', error);
-      
-      let errorMessage = 'An error occurred during sign in';
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email address';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect password';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your connection';
-          break;
-        default:
-          errorMessage = error.message || 'Sign in failed';
-      }
-      
       return { 
         success: false, 
         error: { 
-          code: error.code, 
-          message: errorMessage 
+          message: 'An unexpected error occurred during sign in'
         } 
       };
     }
@@ -141,55 +127,31 @@ export const AuthProvider = ({ children }) => {
   // Sign up with email and password
   const signUp = async (email, password, displayName) => {
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
-      const user = userCredential.user;
+      const result = await AuthService.signUp(email, password, { name: displayName });
       
-      // Update user profile
-      if (displayName) {
-        await user.updateProfile({ displayName });
+      if (result.success) {
+        // Save user data to SecureStore
+        const userData = {
+          uid: result.user.id,
+          email: result.user.email,
+          displayName: result.user.name,
+          photoURL: result.user.photoURL || null,
+          emailVerified: result.user.emailVerified,
+          createdAt: new Date().toISOString(),
+        };
+        
+        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        
+        return { success: true, user: userData };
+      } else {
+        return result; // Return the error from AuthService
       }
-      
-      // Send email verification
-      await user.sendEmailVerification();
-      
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: displayName || user.displayName,
-        photoURL: user.photoURL,
-        emailVerified: user.emailVerified,
-        createdAt: new Date().toISOString(),
-      };
-      
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
-      
-      return { success: true, user: userData };
     } catch (error) {
       console.error('Sign up error:', error);
-      
-      let errorMessage = 'An error occurred during account creation';
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'An account with this email already exists';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Password should be at least 6 characters';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your connection';
-          break;
-        default:
-          errorMessage = error.message || 'Account creation failed';
-      }
-      
       return { 
         success: false, 
         error: { 
-          code: error.code, 
-          message: errorMessage 
+          message: 'An unexpected error occurred during account creation'
         } 
       };
     }
@@ -198,43 +160,28 @@ export const AuthProvider = ({ children }) => {
   // Sign out
   const signOut = async () => {
     try {
-      await auth().signOut();
-      await clearSavedCredentials();
-      return { success: true };
+      const result = await AuthService.signOut();
+      if (result.success) {
+        await clearSavedCredentials();
+      }
+      return result;
     } catch (error) {
       console.error('Sign out error:', error);
-      return { success: false, error };
+      return { success: false, error: { message: 'An unexpected error occurred during sign out' } };
     }
   };
 
   // Reset password
   const resetPassword = async (email) => {
     try {
-      await auth().sendPasswordResetEmail(email);
-      return { success: true };
+      const result = await AuthService.resetPassword(email);
+      return result;
     } catch (error) {
       console.error('Password reset error:', error);
-      
-      let errorMessage = 'Failed to send password reset email';
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email address';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your connection';
-          break;
-        default:
-          errorMessage = error.message || 'Password reset failed';
-      }
-      
       return { 
         success: false, 
         error: { 
-          code: error.code, 
-          message: errorMessage 
+          message: 'An unexpected error occurred while sending password reset email'
         } 
       };
     }
@@ -243,22 +190,29 @@ export const AuthProvider = ({ children }) => {
   // Resend email verification
   const resendEmailVerification = async () => {
     try {
-      const currentUser = auth().currentUser;
+      if (!AuthService.isAuthAvailable()) {
+        return { success: false, error: { message: 'Firebase auth not available' } };
+      }
+      const currentUser = AuthService.getCurrentUser();
       if (currentUser) {
-        await currentUser.sendEmailVerification();
+        const { sendEmailVerification } = await import('firebase/auth');
+        await sendEmailVerification(currentUser);
         return { success: true };
       }
       return { success: false, error: { message: 'No user is currently signed in' } };
     } catch (error) {
       console.error('Email verification error:', error);
-      return { success: false, error };
+      return { success: false, error: { message: 'Failed to send email verification' } };
     }
   };
 
   // Check if email is verified
   const checkEmailVerification = async () => {
     try {
-      const currentUser = auth().currentUser;
+      if (!AuthService.isAuthAvailable()) {
+        return { success: false, error: { message: 'Firebase auth not available' } };
+      }
+      const currentUser = AuthService.getCurrentUser();
       if (currentUser) {
         await currentUser.reload();
         return { success: true, emailVerified: currentUser.emailVerified };
@@ -266,7 +220,7 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: { message: 'No user is currently signed in' } };
     } catch (error) {
       console.error('Email verification check error:', error);
-      return { success: false, error };
+      return { success: false, error: { message: 'Failed to check email verification status' } };
     }
   };
 

@@ -12,7 +12,21 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from '@/constants';
+// import { COLORS } from '@/constants';
+
+// Temporary constants
+const COLORS = {
+  primary: {
+    400: '#34D399',
+    500: '#10B981'
+  },
+  secondary: {
+    800: '#1F2937',
+    900: '#111827'
+  },
+  white: '#FFFFFF',
+  textPrimary: '#111827'
+};
 import { useAuth } from '@/contexts/AuthContext';
 
 // Get screen dimensions
@@ -32,8 +46,8 @@ const ANIMATION_CONFIG = {
 // Brand Configuration
 const BRAND_CONFIG = {
   PRIMARY_WORD: "RYDEIQ",
-  SECONDARY_WORD: "DRIVER",
-  TAGLINE: "Drive. Earn. Succeed.",
+  SECONDARY_WORD: "WORKSIDE SOFTWARE",
+  TAGLINE: "Your rides. Your rates. Your rules.",
   PRIMARY_COLOR: COLORS.primary[500], // Enhanced green
   SECONDARY_COLOR: COLORS.white,
   ACCENT_COLOR: COLORS.primary[400],
@@ -45,10 +59,10 @@ const BRAND_CONFIG = {
 
 // Loading States
 const LOADING_PHASES = [
-  { id: 1, text: "Initializing Driver App...", duration: 800 },
-  { id: 2, text: "Loading Your Profile...", duration: 1000 },
+  { id: 1, text: "Initializing...", duration: 800 },
+  { id: 2, text: "Loading Resources...", duration: 1000 },
   { id: 3, text: "Setting Up Interface...", duration: 800 },
-  { id: 4, text: "Ready to Drive...", duration: 600 },
+  { id: 4, text: "Almost Ready...", duration: 600 },
 ];
 
 /**
@@ -344,7 +358,7 @@ const RydeAnimation = () => {
       // User is authenticated, go to main app
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Main' }],
+        routes: [{ name: 'Home' }],
       });
     } else {
       // User not authenticated, go to login
