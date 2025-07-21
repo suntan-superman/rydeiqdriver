@@ -1,4 +1,4 @@
-// Driver Efficiency Learning System for RydeIQ Driver App
+// Driver Efficiency Learning System for AnyRyde Driver App
 // Tracks actual fuel efficiency and improves estimates over time
 
 import AsyncStorage from '@react-native-async-storage/async-storage';

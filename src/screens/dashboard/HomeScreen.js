@@ -10,40 +10,22 @@ import {
   Dimensions,
   Alert,
   Modal,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
+import { playRideRequestSound } from '@/utils/soundEffects';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Temporary constants until we implement full constants system
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    500: '#6B7280',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
 // Navigation Menu Component
 const NavigationMenu = ({ visible, onClose, navigation, user }) => {
+  const { signOut } = useAuth();
+
   const menuItems = [
     { id: 'earnings', title: 'Earnings', icon: 'wallet', screen: 'Earnings' },
     { id: 'trips', title: 'Trip History', icon: 'car', screen: 'TripHistory' },
@@ -64,14 +46,25 @@ const NavigationMenu = ({ visible, onClose, navigation, user }) => {
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
+        {
+          text: 'Sign Out',
           style: 'destructive',
-          onPress: () => {
-            // TODO: Implement sign out functionality
-            Alert.alert('Sign Out', 'Sign out functionality will be implemented');
-          }
-        }
+          onPress: async () => {
+            try {
+              const result = await signOut();
+              if (result.success) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              } else {
+                Alert.alert('Error', result.error?.message || 'Failed to sign out. Please try again.');
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
       ]
     );
   };
@@ -94,7 +87,7 @@ const NavigationMenu = ({ visible, onClose, navigation, user }) => {
               </View>
               <View style={styles.menuHeaderText}>
                 <Text style={styles.menuUserName}>{user?.displayName || 'Driver'}</Text>
-                <Text style={styles.menuUserEmail}>{user?.email || 'driver@rydeiq.com'}</Text>
+                <Text style={styles.menuUserEmail}>{user?.email || 'driver@anyryde.com'}</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.closeMenuButton} onPress={onClose}>
@@ -132,6 +125,8 @@ const NavigationMenu = ({ visible, onClose, navigation, user }) => {
   );
 };
 
+const WEB_ONBOARDING_URL = 'https://anyryde.com/register';
+
 const HomeScreen = () => {
   const { user } = useAuth();
   const dispatch = useDispatch();
@@ -147,6 +142,9 @@ const HomeScreen = () => {
   // Ride request modal state
   const [showRideRequest, setShowRideRequest] = useState(false);
   const [showNavigationMenu, setShowNavigationMenu] = useState(false);
+
+  // Determine approval status
+  const isApproved = user?.status === 'approved' || user?.accountStatus === 'approved';
 
   // Handle online/offline toggle
   const handleStatusToggle = () => {
@@ -179,7 +177,7 @@ const HomeScreen = () => {
     : {
         text: 'OFFLINE', 
         subtext: 'Tap to go online',
-        backgroundColor: COLORS.secondary[500],
+        backgroundColor: COLORS.offline,
         icon: 'radio-button-off'
       };
 
@@ -222,13 +220,33 @@ const HomeScreen = () => {
       Alert.alert('Go Online First', 'You need to be online to receive ride requests');
       return;
     }
+    playRideRequestSound();
     setShowRideRequest(true);
   };
+
+  // Pending approval banner
+  const PendingApprovalBanner = () => (
+    <View style={styles.pendingBanner}>
+      <Ionicons name="alert-circle" size={20} color={COLORS.warning} style={{ marginRight: 8 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.pendingBannerText}>
+          Your account is pending approval. Please complete onboarding on the web to unlock all features.
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={styles.pendingBannerButton}
+        onPress={() => Linking.openURL(WEB_ONBOARDING_URL)}
+      >
+        <Text style={styles.pendingBannerButtonText}>Continue Onboarding</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-      
+      {/* Pending Approval Banner */}
+      {!isApproved && <PendingApprovalBanner />}
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -251,14 +269,16 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Main content, restrict features if not approved */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
         {/* Online/Offline Status Card */}
         <View style={styles.statusCard}>
-          <TouchableOpacity 
-            style={[styles.statusButton, { backgroundColor: statusConfig.backgroundColor }]}
-            onPress={handleStatusToggle}
-            activeOpacity={0.8}
+          {/* Online/Offline Toggle - disabled if not approved */}
+          <TouchableOpacity
+            style={[styles.statusButton, { backgroundColor: statusConfig.backgroundColor, opacity: isApproved ? 1 : 0.5 }]}
+            onPress={isApproved ? handleStatusToggle : undefined}
+            disabled={!isApproved}
           >
             <Ionicons 
               name={statusConfig.icon} 
@@ -783,6 +803,32 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.secondary[200],
     marginVertical: 16,
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning + '20',
+    padding: 12,
+    borderRadius: 8,
+    margin: 16,
+    marginBottom: 0,
+  },
+  pendingBannerText: {
+    color: COLORS.warning,
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  pendingBannerButton: {
+    backgroundColor: COLORS.warning,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginLeft: 8,
+  },
+  pendingBannerButtonText: {
+    color: COLORS.white,
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
 

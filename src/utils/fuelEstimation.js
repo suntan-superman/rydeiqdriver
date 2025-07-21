@@ -1,4 +1,4 @@
-// Fuel Cost Estimation Utility for RydeIQ Driver App
+// Fuel Cost Estimation Utility for AnyRyde Driver App
 // This unique feature helps drivers calculate potential profit before bidding
 
 // Comprehensive vehicle fuel efficiency database

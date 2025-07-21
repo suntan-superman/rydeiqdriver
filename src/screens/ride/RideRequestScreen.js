@@ -15,31 +15,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { playRideRequestSound, playBidSound, playSuccessSound, playErrorSound } from '@/utils/soundEffects';
+import { COLORS } from '@/constants';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    500: '#6B7280',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
 
 const RideRequestScreen = ({ 
   visible = false, 
@@ -246,6 +225,7 @@ const RideRequestScreen = ({
   // Handle accept ride
   const handleAccept = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSuccessSound();
     onAccept?.(request);
   };
 
@@ -253,8 +233,10 @@ const RideRequestScreen = ({
   const handleDecline = (reason = 'manual') => {
     if (reason === 'timeout') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      playErrorSound();
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      playErrorSound();
     }
     onDecline?.(request, reason);
   };
@@ -284,6 +266,7 @@ const RideRequestScreen = ({
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playBidSound();
     onCustomBid?.(request, finalAmount, bidType);
   };
 

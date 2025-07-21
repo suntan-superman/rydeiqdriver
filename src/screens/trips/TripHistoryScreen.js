@@ -8,68 +8,21 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  }
-};
-
-const DIMENSIONS = {
-  paddingXS: 4,
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusS: 6,
-  radiusM: 12,
-  radiusL: 16
-};
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 const TripHistoryScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
+  const { t } = useTranslation();
   const [selectedFilter, setSelectedFilter] = useState('all');
 
   // Mock trip data
@@ -157,9 +110,9 @@ const TripHistoryScreen = () => {
   ];
 
   const filters = [
-    { key: 'all', label: 'All Trips' },
-    { key: 'completed', label: 'Completed' },
-    { key: 'cancelled', label: 'Cancelled' }
+    { key: 'all', label: t('allTrips') },
+    { key: 'completed', label: t('completed') },
+    { key: 'cancelled', label: t('cancelled') }
   ];
 
   const filteredTrips = selectedFilter === 'all' 
@@ -175,9 +128,9 @@ const TripHistoryScreen = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'completed': return COLORS.success;
-      case 'cancelled': return COLORS.error;
-      default: return COLORS.secondary[500];
+      case 'completed': return theme.COLORS.success;
+      case 'cancelled': return theme.COLORS.error;
+      default: return theme.COLORS.secondary[500];
     }
   };
 
@@ -190,7 +143,7 @@ const TripHistoryScreen = () => {
             key={star}
             name={star <= rating ? "star" : "star-outline"}
             size={12}
-            color={star <= rating ? COLORS.warning : COLORS.secondary[300]}
+            color={star <= rating ? theme.COLORS.warning : theme.COLORS.secondary[300]}
           />
         ))}
       </View>
@@ -229,15 +182,15 @@ const TripHistoryScreen = () => {
       <View style={styles.tripDetails}>
         <View style={styles.tripMetrics}>
           <View style={styles.metric}>
-            <Ionicons name="speedometer-outline" size={16} color={COLORS.secondary[500]} />
+            <Ionicons name="speedometer-outline" size={16} color={theme.COLORS.secondary[500]} />
             <Text style={styles.metricText}>{trip.distance}</Text>
           </View>
           <View style={styles.metric}>
-            <Ionicons name="time-outline" size={16} color={COLORS.secondary[500]} />
+            <Ionicons name="time-outline" size={16} color={theme.COLORS.secondary[500]} />
             <Text style={styles.metricText}>{trip.duration}</Text>
           </View>
           <View style={styles.metric}>
-            <Ionicons name="person-outline" size={16} color={COLORS.secondary[500]} />
+            <Ionicons name="person-outline" size={16} color={theme.COLORS.secondary[500]} />
             <Text style={styles.metricText}>{trip.customerName}</Text>
           </View>
         </View>
@@ -251,7 +204,7 @@ const TripHistoryScreen = () => {
 
       <View style={styles.tripFooter}>
         <View style={styles.bidInfo}>
-          <Text style={styles.bidLabel}>Your Bid: </Text>
+          <Text style={styles.bidLabel}>{t('yourBid')}: </Text>
           <Text style={styles.bidAmount}>${trip.bidAmount.toFixed(2)}</Text>
         </View>
         <View style={styles.earningsInfo}>
@@ -265,20 +218,20 @@ const TripHistoryScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background }]}>
+      <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.COLORS.background} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.COLORS.card, borderBottomColor: theme.COLORS.border }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary[900]} />
+          <Ionicons name="arrow-back" size={24} color={theme.COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Trip History</Text>
+        <Text style={[styles.headerTitle, { color: theme.COLORS.text }]}>{t('tripHistory')}</Text>
         <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color={COLORS.secondary[700]} />
+          <Ionicons name="search" size={24} color={theme.COLORS.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -288,19 +241,19 @@ const TripHistoryScreen = () => {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.totalTrips}</Text>
-            <Text style={styles.statLabel}>Total Trips</Text>
+            <Text style={styles.statLabel}>{t('totalTrips')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>${stats.totalEarnings.toFixed(0)}</Text>
-            <Text style={styles.statLabel}>Total Earned</Text>
+            <Text style={styles.statLabel}>{t('totalEarned')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.averageRating.toFixed(1)} ⭐</Text>
-            <Text style={styles.statLabel}>Avg Rating</Text>
+            <Text style={styles.statLabel}>{t('avgRating')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.totalDistance.toFixed(0)} mi</Text>
-            <Text style={styles.statLabel}>Distance</Text>
+            <Text style={styles.statLabel}>{t('distance')}</Text>
           </View>
         </View>
 
@@ -333,12 +286,12 @@ const TripHistoryScreen = () => {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="car-outline" size={64} color={COLORS.secondary[300]} />
-              <Text style={styles.emptyStateTitle}>No trips found</Text>
+              <Ionicons name="car-outline" size={64} color={theme.COLORS.secondary[300]} />
+              <Text style={styles.emptyStateTitle}>{t('noTripsFound')}</Text>
               <Text style={styles.emptyStateText}>
                 {selectedFilter === 'all' 
-                  ? "You haven't completed any trips yet"
-                  : `No ${selectedFilter} trips found`
+                  ? t('noTripsYet')
+                  : t('noTripsFound', { filter: t(`${selectedFilter}Trips`) })
                 }
               </Text>
             </View>

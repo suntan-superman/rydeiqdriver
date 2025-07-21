@@ -12,21 +12,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-// import { COLORS } from '@/constants';
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981'
-  },
-  secondary: {
-    800: '#1F2937',
-    900: '#111827'
-  },
-  white: '#FFFFFF',
-  textPrimary: '#111827'
-};
+import { COLORS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Get screen dimensions

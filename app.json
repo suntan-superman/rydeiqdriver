@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "RydeIQ Driver",
+    "name": "AnyRyde Driver",
     "slug": "rydeiq-driver",
     "scheme": "rydeiq-driver",
     "version": "1.0.0",
@@ -24,16 +24,16 @@
       "bundleIdentifier": "com.rydeiq.driver",
       "buildNumber": "1",
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
-        "NSLocationWhenInUseUsageDescription": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
-        "NSLocationAlwaysUsageDescription": "RydeIQ needs background location access to continue tracking rides and receive requests while the app is in background.",
-        "NSCameraUsageDescription": "RydeIQ needs camera access to verify customer identity and capture required documentation.",
-        "NSPhotoLibraryUsageDescription": "RydeIQ needs photo library access to upload profile pictures and vehicle documentation.",
-        "NSMicrophoneUsageDescription": "RydeIQ needs microphone access for emergency calling and voice commands.",
-        "NSContactsUsageDescription": "RydeIQ needs contacts access to add emergency contacts for safety features.",
-        "NSFaceIDUsageDescription": "RydeIQ uses Face ID for secure and convenient authentication.",
-        "NSBluetoothAlwaysUsageDescription": "RydeIQ uses Bluetooth to connect with vehicle systems for enhanced driver experience.",
-        "NSCalendarsUsageDescription": "RydeIQ can access your calendar to help schedule driving availability.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "AnyRyde needs location access to match you with nearby rides and provide navigation during trips.",
+        "NSLocationWhenInUseUsageDescription": "AnyRyde needs location access to match you with nearby rides and provide navigation during trips.",
+        "NSLocationAlwaysUsageDescription": "AnyRyde needs background location access to continue tracking rides and receive requests while the app is in background.",
+        "NSCameraUsageDescription": "AnyRyde needs camera access to verify customer identity and capture required documentation.",
+        "NSPhotoLibraryUsageDescription": "AnyRyde needs photo library access to upload profile pictures and vehicle documentation.",
+        "NSMicrophoneUsageDescription": "AnyRyde needs microphone access for emergency calling and voice commands.",
+        "NSContactsUsageDescription": "AnyRyde needs contacts access to add emergency contacts for safety features.",
+        "NSFaceIDUsageDescription": "AnyRyde uses Face ID for secure and convenient authentication.",
+        "NSBluetoothAlwaysUsageDescription": "AnyRyde uses Bluetooth to connect with vehicle systems for enhanced driver experience.",
+        "NSCalendarsUsageDescription": "AnyRyde can access your calendar to help schedule driving availability.",
         "UIBackgroundModes": [
           "location",
           "remote-notification"
@@ -93,7 +93,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "rydeiq.com"
+              "host": "anyryde.com"
             }
           ],
           "category": [
@@ -111,9 +111,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
-          "locationAlwaysPermission": "RydeIQ needs background location access to continue tracking rides and receive requests while the app is in background.",
-          "locationWhenInUsePermission": "RydeIQ needs location access to match you with nearby rides and provide navigation during trips.",
+          "locationAlwaysAndWhenInUsePermission": "AnyRyde needs location access to match you with nearby rides and provide navigation during trips.",
+          "locationAlwaysPermission": "AnyRyde needs background location access to continue tracking rides and receive requests while the app is in background.",
+          "locationWhenInUsePermission": "AnyRyde needs location access to match you with nearby rides and provide navigation during trips.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
@@ -123,20 +123,20 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "RydeIQ needs camera access to verify customer identity and capture required documentation."
+          "cameraPermission": "AnyRyde needs camera access to verify customer identity and capture required documentation."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "RydeIQ needs photo library access to upload profile pictures and vehicle documentation.",
-          "cameraPermission": "RydeIQ needs camera access to capture photos for documentation."
+          "photosPermission": "AnyRyde needs photo library access to upload profile pictures and vehicle documentation.",
+          "cameraPermission": "AnyRyde needs camera access to capture photos for documentation."
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "RydeIQ uses Face ID for secure and convenient authentication."
+          "faceIDPermission": "AnyRyde uses Face ID for secure and convenient authentication."
         }
       ],
 

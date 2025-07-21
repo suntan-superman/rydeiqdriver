@@ -87,7 +87,7 @@ export const startLocationTracking = createAsyncThunk(
         deferredUpdatesInterval: 10000,
         showsBackgroundLocationIndicator: true,
         foregroundService: {
-          notificationTitle: 'RydeIQ Driver',
+          notificationTitle: 'AnyRyde Driver',
           notificationBody: 'Tracking location for ride matching',
         }
       });

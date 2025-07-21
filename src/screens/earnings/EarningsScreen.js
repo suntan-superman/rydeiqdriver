@@ -8,70 +8,21 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  }
-};
-
-const DIMENSIONS = {
-  paddingXS: 4,
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusS: 6,
-  radiusM: 12,
-  radiusL: 16
-};
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 const EarningsScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
+  const { t } = useTranslation();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
 
   // Mock earnings data
@@ -100,9 +51,9 @@ const EarningsScreen = () => {
   const hourlyRate = (currentData.total / currentData.hours).toFixed(2);
 
   const periods = [
-    { key: 'today', label: 'Today' },
-    { key: 'week', label: 'This Week' },
-    { key: 'month', label: 'This Month' }
+    { key: 'today', label: 'today' },
+    { key: 'week', label: 'week' },
+    { key: 'month', label: 'month' }
   ];
 
   const recentTrips = [
@@ -146,20 +97,26 @@ const EarningsScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background }]}>
+      <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.COLORS.background} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.COLORS.card, borderBottomColor: theme.COLORS.border }]}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary[900]} />
+          <Ionicons name="arrow-back" size={24} color={theme.COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Earnings</Text>
+        <Text style={[styles.headerTitle, { color: theme.COLORS.text }]}>{t('earnings')}</Text>
         <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="filter" size={24} color={COLORS.secondary[700]} />
+          <Ionicons name="filter" size={24} color={theme.COLORS.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -180,7 +137,7 @@ const EarningsScreen = () => {
                 styles.periodButtonText,
                 selectedPeriod === period.key && styles.periodButtonTextActive
               ]}>
-                {period.label}
+                {t(period.label)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -188,40 +145,40 @@ const EarningsScreen = () => {
 
         {/* Total Earnings Card */}
         <View style={styles.totalEarningsCard}>
-          <Text style={styles.totalEarningsLabel}>Total Earnings</Text>
+          <Text style={styles.totalEarningsLabel}>{t('totalEarnings')}</Text>
           <Text style={styles.totalEarningsAmount}>${currentData.total.toFixed(2)}</Text>
           <Text style={styles.totalEarningsSubtext}>
-            {currentData.trips} trips • ${hourlyRate}/hour
+            {currentData.trips} {t('trips')} • ${hourlyRate}/{t('hourlyRate')}
           </Text>
         </View>
 
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <StatCard
-            title="Trip Earnings"
+            title={t('tripEarnings')}
             value={`$${(currentData.total - currentData.tips).toFixed(2)}`}
-            subtitle={`${currentData.trips} trips`}
+            subtitle={`${currentData.trips} ${t('trips')}`}
             icon="car"
             color={COLORS.primary[500]}
           />
           <StatCard
-            title="Tips"
+            title={t('tips')}
             value={`$${currentData.tips.toFixed(2)}`}
-            subtitle="Customer tips"
+            subtitle={t('customerTips')}
             icon="heart"
             color={COLORS.success}
           />
           <StatCard
-            title="Hours Online"
+            title={t('hoursOnline')}
             value={`${currentData.hours}h`}
-            subtitle="Active time"
+            subtitle={t('activeTime')}
             icon="time"
             color={COLORS.warning}
           />
           <StatCard
-            title="Hourly Rate"
+            title={t('hourlyRate')}
             value={`$${hourlyRate}`}
-            subtitle="Per hour"
+            subtitle={t('perHour')}
             icon="trending-up"
             color={COLORS.primary[600]}
           />
@@ -229,7 +186,7 @@ const EarningsScreen = () => {
 
         {/* Payout Options */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Payout Options</Text>
+          <Text style={styles.sectionTitle}>{t('payoutOptions')}</Text>
           <View style={styles.payoutCard}>
             <View style={styles.payoutOptions}>
               <TouchableOpacity style={styles.payoutOption}>
@@ -237,8 +194,8 @@ const EarningsScreen = () => {
                   <Ionicons name="flash" size={20} color={COLORS.warning} />
                 </View>
                 <View style={styles.payoutOptionContent}>
-                  <Text style={styles.payoutOptionTitle}>Instant Payout</Text>
-                  <Text style={styles.payoutOptionSubtitle}>$1.50 fee • Available now</Text>
+                  <Text style={styles.payoutOptionTitle}>{t('instantPayout')}</Text>
+                  <Text style={styles.payoutOptionSubtitle}>{t('instantPayoutSubtitle')}</Text>
                 </View>
                 <Text style={styles.payoutOptionAmount}>$186.00</Text>
               </TouchableOpacity>
@@ -248,8 +205,8 @@ const EarningsScreen = () => {
                   <Ionicons name="calendar" size={20} color={COLORS.primary[500]} />
                 </View>
                 <View style={styles.payoutOptionContent}>
-                  <Text style={styles.payoutOptionTitle}>Weekly Payout</Text>
-                  <Text style={styles.payoutOptionSubtitle}>Free • Next Monday</Text>
+                  <Text style={styles.payoutOptionTitle}>{t('weeklyPayout')}</Text>
+                  <Text style={styles.payoutOptionSubtitle}>{t('weeklyPayoutSubtitle')}</Text>
                 </View>
                 <Text style={styles.payoutOptionAmount}>$187.50</Text>
               </TouchableOpacity>
@@ -260,9 +217,9 @@ const EarningsScreen = () => {
         {/* Recent Trips */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Trips</Text>
+            <Text style={styles.sectionTitle}>{t('recentTrips')}</Text>
             <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.viewAllText}>{t('viewAll')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.tripsCard}>
@@ -274,16 +231,16 @@ const EarningsScreen = () => {
 
         {/* Earnings Goals */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Daily Goal</Text>
+          <Text style={styles.sectionTitle}>{t('dailyGoal')}</Text>
           <View style={styles.goalCard}>
             <View style={styles.goalProgress}>
               <View style={styles.goalProgressBar}>
                 <View style={[styles.goalProgressFill, { width: '75%' }]} />
               </View>
-              <Text style={styles.goalProgressText}>$187.50 of $250.00 (75%)</Text>
+              <Text style={styles.goalProgressText}>{t('dailyGoalProgress')}</Text>
             </View>
             <TouchableOpacity style={styles.goalButton}>
-              <Text style={styles.goalButtonText}>Update Goal</Text>
+              <Text style={styles.goalButtonText}>{t('updateGoal')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { getVehicleMPG } from '../../utils/fuelEstimation';
 import { getDriverLearningStats, clearDriverLearningData } from '../../utils/driverEfficiencyLearning';
+import * as ImagePicker from 'expo-image-picker';
 
 const COLORS = {
   primary: {
@@ -49,6 +50,12 @@ const VehicleEfficiencyProfile = ({
     make: '',
     model: '',
     year: '',
+    color: '',
+    licensePlate: '',
+    vin: '',
+    insurancePolicy: '',
+    insuranceExpiration: '',
+    vehiclePhoto: null,
     vehicleType: 'standard',
     customEfficiency: null,
     useCustomEfficiency: false,
@@ -299,13 +306,46 @@ const VehicleEfficiencyProfile = ({
     );
   };
 
+  // Image picker for vehicle photo
+  const handlePickPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+    if (!result.cancelled) {
+      handleVehicleInfoChange('vehiclePhoto', result.uri);
+    }
+  };
+
+  const validateVehicleInfo = () => {
+    const { make, model, year, color, licensePlate, vin, insurancePolicy, insuranceExpiration } = vehicleInfo;
+    if (!make || !model || !year || !color || !licensePlate || !vin || !insurancePolicy || !insuranceExpiration) {
+      Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return false;
+    }
+    if (year.length !== 4 || isNaN(Number(year))) {
+      Alert.alert('Invalid Year', 'Please enter a valid 4-digit year.');
+      return false;
+    }
+    // Additional validation can be added here
+    return true;
+  };
+
+  const handleSaveVehicle = async () => {
+    if (!validateVehicleInfo()) return;
+    // TODO: Save vehicleInfo to Firestore under driver's profile
+    Alert.alert('Vehicle Saved', 'Your vehicle information has been updated.');
+    onVehicleUpdate?.(vehicleInfo);
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       
       {/* Vehicle Basic Information */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Vehicle Information</Text>
-        
         <View style={styles.inputRow}>
           <View style={styles.inputHalf}>
             <Text style={styles.inputLabel}>Make</Text>
@@ -317,7 +357,6 @@ const VehicleEfficiencyProfile = ({
               autoCapitalize="words"
             />
           </View>
-          
           <View style={styles.inputHalf}>
             <Text style={styles.inputLabel}>Model</Text>
             <TextInput
@@ -329,7 +368,6 @@ const VehicleEfficiencyProfile = ({
             />
           </View>
         </View>
-
         <View style={styles.inputRow}>
           <View style={styles.inputHalf}>
             <Text style={styles.inputLabel}>Year</Text>
@@ -342,23 +380,80 @@ const VehicleEfficiencyProfile = ({
               maxLength={4}
             />
           </View>
-          
           <View style={styles.inputHalf}>
-            <Text style={styles.inputLabel}>Fuel Type</Text>
-            <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() => {
-                // Show fuel type picker modal
-                Alert.alert('Feature Coming Soon', 'Fuel type selection will be available in the next update');
-              }}
-            >
-              <Text style={styles.pickerButtonText}>
-                {FUEL_TYPES.find(ft => ft.value === vehicleInfo.fuelType)?.label || 'Select'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={COLORS.secondary[500]} />
-            </TouchableOpacity>
+            <Text style={styles.inputLabel}>Color</Text>
+            <TextInput
+              style={styles.textInput}
+              value={vehicleInfo.color}
+              onChangeText={(value) => handleVehicleInfoChange('color', value)}
+              placeholder="e.g., Blue"
+              autoCapitalize="words"
+            />
           </View>
         </View>
+        <View style={styles.inputRow}>
+          <View style={styles.inputHalf}>
+            <Text style={styles.inputLabel}>License Plate</Text>
+            <TextInput
+              style={styles.textInput}
+              value={vehicleInfo.licensePlate}
+              onChangeText={(value) => handleVehicleInfoChange('licensePlate', value)}
+              placeholder="e.g., ABC1234"
+              autoCapitalize="characters"
+            />
+          </View>
+          <View style={styles.inputHalf}>
+            <Text style={styles.inputLabel}>VIN</Text>
+            <TextInput
+              style={styles.textInput}
+              value={vehicleInfo.vin}
+              onChangeText={(value) => handleVehicleInfoChange('vin', value)}
+              placeholder="Vehicle Identification Number"
+              autoCapitalize="characters"
+            />
+          </View>
+        </View>
+        <View style={styles.inputRow}>
+          <View style={styles.inputHalf}>
+            <Text style={styles.inputLabel}>Insurance Policy #</Text>
+            <TextInput
+              style={styles.textInput}
+              value={vehicleInfo.insurancePolicy}
+              onChangeText={(value) => handleVehicleInfoChange('insurancePolicy', value)}
+              placeholder="Policy Number"
+            />
+          </View>
+          <View style={styles.inputHalf}>
+            <Text style={styles.inputLabel}>Insurance Expiration</Text>
+            <TextInput
+              style={styles.textInput}
+              value={vehicleInfo.insuranceExpiration}
+              onChangeText={(value) => handleVehicleInfoChange('insuranceExpiration', value)}
+              placeholder="MM/YYYY"
+              keyboardType="numbers-and-punctuation"
+            />
+          </View>
+        </View>
+        {/* Vehicle Photo Upload */}
+        <View style={styles.inputRow}>
+          <View style={styles.inputHalf}>
+            <Text style={styles.inputLabel}>Vehicle Photo</Text>
+            <TouchableOpacity style={styles.photoButton} onPress={handlePickPhoto}>
+              <Ionicons name="camera" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.photoButtonText}>{vehicleInfo.vehiclePhoto ? 'Change Photo' : 'Upload Photo'}</Text>
+            </TouchableOpacity>
+            {vehicleInfo.vehiclePhoto && (
+              <View style={styles.photoPreview}>
+                <Ionicons name="image" size={20} color={COLORS.primary[500]} />
+                <Text style={styles.photoPreviewText}>Photo Selected</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        {/* Save Button */}
+        <TouchableOpacity style={styles.saveButtonMain} onPress={handleSaveVehicle}>
+          <Text style={styles.saveButtonTextMain}>Save Vehicle Info</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Vehicle Type Selection */}
@@ -839,6 +934,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: COLORS.white,
+  },
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+  },
+  photoButtonText: {
+    color: COLORS.primary[500],
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  photoPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  photoPreviewText: {
+    color: COLORS.primary[500],
+    marginLeft: 6,
+  },
+  saveButtonMain: {
+    backgroundColor: COLORS.primary[500],
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  saveButtonTextMain: {
+    color: COLORS.white,
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
 

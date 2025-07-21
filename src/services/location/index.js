@@ -85,7 +85,7 @@ export const startLocationTracking = async () => {
       deferredUpdatesInterval: 10000,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
-        notificationTitle: 'RydeIQ Driver',
+        notificationTitle: 'AnyRyde Driver',
         notificationBody: 'Tracking location for ride matching',
         notificationColor: '#10B981',
       },

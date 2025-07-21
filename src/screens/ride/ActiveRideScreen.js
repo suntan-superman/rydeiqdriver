@@ -14,33 +14,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
+import { COLORS } from '@/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    500: '#6B7280',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
-  white: '#FFFFFF',
-  black: '#000000'
-};
 
 // Ride states and their configurations
 const RIDE_STATES = {
@@ -190,7 +167,10 @@ const ActiveRideScreen = ({ route }) => {
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Complete Trip', 
-          onPress: () => handleStateChange('trip-completed'),
+          onPress: () => {
+            playSuccessSound();
+            handleStateChange('trip-completed');
+          },
           style: 'default'
         }
       ]

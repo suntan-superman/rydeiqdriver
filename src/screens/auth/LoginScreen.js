@@ -12,49 +12,25 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialIcons, AntDesign, Ionicons } from '@expo/vector-icons';
-// import { COLORS } from '@/constants';
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    50: '#ECFDF5',
-    200: '#A7F3D0',
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    200: '#E5E7EB',
-    400: '#9CA3AF',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    900: '#111827'
-  },
-  background: {
-    secondary: '#F9FAFB',
-    tertiary: '#F3F4F6'
-  },
-  text: {
-    primary: '#111827',
-    secondary: '#6B7280'
-  },
-  white: '#FFFFFF',
-  textPrimary: '#111827',
-  textSecondary: '#6B7280',
-  error: '#EF4444',
-  surface: '#FFFFFF'
-};
+import { COLORS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { useSelector } from 'react-redux';
+// Removed CheckBox import - using custom checkbox instead
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const { signIn, loadSavedCredentials, saveCredentials, clearSavedCredentials } = useAuth();
+
+  const biometricEnabled = useSelector(state => state.app.settings.biometricAuth !== false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [credentialsStored, setCredentialsStored] = useState(false);
 
   // Load saved credentials when component mounts
   useEffect(() => {
@@ -64,22 +40,44 @@ const LoginScreen = ({ navigation }) => {
         if (result.success && result.credentials) {
           setEmail(result.credentials.email);
           setPassword(result.credentials.password);
+          setRememberMe(true);
+        } else {
+          setRememberMe(false);
         }
       } catch (error) {
-        // No saved credentials found
+        setRememberMe(false);
       }
     };
     
     loadCredentials();
   }, [loadSavedCredentials]);
 
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      setBiometricSupported(compatible && enrolled);
+    };
+    checkBiometrics();
+  }, []);
+
+  useEffect(() => {
+    const checkCredentials = async () => {
+      const result = await loadSavedCredentials();
+      setCredentialsStored(result.success && !!result.credentials?.email && !!result.credentials?.password);
+    };
+    checkCredentials();
+  }, [loadSavedCredentials]);
+
   const handleLogin = async () => {
     if (!email || !password) {
+      playErrorSound();
       Alert.alert('Missing Information', 'Please fill in all fields');
       return;
     }
 
     if (!email.includes('@')) {
+      playErrorSound();
       Alert.alert('Invalid Email', 'Please enter a valid email address');
       return;
     }
@@ -88,17 +86,22 @@ const LoginScreen = ({ navigation }) => {
     try {
       const result = await signIn(email, password);
       if (result.success) {
-        // Save credentials for next time
-        await saveCredentials(email, password);
-        
-        // Navigation will be handled by AuthContext state change
+        // Save or clear credentials based on Remember Me
+        if (rememberMe) {
+          await saveCredentials(email, password);
+        } else {
+          await clearSavedCredentials();
+        }
+        // Play success sound
+        playSuccessSound();
         navigation.reset({
           index: 0,
           routes: [{ name: 'Home' }],
         });
       } else {
+        playErrorSound();
         Alert.alert(
-          'Login Failed', 
+          'Login Failed',
           result.error?.message || 'Invalid email or password. Please try again.'
         );
       }
@@ -107,6 +110,30 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Login with Biometrics',
+        fallbackLabel: 'Enter Password',
+      });
+      if (result.success) {
+        // Use stored credentials to login
+        const creds = await loadSavedCredentials();
+        if (creds.success && creds.credentials) {
+          setEmail(creds.credentials.email);
+          setPassword(creds.credentials.password);
+          handleLogin();
+        }
+      } else {
+        playErrorSound();
+        Alert.alert('Authentication Failed', 'Biometric authentication was not successful.');
+      }
+    } catch (error) {
+      playErrorSound();
+      Alert.alert('Error', 'Biometric authentication failed.');
     }
   };
 
@@ -154,8 +181,8 @@ const LoginScreen = ({ navigation }) => {
             </View>
           </View>
           <Text style={styles.logoText}>
-            <Text style={styles.rydeText}>RYDE</Text>
-            <Text style={styles.iqText}>IQ</Text>
+            <Text style={styles.rydeText}>ANY</Text>
+            <Text style={styles.iqText}>RYDE</Text>
           </Text>
           <Text style={styles.driverText}>DRIVER</Text>
           <Text style={styles.taglineText}>Drive. Earn. Succeed.</Text>
@@ -176,13 +203,13 @@ const LoginScreen = ({ navigation }) => {
             <MaterialIcons
               name="email"
               size={20}
-              color={COLORS.secondary[500]}
+              color={COLORS.gray500}
               style={styles.inputIcon}
             />
             <TextInput
               style={styles.textInput}
               placeholder="Driver Email"
-              placeholderTextColor={COLORS.secondary[400]}
+              placeholderTextColor={COLORS.gray400}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -199,13 +226,13 @@ const LoginScreen = ({ navigation }) => {
             <AntDesign
               name="lock1"
               size={20}
-              color={COLORS.secondary[500]}
+              color={COLORS.gray500}
               style={styles.inputIcon}
             />
             <TextInput
               style={styles.textInput}
               placeholder="Password"
-              placeholderTextColor={COLORS.secondary[400]}
+              placeholderTextColor={COLORS.gray400}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -223,20 +250,50 @@ const LoginScreen = ({ navigation }) => {
               <Ionicons
                 name={showPassword ? "eye-off" : "eye"}
                 size={20}
-                color={COLORS.secondary[500]}
+                color={COLORS.gray500}
               />
             </TouchableOpacity>
           </View>
 
-          {/* Forgot Password Link */}
-          <TouchableOpacity 
-            style={styles.forgotPasswordLink}
-            onPress={handleForgotPassword}
-            disabled={isLoading}
-          >
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
+          {/* Remember Me and Forgot Password Row */}
+          <View style={styles.rememberForgotRow}>
+            <View style={styles.rememberMeRow}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+                <View style={[
+                  styles.checkbox,
+                  rememberMe && styles.checkboxChecked
+                ]}>
+                  {rememberMe && (
+                    <Ionicons name="checkmark" size={16} color={COLORS.white} />
+                  )}
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.rememberMeText}>Remember Me</Text>
+            </View>
+
+            {/* Forgot Password Link */}
+            <TouchableOpacity 
+              style={styles.forgotPasswordLink}
+              onPress={handleForgotPassword}
+              disabled={isLoading}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Biometric Login Button */}
+        {biometricEnabled && biometricSupported && credentialsStored && (
+          <TouchableOpacity style={styles.biometricButton} onPress={handleBiometricLogin}>
+            <Ionicons name="finger-print" size={24} color={COLORS.primary[500]} />
+            <Text style={styles.biometricButtonText}>Login with Biometrics</Text>
+          </TouchableOpacity>
+        )}
+
+        
 
         {/* Login Button */}
         <View style={styles.actionContainer}>
@@ -251,7 +308,7 @@ const LoginScreen = ({ navigation }) => {
               {isLoading ? 'Signing In...' : 'Sign In'}
             </Text>
             {!isLoading && (
-              <Ionicons name="arrow-forward" size={20} color={COLORS.secondary[900]} />
+              <Ionicons name="arrow-forward" size={20} color={COLORS.gray900} />
             )}
           </TouchableOpacity>
 
@@ -262,7 +319,7 @@ const LoginScreen = ({ navigation }) => {
             disabled={isLoading}
           >
             <Text style={styles.signUpText}>
-              New driver? <Text style={styles.signUpTextBold}>Join RydeIQ</Text>
+              New driver? <Text style={styles.signUpTextBold}>Join AnyRyde</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -302,7 +359,7 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.linkText}>Privacy Policy</Text>
           </Text>
           <Text style={styles.copyrightText}>
-            RydeIQ Driver © 2025
+            AnyRyde Driver © 2025
           </Text>
         </View>
       </ScrollView>
@@ -353,19 +410,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary[500],
   },
   iqText: {
-    color: COLORS.secondary[900],
+    color: COLORS.gray900,
   },
   driverText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.secondary[600],
+    color: COLORS.gray600,
     letterSpacing: 2,
     marginBottom: 8,
   },
   taglineText: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.secondary[700],
+    color: COLORS.gray700,
     textAlign: 'center',
   },
   autoFillNotice: {
@@ -392,10 +449,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background.secondary,
+    backgroundColor: COLORS.gray100,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.secondary[200],
+    borderColor: COLORS.gray200,
     marginBottom: 16,
     paddingHorizontal: 16,
     shadowColor: '#000',
@@ -414,14 +471,19 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 52,
     fontSize: 16,
-    color: COLORS.text.primary,
+    color: COLORS.textPrimary,
     paddingVertical: 16,
   },
   eyeIcon: {
     padding: 4,
   },
+  rememberForgotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   forgotPasswordLink: {
-    alignSelf: 'flex-end',
     paddingVertical: 8,
   },
   forgotPasswordText: {
@@ -442,7 +504,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.secondary[900],
+    borderColor: COLORS.gray900,
     minWidth: 200,
     shadowColor: '#000',
     shadowOffset: {
@@ -469,7 +531,7 @@ const styles = StyleSheet.create({
   },
   signUpText: {
     fontSize: 16,
-    color: COLORS.secondary[600],
+    color: COLORS.gray600,
     textAlign: 'center',
   },
   signUpTextBold: {
@@ -477,7 +539,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary[500],
   },
   featuresContainer: {
-    backgroundColor: COLORS.background.secondary,
+    backgroundColor: COLORS.gray100,
     borderRadius: 12,
     paddingVertical: 20,
     paddingHorizontal: 16,
@@ -490,7 +552,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    color: COLORS.text.secondary,
+    color: COLORS.textSecondary,
     marginLeft: 12,
     fontWeight: '500',
   },
@@ -498,7 +560,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   debugButton: {
-    backgroundColor: COLORS.background.tertiary,
+    backgroundColor: COLORS.gray200,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -506,12 +568,12 @@ const styles = StyleSheet.create({
   },
   debugButtonText: {
     fontSize: 12,
-    color: COLORS.secondary[600],
+    color: COLORS.gray600,
     fontWeight: '500',
   },
   termsText: {
     fontSize: 12,
-    color: COLORS.secondary[500],
+    color: COLORS.gray500,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 8,
@@ -522,9 +584,61 @@ const styles = StyleSheet.create({
   },
   copyrightText: {
     fontSize: 12,
-    color: COLORS.secondary[400],
+    color: COLORS.gray400,
     fontWeight: '400',
   },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary[100],
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.primary[200],
+    minWidth: 200,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  biometricButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary[700],
+    marginLeft: 10,
+  },
+  rememberMeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkboxContainer: {
+    marginRight: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: COLORS.gray400,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.primary[500],
+    borderColor: COLORS.primary[500],
+  },
+  rememberMeText: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+  },
+
 });
 
 export default LoginScreen; 

@@ -2,7 +2,7 @@ import messaging from '@react-native-firebase/messaging';
 import { Platform, PermissionsAndroid } from 'react-native';
 
 /**
- * Firebase Cloud Messaging (FCM) service for RydeIQ Driver app
+ * Firebase Cloud Messaging (FCM) service for AnyRyde Driver app
  * Handles push notifications for ride requests, bid updates, and earnings
  */
 

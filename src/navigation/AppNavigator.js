@@ -4,51 +4,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectHasOnboarded } from '@/store/slices/authSlice';
 import { useAuth } from '@/contexts/AuthContext';
-// import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
-
-// Temporary constants
-const COLORS = {
-  primary: '#10B981',
-  white: '#FFFFFF',
-  textPrimary: '#111827',
-  textSecondary: '#6B7280',
-  error: '#EF4444',
-  surface: '#FFFFFF'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  },
-  lineHeights: {
-    relaxed: 1.625
-  }
-};
-
-const DIMENSIONS = {
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusM: 8
-};
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 // Import new screens - RESTORED
 import RydeAnimation from '@/screens/startup/RydeAnimation';
 import LoginScreen from '@/screens/auth/LoginScreen';
+import SignUpScreen from '@/screens/auth/SignUpScreen';
+import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
+import OnboardingScreen from '@/screens/auth/OnboardingScreen';
 import HomeScreen from '@/screens/dashboard/HomeScreen';
 import ActiveRideScreen from '@/screens/ride/ActiveRideScreen';
 import NavigationScreen from '@/screens/navigation/NavigationScreen';
@@ -57,35 +20,9 @@ import ProfileScreen from '@/screens/profile/ProfileScreen';
 import EarningsScreen from '@/screens/earnings/EarningsScreen';
 import TripHistoryScreen from '@/screens/trips/TripHistoryScreen';
 import SupportScreen from '@/screens/support/SupportScreen';
+import EmergencyContactScreen from '@/screens/profile/EmergencyContactScreen';
 
 const Stack = createNativeStackNavigator();
-
-// All screens now imported from real files
-
-// Placeholder screens - these will be replaced with full implementations
-const OnboardingScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Welcome to RydeIQ Driver</Text>
-    <Text style={styles.screenText}>Onboarding screen will be implemented here</Text>
-  </View>
-);
-
-// Placeholder screens for development
-const SignUpScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Join RydeIQ</Text>
-    <Text style={styles.screenText}>Driver registration will be implemented here</Text>
-  </View>
-);
-
-const ForgotPasswordScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Reset Password</Text>
-    <Text style={styles.screenText}>Password recovery will be implemented here</Text>
-  </View>
-);
-
-
 
 const AppNavigator = () => {
   const reduxIsAuthenticated = useSelector(selectIsAuthenticated);
@@ -107,7 +44,7 @@ const AppNavigator = () => {
 
   return (
     <Stack.Navigator
-      initialRouteName={!hasOnboarded ? "RydeAnimation" : isAuthenticated ? "Home" : "Login"}
+      initialRouteName={isAuthenticated ? "Home" : "Onboarding"}
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
@@ -140,6 +77,10 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="SignUp" 
         component={SignUpScreen}
+      />
+      <Stack.Screen
+        name="NextSteps"
+        component={require('@/screens/auth/NextStepsScreen').default}
       />
       <Stack.Screen 
         name="ForgotPassword" 
@@ -213,6 +154,20 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="Support" 
         component={SupportScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="Banking"
+        component={require('@/screens/settings/BankingScreen').default}
+      />
+      
+      {/* Emergency Contact Screen */}
+      <Stack.Screen 
+        name="EmergencyContact" 
+        component={EmergencyContactScreen}
         options={{
           headerShown: false,
           gestureEnabled: true,

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import { auth, AuthService } from '../services/firebase/config';
+import { playSignInOutSound } from '../utils/soundEffects';
 
 const AuthContext = createContext({});
 
@@ -162,7 +163,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const result = await AuthService.signOut();
       if (result.success) {
-        await clearSavedCredentials();
+        // Don't clear saved credentials on sign out - let user decide with "Remember Me"
+        // await clearSavedCredentials();
+        // Play sign out sound
+        playSignInOutSound();
       }
       return result;
     } catch (error) {

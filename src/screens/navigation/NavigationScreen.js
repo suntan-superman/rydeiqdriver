@@ -17,33 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import { COLORS } from '@/constants';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    500: '#6B7280',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
-  white: '#FFFFFF',
-  black: '#000000'
-};
 
 // Google Maps API Key (should be in env vars in production)
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU';

@@ -1,3 +1,5 @@
+// TODO Sign Out functionality
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, Animated, Easing } from 'react-native';
 
@@ -14,11 +16,13 @@ import '@/services/firebase/config';
 
 // Step 4: Test AuthContext with lazy Firebase imports
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import './src/i18n';
 
 // Simple loading component for PersistGate
 function SimpleLoadingScreen() {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary[500] }}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#10B981' }}>
       <Text style={{ color: 'white', fontSize: 18 }}>Get Ready...</Text>
     </View>
   );
@@ -74,7 +78,7 @@ function AppContent() {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>RydeIQ Driver</Text>
+          <Text style={styles.appName}>AnyRyde Driver</Text>
           <Text style={styles.tagline}>Your rides. Your rates. Your rules.</Text>
         </Animated.View>
       </View>
@@ -112,9 +116,11 @@ export default function App() {
   return (
     <Provider store={store}>
       <PersistGate loading={<SimpleLoadingScreen />} persistor={persistor}>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </ThemeProvider>
       </PersistGate>
     </Provider>
   );

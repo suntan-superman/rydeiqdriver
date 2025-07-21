@@ -11,77 +11,29 @@ import {
   Alert,
   Linking,
   Share,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 // Import Redux actions
 import { updateSettings, setTheme, setLanguage } from '@/store/slices/appSlice';
 
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  }
-};
-
-const DIMENSIONS = {
-  paddingXS: 4,
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusS: 6,
-  radiusM: 12,
-  radiusL: 16
-};
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 const SettingsScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { signOut, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   
   // Redux state
   const settings = useSelector(state => state.app.settings);
-  const theme = useSelector(state => state.app.theme);
   const language = useSelector(state => state.app.language);
   const appVersion = useSelector(state => state.app.version?.current || '1.0.0');
   
@@ -123,12 +75,14 @@ const SettingsScreen = () => {
 
   const handleLanguageSelect = () => {
     Alert.alert(
-      'Select Language',
-      'Choose your preferred language',
+      t('settings'),
+      t('Choose your preferred language'),
       LANGUAGE_OPTIONS.map(lang => ({
         text: `${lang.flag} ${lang.name}`,
-        onPress: () => dispatch(setLanguage(lang.code))
-      })).concat([{ text: 'Cancel', style: 'cancel' }])
+        onPress: async () => {
+          await i18n.changeLanguage(lang.code);
+        }
+      })).concat([{ text: t('Cancel'), style: 'cancel' }])
     );
   };
 
@@ -163,7 +117,7 @@ const SettingsScreen = () => {
       'How can we help you?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Email Support', onPress: () => Linking.openURL('mailto:driver-support@rydeiq.com') },
+        { text: 'Email Support', onPress: () => Linking.openURL('mailto:driver-support@antryde.com') },
         { text: 'Call Support', onPress: () => Linking.openURL('tel:+18005551234') },
         { text: 'Live Chat', onPress: () => Alert.alert('Coming Soon', 'Live chat will be available in the next update') }
       ]
@@ -173,8 +127,8 @@ const SettingsScreen = () => {
   const handleShareApp = async () => {
     try {
       await Share.share({
-        message: 'Join RydeIQ Driver - Set your own prices and earn more! Download: https://rydeiq.com/driver',
-        title: 'RydeIQ Driver'
+        message: 'Join AnyRyde Driver - Set your own prices and earn more! Download: https://anyryde.com/driver',
+        title: 'AnyRyde Driver'
       });
     } catch (error) {
       console.error('Error sharing app:', error);
@@ -195,7 +149,7 @@ const SettingsScreen = () => {
     >
       <View style={styles.settingLeft}>
         <View style={styles.settingIcon}>
-          <Ionicons name={icon} size={24} color={COLORS.primary[500]} />
+          <Ionicons name={icon} size={24} color={theme.COLORS.primary[500]} />
         </View>
         <View style={styles.settingText}>
           <Text style={styles.settingTitle}>{title}</Text>
@@ -208,11 +162,11 @@ const SettingsScreen = () => {
             <Switch
               value={value}
               onValueChange={onToggle}
-              trackColor={{ false: COLORS.secondary[300], true: COLORS.primary[400] }}
-              thumbColor={value ? COLORS.primary[500] : COLORS.secondary[500]}
+              trackColor={{ false: theme.COLORS.secondary[300], true: theme.COLORS.primary[400] }}
+              thumbColor={value ? theme.COLORS.primary[500] : theme.COLORS.secondary[500]}
             />
           ) : showArrow ? (
-            <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+            <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary[500]} />
           ) : null
         )}
       </View>
@@ -221,7 +175,7 @@ const SettingsScreen = () => {
 
   const SectionHeader = ({ title, icon }) => (
     <View style={styles.sectionHeader}>
-      <Ionicons name={icon} size={20} color={COLORS.primary[500]} />
+      <Ionicons name={icon} size={20} color={theme.COLORS.primary[500]} />
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
@@ -233,18 +187,18 @@ const SettingsScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background }]}>
+      <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.COLORS.background} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.COLORS.card, borderBottomColor: theme.COLORS.border }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary[900]} />
+          <Ionicons name="arrow-back" size={24} color={theme.COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.COLORS.text }]}>{t('settings')}</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -270,7 +224,7 @@ const SettingsScreen = () => {
             icon="card-outline"
             title="Banking & Payouts"
             subtitle="Manage payment methods"
-            onPress={() => Alert.alert('Coming Soon', 'Banking settings will be available in the next update')}
+            onPress={() => navigation.navigate('Banking')}
             showArrow
           />
         </Card>
@@ -282,13 +236,13 @@ const SettingsScreen = () => {
             icon="moon-outline"
             title="Dark Mode"
             subtitle="Toggle dark/light theme"
-            value={theme === 'dark'}
-            onToggle={handleThemeToggle}
+            value={theme.mode === 'dark'}
+            onToggle={toggleTheme}
           />
           <SettingItem
             icon="language-outline"
-            title="Language"
-            subtitle={LANGUAGE_OPTIONS.find(l => l.code === language)?.name || 'English'}
+            title={t('Language')}
+            subtitle={LANGUAGE_OPTIONS.find(l => l.code === i18n.language)?.name || 'English'}
             onPress={handleLanguageSelect}
             showArrow
           />
@@ -398,7 +352,7 @@ const SettingsScreen = () => {
             icon="call-outline"
             title="Emergency Contact"
             subtitle={driverSettings.emergencyContact || "Not set"}
-            onPress={() => Alert.alert('Coming Soon', 'Emergency contact setup will be available in the next update')}
+            onPress={() => navigation.navigate('EmergencyContact')}
             showArrow
           />
           <SettingItem
@@ -438,19 +392,19 @@ const SettingsScreen = () => {
             icon="document-text-outline"
             title="Terms of Service"
             subtitle="Read our terms and conditions"
-            onPress={() => openLink('https://rydeiq.com/terms')}
+            onPress={() => openLink('https://anyryde.com/terms')}
             showArrow
           />
           <SettingItem
             icon="shield-outline"
             title="Privacy Policy"
             subtitle="How we protect your data"
-            onPress={() => openLink('https://rydeiq.com/privacy')}
+            onPress={() => openLink('https://anyryde.com/privacy')}
             showArrow
           />
           <SettingItem
             icon="share-outline"
-            title="Share RydeIQ Driver"
+            title="Share AnyRyde Driver"
             subtitle="Invite other drivers"
             onPress={handleShareApp}
             showArrow
@@ -466,7 +420,7 @@ const SettingsScreen = () => {
             icon="information-outline"
             title="About"
             subtitle={`Version ${appVersion}`}
-            onPress={() => Alert.alert('RydeIQ Driver', `Version ${appVersion}\n\nYour rides. Your rates. Your rules.\n\n© 2024 WORKSIDE SOFTWARE`)}
+            onPress={() => Alert.alert('AnyRyde Driver', `Version ${appVersion}\n\nYour rides. Your rates. Your rules.\n\n© 2024 WORKSIDE SOFTWARE`)}
             showArrow
           />
         </Card>
@@ -474,7 +428,7 @@ const SettingsScreen = () => {
         {/* Sign Out Section */}
         <Card style={styles.signOutCard}>
           <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
+            <Ionicons name="log-out-outline" size={24} color={theme.COLORS.error} />
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </Card>

@@ -10,67 +10,18 @@ import {
   Linking,
   Alert,
   Share,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  }
-};
-
-const DIMENSIONS = {
-  paddingXS: 4,
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusS: 6,
-  radiusM: 12,
-  radiusL: 16
-};
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 const SupportScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
+  const { t } = useTranslation();
   const [expandedFAQ, setExpandedFAQ] = useState(null);
 
   const contactOptions = [
@@ -98,7 +49,7 @@ const SupportScreen = () => {
       subtitle: 'Send us a detailed message',
       icon: 'mail',
       color: COLORS.warning,
-      onPress: () => Linking.openURL('mailto:driver-support@rydeiq.com?subject=Driver Support Request'),
+      onPress: () => Linking.openURL('mailto:driver-support@anyryde.com?subject=Driver Support Request'),
       available: 'Response in 2-4 hours'
     },
     {
@@ -147,7 +98,7 @@ const SupportScreen = () => {
     {
       id: 1,
       question: 'How does the bidding system work?',
-      answer: 'RydeIQ allows you to set your own prices. When a ride request comes in, you can either accept the company estimate or submit a custom bid. Customers choose based on price, arrival time, and driver rating.'
+      answer: 'AnyRyde allows you to set your own prices. When a ride request comes in, you can either accept the company estimate or submit a custom bid. Customers choose based on price, arrival time, and driver rating.'
     },
     {
       id: 2,
@@ -167,7 +118,7 @@ const SupportScreen = () => {
     {
       id: 5,
       question: 'Can I drive in multiple cities?',
-      answer: 'Yes! Your RydeIQ Driver account works in all supported cities. Just update your location in the app and you can start accepting rides in any new area.'
+      answer: 'Yes! Your AnyRyde Driver account works in all supported cities. Just update your location in the app and you can start accepting rides in any new area.'
     },
     {
       id: 6,
@@ -198,8 +149,8 @@ const SupportScreen = () => {
   const handleShareApp = async () => {
     try {
       await Share.share({
-        message: 'Join RydeIQ Driver - Set your own prices and earn more! Download: https://rydeiq.com/driver',
-        title: 'RydeIQ Driver'
+        message: 'Join AnyRyde Driver - Set your own prices and earn more! Download: https://anyryde.com/driver',
+        title: 'AnyRyde Driver'
       });
     } catch (error) {
       console.error('Error sharing app:', error);
@@ -219,7 +170,7 @@ const SupportScreen = () => {
         <Text style={styles.contactSubtitle}>{option.subtitle}</Text>
         <Text style={styles.contactAvailability}>{option.available}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+      <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
     </TouchableOpacity>
   );
 
@@ -246,7 +197,7 @@ const SupportScreen = () => {
         <Ionicons 
           name={expandedFAQ === item.id ? "chevron-up" : "chevron-down"} 
           size={20} 
-          color={COLORS.secondary[500]} 
+          color={theme.COLORS.secondary} 
         />
       </TouchableOpacity>
       {expandedFAQ === item.id && (
@@ -271,20 +222,20 @@ const SupportScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background }]}>
+      <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.COLORS.background} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.COLORS.card, borderBottomColor: theme.COLORS.border }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary[900]} />
+          <Ionicons name="arrow-back" size={24} color={theme.COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Support</Text>
+        <Text style={[styles.headerTitle, { color: theme.COLORS.text }]}>{t('support')}</Text>
         <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color={COLORS.secondary[700]} />
+          <Ionicons name="search" size={24} color={theme.COLORS.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -294,7 +245,7 @@ const SupportScreen = () => {
         <Card style={styles.emergencyCard}>
           <View style={styles.emergencyHeader}>
             <View style={styles.emergencyIcon}>
-              <Ionicons name="alert-circle" size={32} color={COLORS.error} />
+              <Ionicons name="alert-circle" size={32} color={theme.COLORS.error} />
             </View>
             <View style={styles.emergencyInfo}>
               <Text style={styles.emergencyTitle}>{emergencyInfo.title}</Text>
@@ -306,15 +257,15 @@ const SupportScreen = () => {
             style={styles.emergencyButton}
             onPress={() => Linking.openURL(`tel:${emergencyInfo.phone}`)}
           >
-            <Ionicons name="call" size={20} color={COLORS.white} />
-            <Text style={styles.emergencyButtonText}>Call Emergency</Text>
+            <Ionicons name="call" size={20} color={theme.COLORS.white} />
+            <Text style={styles.emergencyButtonText}>{t('callEmergency')}</Text>
           </TouchableOpacity>
         </Card>
 
         {/* Contact Options */}
         <SectionHeader 
-          title="Contact Support" 
-          subtitle="Get help from our support team"
+          title={t('contactSupport')} 
+          subtitle={t('getHelpFromSupportTeam')}
         />
         <Card>
           {contactOptions.map((option) => (
@@ -324,8 +275,8 @@ const SupportScreen = () => {
 
         {/* Quick Help */}
         <SectionHeader 
-          title="Quick Help" 
-          subtitle="Common topics and guides"
+          title={t('quickHelp')} 
+          subtitle={t('commonTopicsAndGuides')}
         />
         <View style={styles.quickHelpGrid}>
           {quickHelp.map((item) => (
@@ -335,8 +286,8 @@ const SupportScreen = () => {
 
         {/* FAQ Section */}
         <SectionHeader 
-          title="Frequently Asked Questions" 
-          subtitle="Find answers to common questions"
+          title={t('frequentlyAskedQuestions')} 
+          subtitle={t('findAnswersToCommonQuestions')}
         />
         <Card>
           {faqData.map((item) => (
@@ -346,41 +297,41 @@ const SupportScreen = () => {
 
         {/* Additional Resources */}
         <SectionHeader 
-          title="Additional Resources" 
-          subtitle="More ways to get help"
+          title={t('additionalResources')} 
+          subtitle={t('moreWaysToGetHelp')}
         />
         <Card>
           <TouchableOpacity style={styles.resourceItem}>
             <View style={styles.resourceIcon}>
-              <Ionicons name="book" size={24} color={COLORS.primary[500]} />
+              <Ionicons name="book" size={24} color={theme.COLORS.primary} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>Driver Handbook</Text>
-              <Text style={styles.resourceSubtitle}>Complete guide to driving with RydeIQ</Text>
+              <Text style={styles.resourceTitle}>{t('driverHandbook')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('completeGuideToDrivingWithAnyRyde')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+            <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.resourceItem}>
             <View style={styles.resourceIcon}>
-              <Ionicons name="videocam" size={24} color={COLORS.info} />
+              <Ionicons name="videocam" size={24} color={theme.COLORS.info} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>Video Tutorials</Text>
-              <Text style={styles.resourceSubtitle}>Watch step-by-step guides</Text>
+              <Text style={styles.resourceTitle}>{t('videoTutorials')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('watchStepByStepGuides')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+            <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.resourceItem}>
             <View style={styles.resourceIcon}>
-              <Ionicons name="people" size={24} color={COLORS.success} />
+              <Ionicons name="people" size={24} color={theme.COLORS.success} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>Driver Community</Text>
-              <Text style={styles.resourceSubtitle}>Connect with other drivers</Text>
+              <Text style={styles.resourceTitle}>{t('driverCommunity')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('connectWithOtherDrivers')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+            <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -388,24 +339,24 @@ const SupportScreen = () => {
             onPress={handleShareApp}
           >
             <View style={styles.resourceIcon}>
-              <Ionicons name="share-social" size={24} color={COLORS.warning} />
+              <Ionicons name="share-social" size={24} color={theme.COLORS.warning} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>Refer a Driver</Text>
-              <Text style={styles.resourceSubtitle}>Share RydeIQ with friends</Text>
+              <Text style={styles.resourceTitle}>{t('referADriver')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('shareAnyRydeWithFriends')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.secondary[500]} />
+            <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
         </Card>
 
         {/* App Info */}
         <Card style={styles.appInfoCard}>
-          <Text style={styles.appInfoTitle}>RydeIQ Driver v1.0.0</Text>
+          <Text style={styles.appInfoTitle}>{t('anyRydeDriver')}</Text>
           <Text style={styles.appInfoText}>
-            Your rides. Your rates. Your rules.
+            {t('yourRidesYourRatesYourRules')}
           </Text>
           <Text style={styles.appInfoText}>
-            © 2024 WORKSIDE SOFTWARE
+            {t('copyright')}
           </Text>
         </Card>
 

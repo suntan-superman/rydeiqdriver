@@ -16,61 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
-
-// Temporary constants
-const COLORS = {
-  primary: {
-    400: '#34D399',
-    500: '#10B981',
-    600: '#059669',
-    700: '#047857'
-  },
-  secondary: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    600: '#4B5563',
-    700: '#374151',
-    800: '#1F2937',
-    900: '#111827'
-  },
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  white: '#FFFFFF',
-  black: '#000000'
-};
-
-const TYPOGRAPHY = {
-  fontSizes: {
-    xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30
-  },
-  fontWeights: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700'
-  }
-};
-
-const DIMENSIONS = {
-  paddingXS: 4,
-  paddingS: 8,
-  paddingM: 16,
-  paddingL: 24,
-  paddingXL: 32,
-  radiusS: 6,
-  radiusM: 12,
-  radiusL: 16
-};
+import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
+import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -140,6 +87,7 @@ const ProfileScreen = () => {
       }));
       setEditingField(null);
       setEditValue('');
+      playSuccessSound();
     }
   };
 
@@ -152,6 +100,7 @@ const ProfileScreen = () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
+        playErrorSound();
         Alert.alert('Permission needed', 'Please grant photo library access to upload images');
         return;
       }
@@ -185,6 +134,7 @@ const ProfileScreen = () => {
         }
       }
     } catch (error) {
+      playErrorSound();
       Alert.alert('Error', 'Failed to upload photo');
     }
   };
@@ -205,6 +155,7 @@ const ProfileScreen = () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
+        playErrorSound();
         Alert.alert('Permission needed', 'Please grant camera access to take photos');
         return;
       }
@@ -648,6 +599,37 @@ const ProfileScreen = () => {
           </Card>
         )}
 
+        {/* Emergency Contact */}
+        <SectionHeader
+          title="Emergency Contact"
+          icon="call-outline"
+          isExpanded={activeSection === 'emergency'}
+          onToggle={() => setActiveSection(activeSection === 'emergency' ? null : 'emergency')}
+        />
+        {activeSection === 'emergency' && (
+          <Card>
+            <View style={styles.emergencyContactSection}>
+              <View style={styles.emergencyContactInfo}>
+                <Text style={styles.emergencyContactName}>Jane Smith</Text>
+                <Text style={styles.emergencyContactDetails}>Spouse • +1 (555) 987-6543</Text>
+                <Text style={styles.emergencyContactEmail}>jane.smith@example.com</Text>
+                <View style={styles.verificationStatus}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                  <Text style={[styles.verificationStatusText, { color: COLORS.success }]}>
+                    Verified
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.manageButton}
+                onPress={() => navigation.navigate('EmergencyContact')}
+              >
+                <Text style={styles.manageButtonText}>Manage</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -964,6 +946,46 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: DIMENSIONS.paddingXL,
+  },
+  emergencyContactSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: DIMENSIONS.paddingM,
+  },
+  emergencyContactInfo: {
+    flex: 1,
+  },
+  emergencyContactName: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  emergencyContactDetails: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[600],
+    marginBottom: 2,
+  },
+  emergencyContactEmail: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[600],
+    marginBottom: DIMENSIONS.paddingS,
+  },
+  verificationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  manageButton: {
+    backgroundColor: COLORS.primary[500],
+    paddingHorizontal: DIMENSIONS.paddingM,
+    paddingVertical: DIMENSIONS.paddingS,
+    borderRadius: DIMENSIONS.radiusM,
+  },
+  manageButtonText: {
+    color: COLORS.white,
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    fontWeight: TYPOGRAPHY.fontWeights.medium,
   },
 });
 
