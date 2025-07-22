@@ -108,14 +108,34 @@ export class AuthService {
       // Send email verification
       await sendEmailVerification(user);
       
-      // Save additional user data to Firestore
-      await setDoc(doc(db, 'users', user.uid), {
+      // Save additional driver data to Firestore
+      await setDoc(doc(db, 'drivers', user.uid), {
         email: user.email,
-        name: userData.name || '',
+        displayName: userData.name || '',
         phoneNumber: userData.phoneNumber || '',
         pushToken: userData.pushToken || null,
         createdAt: new Date().toISOString(),
         emailVerified: false,
+        // Initialize onboarding status
+        onboardingStatus: {
+          completed: false,
+          completedAt: null,
+          completedBy: null,
+          lastUpdated: new Date().toISOString(),
+        },
+        // Initialize approval status
+        approvalStatus: {
+          status: 'pending',
+          approvedAt: null,
+          approvedBy: null,
+          notes: '',
+        },
+        // Initialize mobile app status
+        mobileAppStatus: {
+          accountCreated: true,
+          accountCreatedAt: new Date().toISOString(),
+          lastMobileLogin: new Date().toISOString(),
+        },
         ...userData,
       });
       
@@ -124,8 +144,26 @@ export class AuthService {
         user: {
           id: user.uid,
           email: user.email,
-          name: user.displayName || userData.name,
+          displayName: user.displayName || userData.name,
           emailVerified: user.emailVerified,
+          // Include the initial driver data
+          onboardingStatus: {
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+            lastUpdated: new Date().toISOString(),
+          },
+          approvalStatus: {
+            status: 'pending',
+            approvedAt: null,
+            approvedBy: null,
+            notes: '',
+          },
+          mobileAppStatus: {
+            accountCreated: true,
+            accountCreatedAt: new Date().toISOString(),
+            lastMobileLogin: new Date().toISOString(),
+          },
         },
         needsEmailVerification: true,
       };
@@ -150,18 +188,19 @@ export class AuthService {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Get additional user data from Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.exists() ? userDoc.data() : {};
+      // Get additional driver data from Firestore
+      const driverDoc = await getDoc(doc(db, 'drivers', user.uid));
+      const driverData = driverDoc.exists() ? driverDoc.data() : {};
       
       return {
         success: true,
         user: {
           id: user.uid,
           email: user.email,
-          name: user.displayName || userData.name,
+          displayName: user.displayName || driverData.displayName,
           emailVerified: user.emailVerified,
-          ...userData,
+          // Include all driver data from Firestore
+          ...driverData,
         },
       };
     } catch (error) {
@@ -221,6 +260,33 @@ export class AuthService {
       return null;
     }
     return auth.currentUser;
+  }
+
+  // Fetch driver data from Firestore (for existing sessions)
+  static async fetchDriverData(userId) {
+    try {
+      if (!db) {
+        throw new Error('Firestore is not initialized');
+      }
+      
+      const driverDoc = await getDoc(doc(db, 'drivers', userId));
+      if (driverDoc.exists()) {
+        return {
+          success: true,
+          driverData: driverDoc.data(),
+        };
+      } else {
+        return {
+          success: false,
+          error: { message: 'Driver document not found' },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: { message: error.message },
+      };
+    }
   }
 
   // Listen to auth state changes

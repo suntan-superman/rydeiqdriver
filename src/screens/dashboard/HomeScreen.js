@@ -143,8 +143,10 @@ const HomeScreen = () => {
   const [showRideRequest, setShowRideRequest] = useState(false);
   const [showNavigationMenu, setShowNavigationMenu] = useState(false);
 
-  // Determine approval status
-  const isApproved = user?.status === 'approved' || user?.accountStatus === 'approved';
+  // Determine approval status - check both approval status and onboarding completion
+  const isApproved = user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
+  
+
 
   // Handle online/offline toggle
   const handleStatusToggle = () => {

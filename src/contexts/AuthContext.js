@@ -24,9 +24,48 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const unsubscribe = AuthService.onAuthStateChanged((user) => {
-        setUser(user);
-        setIsAuthenticated(!!user);
+      const unsubscribe = AuthService.onAuthStateChanged(async (firebaseUser) => {
+        if (firebaseUser) {
+          // Fetch driver data from Firestore
+          try {
+            const result = await AuthService.fetchDriverData(firebaseUser.uid);
+            
+            if (result.success) {
+              const userData = {
+                id: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || result.driverData.displayName,
+                emailVerified: firebaseUser.emailVerified,
+                // Include all driver data from Firestore
+                ...result.driverData,
+              };
+              setUser(userData);
+              setIsAuthenticated(true);
+            } else {
+              // Fallback to basic user data if Firestore fetch fails
+              setUser({
+                id: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                emailVerified: firebaseUser.emailVerified,
+              });
+              setIsAuthenticated(true);
+            }
+          } catch (error) {
+            console.error('Failed to fetch driver data:', error);
+            // Fallback to basic user data
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              emailVerified: firebaseUser.emailVerified,
+            });
+            setIsAuthenticated(true);
+          }
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
         setLoading(false);
       });
 
@@ -102,10 +141,12 @@ export const AuthProvider = ({ children }) => {
         const userData = {
           uid: result.user.id,
           email: result.user.email,
-          displayName: result.user.name,
+          displayName: result.user.displayName,
           photoURL: result.user.photoURL || null,
           emailVerified: result.user.emailVerified,
           lastSignIn: new Date().toISOString(),
+          // Include all driver data from Firestore
+          ...result.user,
         };
         
         await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
@@ -135,10 +176,12 @@ export const AuthProvider = ({ children }) => {
         const userData = {
           uid: result.user.id,
           email: result.user.email,
-          displayName: result.user.name,
+          displayName: result.user.displayName,
           photoURL: result.user.photoURL || null,
           emailVerified: result.user.emailVerified,
           createdAt: new Date().toISOString(),
+          // Include all driver data from Firestore
+          ...result.user,
         };
         
         await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
