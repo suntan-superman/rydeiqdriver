@@ -385,6 +385,90 @@ const HomeScreen = () => {
           <View style={styles.actionsGrid}>
             <TouchableOpacity 
               style={styles.actionCard}
+              onPress={() => navigation.navigate('AnalyticsDashboard')}
+            >
+              <Ionicons name="analytics" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Analytics</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('DriverToolsDashboard')}
+            >
+              <Ionicons name="construct" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Driver Tools</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('SustainabilityDashboard')}
+            >
+              <Ionicons name="leaf" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Sustainability</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('CommunityDashboard')}
+            >
+              <Ionicons name="people" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Community</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('SafetyDashboard')}
+            >
+              <Ionicons name="shield-checkmark" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Safety</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('CommunicationDashboard')}
+            >
+              <Ionicons name="chatbubbles" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Communication</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('VehicleDashboard')}
+            >
+              <Ionicons name="car-sport" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Vehicle</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('PaymentDashboard')}
+            >
+              <Ionicons name="card" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Payment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('DynamicPricingDashboard')}
+            >
+              <Ionicons name="trending-up" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>AI Pricing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('GamificationDashboard')}
+            >
+              <Ionicons name="star" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Gamification</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('AccessibilityDashboard')}
+            >
+              <Ionicons name="accessibility" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Accessibility</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('WellnessDashboard')}
+            >
+              <Ionicons name="heart" size={28} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Wellness</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
               onPress={() => navigation.navigate('Earnings')}
             >
               <Ionicons name="wallet" size={28} color={COLORS.primary[500]} />

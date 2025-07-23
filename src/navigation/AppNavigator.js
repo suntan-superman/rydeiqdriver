@@ -21,6 +21,18 @@ import EarningsScreen from '@/screens/earnings/EarningsScreen';
 import TripHistoryScreen from '@/screens/trips/TripHistoryScreen';
 import SupportScreen from '@/screens/support/SupportScreen';
 import EmergencyContactScreen from '@/screens/profile/EmergencyContactScreen';
+import AnalyticsDashboard from '@/screens/dashboard/AnalyticsDashboard';
+import DriverToolsDashboard from '@/screens/dashboard/DriverToolsDashboard';
+import SustainabilityDashboard from '@/screens/dashboard/SustainabilityDashboard';
+import CommunityDashboard from '@/screens/dashboard/CommunityDashboard';
+import SafetyDashboard from '@/screens/dashboard/SafetyDashboard';
+import CommunicationDashboard from '@/screens/dashboard/CommunicationDashboard';
+import VehicleDashboard from '@/screens/dashboard/VehicleDashboard';
+import PaymentDashboard from '@/screens/dashboard/PaymentDashboard';
+import DynamicPricingDashboard from '@/screens/dashboard/DynamicPricingDashboard';
+import GamificationDashboard from '@/screens/dashboard/GamificationDashboard';
+import AccessibilityDashboard from '@/screens/dashboard/AccessibilityDashboard';
+import WellnessDashboard from '@/screens/dashboard/WellnessDashboard';
 
 const Stack = createNativeStackNavigator();
 
@@ -93,6 +105,102 @@ const AppNavigator = () => {
         component={HomeScreen}
         options={{
           gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen 
+        name="AnalyticsDashboard" 
+        component={AnalyticsDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="DriverToolsDashboard" 
+        component={DriverToolsDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="SustainabilityDashboard" 
+        component={SustainabilityDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="CommunityDashboard" 
+        component={CommunityDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="SafetyDashboard" 
+        component={SafetyDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="CommunicationDashboard" 
+        component={CommunicationDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="VehicleDashboard" 
+        component={VehicleDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="PaymentDashboard" 
+        component={PaymentDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="DynamicPricingDashboard" 
+        component={DynamicPricingDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="GamificationDashboard" 
+        component={GamificationDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="AccessibilityDashboard" 
+        component={AccessibilityDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="WellnessDashboard" 
+        component={WellnessDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
         }}
       />
       
