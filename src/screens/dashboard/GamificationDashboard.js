@@ -1,137 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchGamificationDashboard, clearGamificationError } from '../../store/slices/gamificationSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-  { label: '24h', value: '24h' },
-];
-
-const GamificationDashboard = () => {
+const GamificationDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, currentPoints, currentTier, achievements, activeChallenges, recentUnlocks, gamificationAlerts, leaderboardPosition, streakCount } = useSelector(state => state.gamification);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.gamification);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchGamificationDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchGamificationDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearGamificationError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchGamificationDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Gamification Hub</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Gamification" 
+        onBack={handleBack}
+      />
       
-      {/* Points & Tier Card */}
-      <View style={styles.pointsCard}>
-        <View style={styles.pointsHeader}>
-          <Ionicons name="star" size={24} color="#F59E0B" />
-          <Text style={styles.pointsTitle}>Your Progress</Text>
-        </View>
-        <View style={styles.pointsContent}>
-          <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>Points</Text>
-            <Text style={styles.pointsValue}>{currentPoints.toLocaleString()}</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading gamification data...</Text>
           </View>
-          <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>Tier</Text>
-            <Text style={styles.pointsValue}>{currentTier}</Text>
-          </View>
-          <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>Streak</Text>
-            <Text style={styles.pointsValue}>{streakCount} days</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Leaderboard Position */}
-      {leaderboardPosition && (
-        <View style={styles.leaderboardCard}>
-          <View style={styles.leaderboardHeader}>
-            <Ionicons name="trophy" size={24} color="#10B981" />
-            <Text style={styles.leaderboardTitle}>Leaderboard Rank</Text>
-          </View>
-          <View style={styles.leaderboardContent}>
-            <Text style={styles.rankText}>#{leaderboardPosition.global}</Text>
-            <Text style={styles.rankLabel}>Global Rank</Text>
-            <Text style={styles.scoreText}>{leaderboardPosition.score} points</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Recent Achievements */}
-      {recentUnlocks.length > 0 && (
-        <View style={styles.achievementsCard}>
-          <Text style={styles.achievementsTitle}>Recent Achievements</Text>
-          {recentUnlocks.slice(0, 3).map((achievement, index) => (
-            <View key={index} style={styles.achievementItem}>
-              <Ionicons name="medal" size={16} color="#F59E0B" />
-              <Text style={styles.achievementText}>{achievement.name || 'Achievement Unlocked'}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Active Challenges */}
-      {activeChallenges.length > 0 && (
-        <View style={styles.challengesCard}>
-          <Text style={styles.challengesTitle}>Active Challenges</Text>
-          {activeChallenges.slice(0, 3).map((challenge, index) => (
-            <View key={index} style={styles.challengeItem}>
-              <Ionicons name="flag" size={16} color="#EF4444" />
-              <Text style={styles.challengeText}>{challenge.name || 'Challenge'}</Text>
-              <Text style={styles.challengeProgress}>{challenge.progress || 0}%</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Gamification Alerts */}
-      {gamificationAlerts.length > 0 && (
-        <View style={styles.alertsCard}>
-          <Text style={styles.alertsTitle}>Gamification Alerts</Text>
-          {gamificationAlerts.slice(0, 3).map((alert, index) => (
-            <View key={index} style={styles.alertItem}>
-              <Ionicons name="notifications" size={16} color="#EF4444" />
-              <Text style={styles.alertText}>{alert.message}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Achievement System" data={dashboard.achievementSystem} />
-          <Section title="Leaderboards" data={dashboard.leaderboards} />
-          <Section title="Rewards Program" data={dashboard.rewardsProgram} />
-          <Section title="Challenges" data={dashboard.challenges} />
-          <Section title="Social Features" data={dashboard.socialFeatures} />
-          <Section title="Loyalty Program" data={dashboard.loyaltyProgram} />
-          <Section title="Progress Tracking" data={dashboard.progressTracking} />
-          <Section title="Gamification Analytics" data={dashboard.gamificationAnalytics} />
-        </>
-      )}
-    </ScrollView>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Gamification Data"
+            message="There was an issue loading your gamification information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Gamification Data Available"
+            message="Gamification features will appear here once you start using the app and earning achievements."
+            icon="trophy-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Achievements" data={dashboard.achievements} />
+            <Section title="Leaderboards" data={dashboard.leaderboards} />
+            <Section title="Rewards" data={dashboard.rewards} />
+            <Section title="Challenges" data={dashboard.challenges} />
+            <Section title="Social Features" data={dashboard.socialFeatures} />
+            <Section title="Loyalty Programs" data={dashboard.loyaltyPrograms} />
+            <Section title="Progress Tracking" data={dashboard.progressTracking} />
+            <Section title="Gamification Analytics" data={dashboard.analytics} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -146,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -166,9 +113,8 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
-    if (value.level || value.demand) return `${value.level || value.demand}`;
-    if (value.average || value.price) return `$${value.average || value.price}`;
-    if (value.current || value.total) return `${value.current}/${value.total}`;
+    if (value.score || value.points) return `${value.score || value.points} pts`;
+    if (value.level || value.rank) return `${value.level || value.rank}`;
     if (value.percentage) return `${value.percentage.toFixed(1)}%`;
     return '[Object]';
   }
@@ -180,193 +126,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  pointsCard: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-  },
-  pointsHeader: {
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  pointsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400E',
-    marginLeft: 8,
-  },
-  pointsContent: {
-    gap: 8,
-  },
-  pointsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  pointsLabel: {
-    color: '#92400E',
-    fontWeight: '500',
-  },
-  pointsValue: {
-    color: '#92400E',
-    fontWeight: '600',
-  },
-  leaderboardCard: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-  },
-  leaderboardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  leaderboardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#065F46',
-    marginLeft: 8,
-  },
-  leaderboardContent: {
-    alignItems: 'center',
-  },
-  rankText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#065F46',
-    marginBottom: 4,
-  },
-  rankLabel: {
-    fontSize: 14,
-    color: '#065F46',
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  scoreText: {
-    fontSize: 16,
-    color: '#065F46',
-    fontWeight: '600',
-  },
-  achievementsCard: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  achievementsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 8,
-  },
-  achievementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  achievementText: {
-    fontSize: 14,
-    color: '#92400E',
-    marginLeft: 8,
-    flex: 1,
-  },
-  challengesCard: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  challengesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  challengeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  challengeText: {
-    fontSize: 14,
-    color: '#991B1B',
-    marginLeft: 8,
-    flex: 1,
-  },
-  challengeProgress: {
-    fontSize: 12,
-    color: '#991B1B',
-    fontWeight: '600',
-  },
-  alertsCard: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  alertsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  alertItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 14,
-    color: '#991B1B',
-    marginLeft: 8,
-    flex: 1,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#F59E0B',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

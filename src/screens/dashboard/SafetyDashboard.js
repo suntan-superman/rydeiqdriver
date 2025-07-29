@@ -1,91 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchSafetyDashboard, clearSafetyError, triggerPanicAlert } from '../../store/slices/safetySlice';
+import { fetchSafetyDashboard, clearSafetyError } from '../../store/slices/safetySlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-];
-
-const SafetyDashboard = () => {
+const SafetyDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, panicAlertActive } = useSelector(state => state.safety);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.safety);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchSafetyDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchSafetyDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearSafetyError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
 
-  const handlePanicButton = () => {
-    Alert.alert(
-      'Emergency Alert',
-      'This will trigger an emergency alert. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Trigger Alert',
-          style: 'destructive',
-          onPress: () => {
-            dispatch(triggerPanicAlert({ 
-              userId: user?.uid, 
-              location: { lat: 0, lng: 0 } // Would get actual location
-            }));
-          }
-        }
-      ]
-    );
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchSafetyDashboard({ userId: user.uid }));
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Safety Dashboard</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Safety Dashboard" 
+        onBack={handleBack}
+      />
       
-      {/* Emergency Panic Button */}
-      <TouchableOpacity 
-        style={[styles.panicButton, panicAlertActive && styles.panicButtonActive]}
-        onPress={handlePanicButton}
-        disabled={panicAlertActive}
-      >
-        <Ionicons name="warning" size={24} color="#fff" />
-        <Text style={styles.panicButtonText}>
-          {panicAlertActive ? 'Emergency Alert Sent' : 'EMERGENCY ALERT'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Emergency Protocols" data={dashboard.emergencyProtocols} />
-          <Section title="Safety Analytics" data={dashboard.safetyAnalytics} />
-          <Section title="Driver Protection" data={dashboard.driverProtection} />
-          <Section title="Incident Reporting" data={dashboard.incidentReporting} />
-          <Section title="Safety Alerts" data={dashboard.safetyAlerts} />
-          <Section title="Safety Training" data={dashboard.safetyTraining} />
-          <Section title="Safety Tools" data={dashboard.safetyTools} />
-          <Section title="Safety Recommendations" data={dashboard.safetyRecommendations} />
-        </>
-      )}
-    </ScrollView>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading safety data...</Text>
+          </View>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Safety Data"
+            message="There was an issue loading your safety information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Safety Data Available"
+            message="Safety monitoring data will appear here once you start using the app and safety features are activated."
+            icon="shield-checkmark-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Safety Score" data={dashboard.safetyScore} />
+            <Section title="Incident Reports" data={dashboard.incidentReports} />
+            <Section title="Safety Alerts" data={dashboard.safetyAlerts} />
+            <Section title="Training Status" data={dashboard.trainingStatus} />
+            <Section title="Vehicle Safety" data={dashboard.vehicleSafety} />
+            <Section title="Route Safety" data={dashboard.routeSafety} />
+            <Section title="Emergency Contacts" data={dashboard.emergencyContacts} />
+            <Section title="Safety Recommendations" data={dashboard.recommendations} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -100,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -120,6 +113,8 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
+    if (value.level || value.status) return `${value.level || value.status}`;
+    if (value.score || value.percentage) return `${value.score || value.percentage}%`;
     return '[Object]';
   }
   return value === undefined || value === null ? '—' : value;
@@ -130,70 +125,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  panicButton: {
-    backgroundColor: '#EF4444',
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingVertical: 60,
   },
-  panicButtonActive: {
-    backgroundColor: '#DC2626',
-  },
-  panicButtonText: {
-    color: '#fff',
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#EF4444',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

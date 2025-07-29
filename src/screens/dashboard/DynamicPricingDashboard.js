@@ -1,118 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchDynamicPricingDashboard, clearDynamicPricingError } from '../../store/slices/dynamicPricingSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-  { label: '24h', value: '24h' },
-];
-
-const DynamicPricingDashboard = () => {
+const DynamicPricingDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, realTimePricing, pricingAlerts, marketInsights } = useSelector(state => state.dynamicPricing);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.dynamicPricing);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchDynamicPricingDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchDynamicPricingDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearDynamicPricingError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchDynamicPricingDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>AI Dynamic Pricing</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Dynamic Pricing" 
+        onBack={handleBack}
+      />
       
-      {/* Real-time Pricing Card */}
-      {realTimePricing && (
-        <View style={styles.realTimeCard}>
-          <View style={styles.realTimeHeader}>
-            <Ionicons name="flash" size={24} color="#F59E0B" />
-            <Text style={styles.realTimeTitle}>Real-Time Pricing</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading pricing data...</Text>
           </View>
-          <View style={styles.realTimeContent}>
-            <Text style={styles.recommendedPrice}>
-              ${realTimePricing.recommendedPrice?.recommendedPrice?.toFixed(2) || '25.00'}
-            </Text>
-            <Text style={styles.priceIncrease}>
-              {realTimePricing.recommendedPrice?.increase || '+0%'} from base
-            </Text>
-            <Text style={styles.confidence}>
-              Confidence: {(realTimePricing.confidence * 100).toFixed(0)}%
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Market Insights Card */}
-      {marketInsights && (
-        <View style={styles.insightsCard}>
-          <View style={styles.insightsHeader}>
-            <Ionicons name="trending-up" size={24} color="#10B981" />
-            <Text style={styles.insightsTitle}>Market Insights</Text>
-          </View>
-          <View style={styles.insightsContent}>
-            <View style={styles.insightRow}>
-              <Text style={styles.insightLabel}>Market Efficiency</Text>
-              <Text style={styles.insightValue}>{marketInsights.marketEfficiency?.efficiency || '85%'}</Text>
-            </View>
-            <View style={styles.insightRow}>
-              <Text style={styles.insightLabel}>Supply/Demand</Text>
-              <Text style={styles.insightValue}>{marketInsights.supplyDemandBalance?.balance || 'Balanced'}</Text>
-            </View>
-            <View style={styles.insightRow}>
-              <Text style={styles.insightLabel}>Optimal Price</Text>
-              <Text style={styles.insightValue}>${marketInsights.optimalPricing?.optimalBasePrice || '27.50'}</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Pricing Alerts */}
-      {pricingAlerts.length > 0 && (
-        <View style={styles.alertsCard}>
-          <Text style={styles.alertsTitle}>Pricing Alerts</Text>
-          {pricingAlerts.slice(0, 3).map((alert, index) => (
-            <View key={index} style={styles.alertItem}>
-              <Ionicons name="notifications" size={16} color="#EF4444" />
-              <Text style={styles.alertText}>{alert.message}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Demand Prediction" data={dashboard.demandPrediction} />
-          <Section title="Competitor Analysis" data={dashboard.competitorAnalysis} />
-          <Section title="Weather Impact" data={dashboard.weatherImpact} />
-          <Section title="Event Pricing" data={dashboard.eventPricing} />
-          <Section title="Driver Incentives" data={dashboard.driverIncentives} />
-          <Section title="Market Optimization" data={dashboard.marketOptimization} />
-          <Section title="Pricing Recommendations" data={dashboard.pricingRecommendations} />
-          <Section title="Historical Pricing" data={dashboard.historicalPricing} />
-        </>
-      )}
-    </ScrollView>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Pricing Data"
+            message="There was an issue loading your dynamic pricing information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Pricing Data Available"
+            message="Dynamic pricing information will appear here once you start accepting rides and the AI system begins analyzing market conditions."
+            icon="trending-up-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Market Analysis" data={dashboard.marketAnalysis} />
+            <Section title="Demand Forecasting" data={dashboard.demandForecasting} />
+            <Section title="Price Optimization" data={dashboard.priceOptimization} />
+            <Section title="Competitive Analysis" data={dashboard.competitiveAnalysis} />
+            <Section title="Revenue Optimization" data={dashboard.revenueOptimization} />
+            <Section title="Pricing Strategies" data={dashboard.pricingStrategies} />
+            <Section title="Performance Analytics" data={dashboard.performanceAnalytics} />
+            <Section title="Pricing Recommendations" data={dashboard.recommendations} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -127,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -147,8 +113,9 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
+    if (value.price || value.amount) return `$${value.price || value.amount}`;
     if (value.level || value.demand) return `${value.level || value.demand}`;
-    if (value.average || value.price) return `$${value.average || value.price}`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
     return '[Object]';
   }
   return value === undefined || value === null ? '—' : value;
@@ -159,142 +126,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  realTimeCard: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-  },
-  realTimeHeader: {
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  realTimeTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400E',
-    marginLeft: 8,
-  },
-  realTimeContent: {
-    alignItems: 'center',
-  },
-  recommendedPrice: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#92400E',
-    marginBottom: 4,
-  },
-  priceIncrease: {
-    fontSize: 14,
-    color: '#92400E',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  confidence: {
-    fontSize: 12,
-    color: '#92400E',
-    fontWeight: '400',
-  },
-  insightsCard: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-  },
-  insightsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  insightsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#065F46',
-    marginLeft: 8,
-  },
-  insightsContent: {
-    gap: 8,
-  },
-  insightRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  insightLabel: {
-    color: '#065F46',
-    fontWeight: '500',
-  },
-  insightValue: {
-    color: '#065F46',
-    fontWeight: '600',
-  },
-  alertsCard: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  alertsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  alertItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 14,
-    color: '#991B1B',
-    marginLeft: 8,
-    flex: 1,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#F59E0B',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

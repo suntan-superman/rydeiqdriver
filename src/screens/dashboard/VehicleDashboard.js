@@ -1,98 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchVehicleDashboard, clearVehicleError } from '../../store/slices/vehicleSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-];
-
-const VehicleDashboard = () => {
+const VehicleDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, currentLocation, maintenanceAlerts } = useSelector(state => state.vehicle);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.vehicle);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchVehicleDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchVehicleDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearVehicleError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchVehicleDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Vehicle Management</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Vehicle Management" 
+        onBack={handleBack}
+      />
       
-      {/* Vehicle Health Status */}
-      {dashboard?.vehicleHealth && (
-        <View style={styles.healthCard}>
-          <View style={styles.healthHeader}>
-            <Ionicons name="car" size={24} color="#10B981" />
-            <Text style={styles.healthTitle}>Vehicle Health</Text>
-            <Text style={styles.healthScore}>{dashboard.vehicleHealth.overallHealth}%</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading vehicle data...</Text>
           </View>
-          <View style={styles.healthBars}>
-            <View style={styles.healthBar}>
-              <Text style={styles.healthLabel}>Engine</Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${dashboard.vehicleHealth.engineHealth}%` }]} />
-              </View>
-              <Text style={styles.healthValue}>{dashboard.vehicleHealth.engineHealth}%</Text>
-            </View>
-            <View style={styles.healthBar}>
-              <Text style={styles.healthLabel}>Tires</Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${dashboard.vehicleHealth.tireHealth}%` }]} />
-              </View>
-              <Text style={styles.healthValue}>{dashboard.vehicleHealth.tireHealth}%</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Maintenance Alerts */}
-      {maintenanceAlerts.length > 0 && (
-        <View style={styles.alertsCard}>
-          <Text style={styles.alertsTitle}>Maintenance Alerts</Text>
-          {maintenanceAlerts.slice(0, 3).map((alert, index) => (
-            <View key={index} style={styles.alertItem}>
-              <Ionicons name="warning" size={16} color="#F59E0B" />
-              <Text style={styles.alertText}>{alert.message}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Vehicle Tracking" data={dashboard.vehicleTracking} />
-          <Section title="Maintenance Scheduling" data={dashboard.maintenance} />
-          <Section title="Fuel Management" data={dashboard.fuelManagement} />
-          <Section title="Vehicle Analytics" data={dashboard.analytics} />
-          <Section title="Insurance Tracking" data={dashboard.insurance} />
-          <Section title="Vehicle Documentation" data={dashboard.documentation} />
-          <Section title="Cost Tracking" data={dashboard.costTracking} />
-        </>
-      )}
-    </ScrollView>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Vehicle Data"
+            message="There was an issue loading your vehicle information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Vehicle Data Available"
+            message="Vehicle information will appear here once you register your vehicle and start using the app."
+            icon="car-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Vehicle Information" data={dashboard.vehicleInfo} />
+            <Section title="Maintenance Status" data={dashboard.maintenanceStatus} />
+            <Section title="Fuel Efficiency" data={dashboard.fuelEfficiency} />
+            <Section title="Insurance Status" data={dashboard.insuranceStatus} />
+            <Section title="Registration Status" data={dashboard.registrationStatus} />
+            <Section title="Vehicle Analytics" data={dashboard.vehicleAnalytics} />
+            <Section title="Maintenance History" data={dashboard.maintenanceHistory} />
+            <Section title="Vehicle Recommendations" data={dashboard.recommendations} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -107,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -127,6 +113,10 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
+    if (value.status || value.condition) return `${value.status || value.condition}`;
+    if (value.mileage || value.distance) return `${value.mileage || value.distance} km`;
+    if (value.efficiency || value.mpg) return `${value.efficiency || value.mpg} mpg`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
     return '[Object]';
   }
   return value === undefined || value === null ? '—' : value;
@@ -137,129 +127,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  healthCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  healthHeader: {
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  healthTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginLeft: 8,
-  },
-  healthScore: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  healthBars: {
-    gap: 8,
-  },
-  healthBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  healthLabel: {
-    width: 60,
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    marginHorizontal: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-  },
-  healthValue: {
-    width: 35,
-    fontSize: 12,
-    color: '#111827',
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  alertsCard: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  alertsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 8,
-  },
-  alertItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 14,
-    color: '#92400E',
-    marginLeft: 8,
-    flex: 1,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#10B981',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

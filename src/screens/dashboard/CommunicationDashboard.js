@@ -1,71 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCommunicationDashboard, clearCommunicationError } from '../../store/slices/communicationSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-];
-
-const CommunicationDashboard = () => {
+const CommunicationDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, unreadMessages, unreadNotifications } = useSelector(state => state.communication);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.communication);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchCommunicationDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchCommunicationDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearCommunicationError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchCommunicationDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Communication Dashboard</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Communication" 
+        onBack={handleBack}
+      />
       
-      {/* Unread Counts */}
-      <View style={styles.unreadCounts}>
-        <View style={styles.unreadItem}>
-          <Ionicons name="mail" size={20} color="#3B82F6" />
-          <Text style={styles.unreadText}>{unreadMessages} unread messages</Text>
-        </View>
-        <View style={styles.unreadItem}>
-          <Ionicons name="notifications" size={20} color="#EF4444" />
-          <Text style={styles.unreadText}>{unreadNotifications} unread notifications</Text>
-        </View>
-      </View>
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="In-App Messaging" data={dashboard.messaging} />
-          <Section title="Voice Calls" data={dashboard.voiceCalls} />
-          <Section title="Chat Rooms" data={dashboard.chatRooms} />
-          <Section title="Notifications" data={dashboard.notifications} />
-          <Section title="Message History" data={dashboard.messageHistory} />
-          <Section title="Communication Analytics" data={dashboard.analytics} />
-          <Section title="Communication Tools" data={dashboard.tools} />
-          <Section title="Communication Preferences" data={dashboard.preferences} />
-        </>
-      )}
-    </ScrollView>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading communication data...</Text>
+          </View>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Communication Data"
+            message="There was an issue loading your communication information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Communication Data Available"
+            message="Communication features and messaging data will appear here once you start using the app and interacting with customers."
+            icon="chatbubbles-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Customer Messages" data={dashboard.customerMessages} />
+            <Section title="Support Tickets" data={dashboard.supportTickets} />
+            <Section title="In-App Chat" data={dashboard.inAppChat} />
+            <Section title="Voice Calls" data={dashboard.voiceCalls} />
+            <Section title="Notifications" data={dashboard.notifications} />
+            <Section title="Communication Analytics" data={dashboard.analytics} />
+            <Section title="Message Templates" data={dashboard.messageTemplates} />
+            <Section title="Communication Settings" data={dashboard.settings} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -80,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -100,6 +113,9 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
+    if (value.status || value.type) return `${value.status || value.type}`;
+    if (value.count || value.total) return `${value.count || value.total}`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
     return '[Object]';
   }
   return value === undefined || value === null ? '—' : value;
@@ -110,69 +126,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  unreadCounts: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  unreadItem: {
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
-  },
-  unreadText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#3B82F6',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

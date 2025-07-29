@@ -1,71 +1,124 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  fetchDriverAnalytics,
-  fetchPlatformAnalytics,
-  fetchRevenueAnalytics,
-  clearAnalyticsError
-} from '../../store/slices/analyticsSlice';
+import { fetchAnalyticsDashboard, clearAnalyticsError } from '../../store/slices/analyticsSlice';
+import { useAuth } from '@/contexts/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
 const TIME_RANGES = [
-  { label: '24h', value: '24h' },
-  { label: '7d', value: '7d' },
   { label: '30d', value: '30d' },
+  { label: '7d', value: '7d' },
+  { label: '24h', value: '24h' },
 ];
 
-const AnalyticsDashboard = () => {
+const AnalyticsDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { driver, platform, revenue, isLoading, error } = useSelector(state => state.analytics);
-  const [timeRange, setTimeRange] = useState('24h');
+  const { user } = useAuth();
+  const { dashboard, isLoading, error } = useSelector(state => state.analytics);
+  const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
-    dispatch(fetchDriverAnalytics(timeRange));
-    dispatch(fetchPlatformAnalytics(timeRange));
-    dispatch(fetchRevenueAnalytics(timeRange));
-    // Clear error on unmount
+    if (user?.uid) {
+      dispatch(fetchAnalyticsDashboard({ userId: user.uid, timeRange }));
+    }
     return () => dispatch(clearAnalyticsError());
-  }, [dispatch, timeRange]);
+  }, [dispatch, user?.uid, timeRange]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchAnalyticsDashboard({ userId: user.uid, timeRange }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Analytics Dashboard</Text>
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && (
-        <>
-          <Section title="Driver Analytics" data={driver?.overview} />
-          <Section title="Platform Analytics" data={platform?.overview} />
-          <Section title="Revenue Analytics" data={revenue?.overview} />
-        </>
-      )}
-    </ScrollView>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Analytics Dashboard" 
+        onBack={handleBack}
+      />
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        <View style={styles.timeRangeRow}>
+          {TIME_RANGES.map(tr => (
+            <TouchableOpacity
+              key={tr.value}
+              style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
+              onPress={() => setTimeRange(tr.value)}
+            >
+              <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading analytics data...</Text>
+          </View>
+        )}
+        
+        {error && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={48} color="#EF4444" />
+            <Text style={styles.errorTitle}>Unable to Load Data</Text>
+            <Text style={styles.errorMessage}>
+              {error.includes('index') 
+                ? 'Analytics data is being set up. Please try again later.'
+                : error
+              }
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Analytics Data"
+            message="Analytics data will appear here once you start using the app and generating activity."
+            icon="analytics-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Performance Analytics" data={dashboard.performanceAnalytics} />
+            <Section title="Earnings Analytics" data={dashboard.earningsAnalytics} />
+            <Section title="Ride Analytics" data={dashboard.rideAnalytics} />
+            <Section title="Customer Analytics" data={dashboard.customerAnalytics} />
+            <Section title="Safety Analytics" data={dashboard.safetyAnalytics} />
+            <Section title="Efficiency Analytics" data={dashboard.efficiencyAnalytics} />
+            <Section title="Market Analytics" data={dashboard.marketAnalytics} />
+            <Section title="Predictive Analytics" data={dashboard.predictiveAnalytics} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
 const Section = ({ title, data }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>{title}</Text>
-    {data ? (
+    {data && typeof data === 'object' && Object.keys(data).length > 0 ? (
       Object.entries(data).map(([key, value]) => (
         <View key={key} style={styles.row}>
           <Text style={styles.label}>{formatKey(key)}</Text>
-          <Text style={styles.value}>{value}</Text>
+          <Text style={styles.value}>{formatValue(value)}</Text>
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -77,21 +130,34 @@ function formatKey(key) {
     .replace(/_/g, ' ');
 }
 
+function formatValue(value) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'None';
+    if (value.length <= 3) return value.map(item => item.name || item.title || item).join(', ');
+    return `${value.length} items`;
+  }
+  if (typeof value === 'object' && value !== null) {
+    if (value.name || value.title) return value.name || value.title;
+    if (value.level || value.demand) return `${value.level || value.demand}`;
+    if (value.average || value.price) return `$${value.average || value.price}`;
+    if (value.current || value.total) return `${value.current}/${value.total}`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
+    return '[Object]';
+  }
+  return value === undefined || value === null ? '—' : value;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
   },
   timeRangeRow: {
     flexDirection: 'row',
@@ -115,13 +181,46 @@ const styles = StyleSheet.create({
   timeRangeTextActive: {
     color: '#fff',
   },
-  loading: {
-    marginVertical: 40,
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
   },
-  error: {
-    color: '#EF4444',
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#6B7280',
     textAlign: 'center',
-    marginVertical: 20,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     backgroundColor: '#fff',

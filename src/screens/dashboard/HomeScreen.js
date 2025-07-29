@@ -19,6 +19,11 @@ import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
 import { playRideRequestSound } from '@/utils/soundEffects';
+import RideRequestService from '@/services/rideRequestService';
+import RideRequestModal from '@/components/RideRequestModal';
+import DriverStatusService from '@/services/driverStatusService';
+import { getCurrentLocation, startLocationTracking, stopLocationTracking } from '@/services/location';
+import ConnectionTestService from '@/utils/connectionTest';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -142,29 +147,87 @@ const HomeScreen = () => {
   // Ride request modal state
   const [showRideRequest, setShowRideRequest] = useState(false);
   const [showNavigationMenu, setShowNavigationMenu] = useState(false);
+  const [rideRequest, setRideRequest] = useState(null);
+  const [showRideRequestModal, setShowRideRequestModal] = useState(false);
 
   // Determine approval status - check both approval status and onboarding completion
   const isApproved = user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
+
+  // Initialize services when component mounts
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      // Initialize services
+      RideRequestService.initialize(currentUser.uid);
+      DriverStatusService.initialize(currentUser.uid);
+      
+      // Set callback for new ride requests
+      RideRequestService.setRideRequestCallback((newRideRequest) => {
+        setRideRequest(newRideRequest);
+        setShowRideRequestModal(true);
+        playRideRequestSound(); // Play notification sound
+      });
+
+      // Listen for driver status changes
+      DriverStatusService.listenForDriverStatus((driverStatus) => {
+        setIsOnline(driverStatus.isOnline);
+      });
+
+      // Get initial status
+      DriverStatusService.getCurrentDriverStatus().then((status) => {
+        if (status) {
+          setIsOnline(status.isOnline);
+        }
+      });
+    }
+
+    return () => {
+      RideRequestService.cleanup();
+      DriverStatusService.cleanup();
+    };
+  }, []);
+
+  // Location tracking functions
+  const startLocationUpdates = async () => {
+    try {
+      await DriverStatusService.startLocationUpdates();
+    } catch (error) {
+      console.error('Error starting location tracking:', error);
+    }
+  };
+
+  // Handle ride request modal close
+  const handleRideRequestModalClose = () => {
+    setShowRideRequestModal(false);
+    setRideRequest(null);
+  };
   
 
 
   // Handle online/offline toggle
-  const handleStatusToggle = () => {
-    if (isOnline) {
-      Alert.alert(
-        'Go Offline',
-        'Are you sure you want to go offline? You will stop receiving ride requests.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Go Offline', 
-            style: 'destructive',
-            onPress: () => setIsOnline(false)
-          }
-        ]
-      );
-    } else {
-      setIsOnline(true);
+  const handleStatusToggle = async () => {
+    try {
+      if (isOnline) {
+        Alert.alert(
+          'Go Offline',
+          'Are you sure you want to go offline? You will stop receiving ride requests.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Go Offline', 
+              style: 'destructive',
+              onPress: async () => {
+                await DriverStatusService.goOffline();
+              }
+            }
+          ]
+        );
+      } else {
+        await DriverStatusService.goOnline();
+      }
+    } catch (error) {
+      console.error('Error updating driver status:', error);
+      Alert.alert('Error', 'Failed to update status. Please try again.');
     }
   };
 
@@ -224,6 +287,27 @@ const HomeScreen = () => {
     }
     playRideRequestSound();
     setShowRideRequest(true);
+  };
+
+  // Test connection functionality
+  const testConnection = async () => {
+    try {
+      Alert.alert(
+        'Test Connection',
+        'This will run comprehensive tests to verify the rider-driver connection. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Run Tests',
+            onPress: async () => {
+              await ConnectionTestService.runAllTests();
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Test Error', 'Failed to run connection tests');
+    }
   };
 
   // Pending approval banner
@@ -512,6 +596,15 @@ const HomeScreen = () => {
               <Ionicons name="notifications" size={20} color={COLORS.white} />
               <Text style={styles.demoButtonText}>Simulate Ride Request</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.info, marginTop: 12 }]}
+              onPress={testConnection}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bug" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Test Connection</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -525,6 +618,13 @@ const HomeScreen = () => {
         onAccept={handleAcceptRide}
         onDecline={handleDeclineRide}
         onCustomBid={handleCustomBid}
+      />
+
+      {/* New Ride Request Modal */}
+      <RideRequestModal
+        visible={showRideRequestModal}
+        rideRequest={rideRequest}
+        onClose={handleRideRequestModalClose}
       />
 
       {/* Navigation Menu Modal */}

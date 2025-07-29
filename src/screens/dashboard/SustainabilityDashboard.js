@@ -1,57 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSustainabilityDashboard, clearSustainabilityError } from '../../store/slices/sustainabilitySlice';
 import { useAuth } from '@/contexts/AuthContext';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-];
-
-const SustainabilityDashboard = () => {
+const SustainabilityDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
   const { dashboard, isLoading, error } = useSelector(state => state.sustainability);
-  const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchSustainabilityDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchSustainabilityDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearSustainabilityError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchSustainabilityDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Sustainability Dashboard</Text>
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Carbon Footprint" data={dashboard.carbonFootprint} />
-          <Section title="Green Initiatives" data={dashboard.greenInitiatives} />
-          <Section title="Eco-Friendly Drivers" data={dashboard.ecoDrivers} />
-          <Section title="Analytics" data={dashboard.analytics} />
-          <Section title="Carbon Offsets" data={dashboard.carbonOffsets} />
-          <Section title="Environmental Impact" data={dashboard.environmentalImpact} />
-          <Section title="Green Rewards" data={dashboard.greenRewards} />
-          <Section title="Goals" data={dashboard.goals} />
-          <Section title="Recommendations" data={dashboard.recommendations} />
-        </>
-      )}
-    </ScrollView>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Sustainability" 
+        onBack={handleBack}
+      />
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading sustainability data...</Text>
+          </View>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Sustainability Data"
+            message="There was an issue loading your sustainability information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Sustainability Data Available"
+            message="Sustainability tracking data will appear here once you start using the app and eco-friendly features are activated."
+            icon="leaf-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Carbon Footprint" data={dashboard.carbonFootprint} />
+            <Section title="Fuel Efficiency" data={dashboard.fuelEfficiency} />
+            <Section title="Eco Routes" data={dashboard.ecoRoutes} />
+            <Section title="Green Initiatives" data={dashboard.greenInitiatives} />
+            <Section title="Environmental Impact" data={dashboard.environmentalImpact} />
+            <Section title="Sustainability Goals" data={dashboard.sustainabilityGoals} />
+            <Section title="Sustainability Analytics" data={dashboard.analytics} />
+            <Section title="Sustainability Recommendations" data={dashboard.recommendations} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -66,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -79,8 +106,18 @@ function formatKey(key) {
 }
 
 function formatValue(value) {
-  if (Array.isArray(value)) return value.length === 0 ? 'None' : value.join(', ');
-  if (typeof value === 'object' && value !== null) return '[Object]';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'None';
+    if (value.length <= 3) return value.map(item => item.name || item.title || item).join(', ');
+    return `${value.length} items`;
+  }
+  if (typeof value === 'object' && value !== null) {
+    if (value.name || value.title) return value.name || value.title;
+    if (value.emissions || value.carbon) return `${value.emissions || value.carbon} kg CO2`;
+    if (value.efficiency || value.mpg) return `${value.efficiency || value.mpg} mpg`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
+    return '[Object]';
+  }
   return value === undefined || value === null ? '—' : value;
 }
 
@@ -89,46 +126,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
+  loadingContainer: {
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#10B981',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',

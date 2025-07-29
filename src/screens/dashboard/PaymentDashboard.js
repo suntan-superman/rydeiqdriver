@@ -1,91 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchPaymentDashboard, clearPaymentError } from '../../store/slices/paymentSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import DashboardHeader from '../../components/common/DashboardHeader';
+import EmptyState from '../../components/common/EmptyState';
 
-const TIME_RANGES = [
-  { label: '30d', value: '30d' },
-  { label: '7d', value: '7d' },
-];
-
-const PaymentDashboard = () => {
+const PaymentDashboard = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useAuth();
-  const { dashboard, isLoading, error, accountBalance, pendingPayments, paymentAlerts } = useSelector(state => state.payment);
-  const [timeRange, setTimeRange] = useState('30d');
+  const { dashboard, isLoading, error } = useSelector(state => state.payment);
 
   useEffect(() => {
     if (user?.uid) {
-      dispatch(fetchPaymentDashboard({ userId: user.uid, timeRange }));
+      dispatch(fetchPaymentDashboard({ userId: user.uid }));
     }
     return () => dispatch(clearPaymentError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.uid]);
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  const handleRetry = () => {
+    if (user?.uid) {
+      dispatch(fetchPaymentDashboard({ userId: user.uid }));
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Payment & Banking</Text>
+    <View style={styles.container}>
+      <DashboardHeader 
+        title="Payment & Banking" 
+        onBack={handleBack}
+      />
       
-      {/* Account Balance */}
-      <View style={styles.balanceCard}>
-        <View style={styles.balanceHeader}>
-          <Ionicons name="wallet" size={24} color="#10B981" />
-          <Text style={styles.balanceTitle}>Total Balance</Text>
-        </View>
-        <Text style={styles.balanceAmount}>${accountBalance.toFixed(2)}</Text>
-        <View style={styles.balanceDetails}>
-          <View style={styles.balanceItem}>
-            <Text style={styles.balanceLabel}>Pending</Text>
-            <Text style={styles.balanceValue}>${pendingPayments.reduce((sum, p) => sum + (p.amount || 0), 0).toFixed(2)}</Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading payment data...</Text>
           </View>
-          <View style={styles.balanceItem}>
-            <Text style={styles.balanceLabel}>Available</Text>
-            <Text style={styles.balanceValue}>${(accountBalance - pendingPayments.reduce((sum, p) => sum + (p.amount || 0), 0)).toFixed(2)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Payment Alerts */}
-      {paymentAlerts.length > 0 && (
-        <View style={styles.alertsCard}>
-          <Text style={styles.alertsTitle}>Payment Alerts</Text>
-          {paymentAlerts.slice(0, 3).map((alert, index) => (
-            <View key={index} style={styles.alertItem}>
-              <Ionicons name="notifications" size={16} color="#EF4444" />
-              <Text style={styles.alertText}>{alert.message}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.timeRangeRow}>
-        {TIME_RANGES.map(tr => (
-          <TouchableOpacity
-            key={tr.value}
-            style={[styles.timeRangeButton, timeRange === tr.value && styles.timeRangeButtonActive]}
-            onPress={() => setTimeRange(tr.value)}
-          >
-            <Text style={[styles.timeRangeText, timeRange === tr.value && styles.timeRangeTextActive]}>{tr.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {isLoading && <ActivityIndicator size="large" style={styles.loading} />}
-      {error && <Text style={styles.error}>{error}</Text>}
-      {!isLoading && !error && dashboard && (
-        <>
-          <Section title="Payment Processing" data={dashboard.paymentProcessing} />
-          <Section title="Banking Integration" data={dashboard.bankingIntegration} />
-          <Section title="Financial Analytics" data={dashboard.financialAnalytics} />
-          <Section title="Payment History" data={dashboard.paymentHistory} />
-          <Section title="Transaction Management" data={dashboard.transactionManagement} />
-          <Section title="Financial Reporting" data={dashboard.financialReporting} />
-          <Section title="Payment Methods" data={dashboard.paymentMethods} />
-          <Section title="Tax Management" data={dashboard.taxManagement} />
-        </>
-      )}
-    </ScrollView>
+        )}
+        
+        {error && (
+          <EmptyState
+            title="Unable to Load Payment Data"
+            message="There was an issue loading your payment information. Please try again."
+            icon="alert-circle-outline"
+            actionText="Try Again"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && !dashboard && (
+          <EmptyState
+            title="No Payment Data Available"
+            message="Payment and banking information will appear here once you complete your account setup and start earning."
+            icon="card-outline"
+            actionText="Refresh"
+            onAction={handleRetry}
+            showAction={true}
+          />
+        )}
+        
+        {!isLoading && !error && dashboard && (
+          <>
+            <Section title="Account Balance" data={dashboard.accountBalance} />
+            <Section title="Recent Transactions" data={dashboard.recentTransactions} />
+            <Section title="Payment Methods" data={dashboard.paymentMethods} />
+            <Section title="Earnings Summary" data={dashboard.earningsSummary} />
+            <Section title="Tax Information" data={dashboard.taxInformation} />
+            <Section title="Banking Details" data={dashboard.bankingDetails} />
+            <Section title="Payment History" data={dashboard.paymentHistory} />
+            <Section title="Financial Analytics" data={dashboard.financialAnalytics} />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -100,7 +93,7 @@ const Section = ({ title, data }) => (
         </View>
       ))
     ) : (
-      <Text style={styles.empty}>No data</Text>
+      <Text style={styles.empty}>No data available</Text>
     )}
   </View>
 );
@@ -120,6 +113,9 @@ function formatValue(value) {
   }
   if (typeof value === 'object' && value !== null) {
     if (value.name || value.title) return value.name || value.title;
+    if (value.amount || value.balance) return `$${value.amount || value.balance}`;
+    if (value.status || value.type) return `${value.status || value.type}`;
+    if (value.percentage) return `${value.percentage.toFixed(1)}%`;
     return '[Object]';
   }
   return value === undefined || value === null ? '—' : value;
@@ -130,115 +126,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  balanceCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
+  loadingContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  balanceTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginLeft: 8,
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#10B981',
-    marginBottom: 16,
-  },
-  balanceDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  balanceItem: {
-    alignItems: 'center',
-  },
-  balanceLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  balanceValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginTop: 4,
-  },
-  alertsCard: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  alertsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#991B1B',
-    marginBottom: 8,
-  },
-  alertItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 14,
-    color: '#991B1B',
-    marginLeft: 8,
-    flex: 1,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 60,
   },
-  timeRangeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 6,
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#10B981',
-  },
-  timeRangeText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  error: {
-    color: '#EF4444',
-    textAlign: 'center',
-    marginVertical: 20,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     backgroundColor: '#fff',
