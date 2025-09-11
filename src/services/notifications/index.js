@@ -45,7 +45,7 @@ export const initializeNotifications = async () => {
         importance: 'high',
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#10B981',
-        sound: 'ride_request',
+        sound: 'mixkit-fast-car-drive-by-1538', // Use the car sound for ride requests
       });
 
       // Create channel for bid updates
@@ -54,7 +54,7 @@ export const initializeNotifications = async () => {
         importance: 'high',
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#10B981',
-        sound: 'bid_accepted',
+        sound: 'mixkit-achievement-bell-600', // Use achievement bell for bid acceptance
       });
 
       // Create channel for earnings

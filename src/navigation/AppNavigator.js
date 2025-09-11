@@ -4,35 +4,131 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectHasOnboarded } from '@/store/slices/authSlice';
 import { useAuth } from '@/contexts/AuthContext';
-import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 
-// Import new screens - RESTORED
-import RydeAnimation from '@/screens/startup/RydeAnimation';
-import LoginScreen from '@/screens/auth/LoginScreen';
-import SignUpScreen from '@/screens/auth/SignUpScreen';
-import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
-import OnboardingScreen from '@/screens/auth/OnboardingScreen';
-import HomeScreen from '@/screens/dashboard/HomeScreen';
-import ActiveRideScreen from '@/screens/ride/ActiveRideScreen';
-import NavigationScreen from '@/screens/navigation/NavigationScreen';
-import SettingsScreen from '@/screens/settings/SettingsScreen';
-import ProfileScreen from '@/screens/profile/ProfileScreen';
-import EarningsScreen from '@/screens/earnings/EarningsScreen';
-import TripHistoryScreen from '@/screens/trips/TripHistoryScreen';
-import SupportScreen from '@/screens/support/SupportScreen';
-import EmergencyContactScreen from '@/screens/profile/EmergencyContactScreen';
-import AnalyticsDashboard from '@/screens/dashboard/AnalyticsDashboard';
-import DriverToolsDashboard from '@/screens/dashboard/DriverToolsDashboard';
-import SustainabilityDashboard from '@/screens/dashboard/SustainabilityDashboard';
-import CommunityDashboard from '@/screens/dashboard/CommunityDashboard';
-import SafetyDashboard from '@/screens/dashboard/SafetyDashboard';
-import CommunicationDashboard from '@/screens/dashboard/CommunicationDashboard';
-import VehicleDashboard from '@/screens/dashboard/VehicleDashboard';
-import PaymentDashboard from '@/screens/dashboard/PaymentDashboard';
-import DynamicPricingDashboard from '@/screens/dashboard/DynamicPricingDashboard';
-import GamificationDashboard from '@/screens/dashboard/GamificationDashboard';
-import AccessibilityDashboard from '@/screens/dashboard/AccessibilityDashboard';
-import WellnessDashboard from '@/screens/dashboard/WellnessDashboard';
+// Safe constants import
+let COLORS, TYPOGRAPHY, DIMENSIONS;
+try {
+  const constants = require('@/constants');
+  COLORS = constants.COLORS || {};
+  TYPOGRAPHY = constants.TYPOGRAPHY || {};
+  DIMENSIONS = constants.DIMENSIONS || {};
+} catch (error) {
+  console.warn('Constants import failed in AppNavigator');
+  COLORS = { primary: '#10B981', white: '#FFFFFF' };
+  TYPOGRAPHY = {};
+  DIMENSIONS = {};
+}
+
+// Fallback component for missing screens
+const FallbackScreen = ({ route }) => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+    <Text style={{ fontSize: 18, marginBottom: 10 }}>Screen Not Available</Text>
+    <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>
+      {route?.name || 'Unknown'} screen is temporarily unavailable
+    </Text>
+  </View>
+);
+
+// Safe imports with validation
+let HomeScreen, LoginScreen;
+
+try {
+  const HomeScreenModule = require('@/screens/dashboard/HomeScreen');
+  HomeScreen = HomeScreenModule.default || HomeScreenModule;
+  if (!HomeScreen) {
+    console.error('HomeScreen import failed - no default export found');
+    HomeScreen = FallbackScreen;
+  }
+} catch (error) {
+  console.error('HomeScreen import error:', error);
+  HomeScreen = FallbackScreen;
+}
+
+try {
+  const LoginScreenModule = require('@/screens/auth/LoginScreen');
+  LoginScreen = LoginScreenModule.default || LoginScreenModule;
+  if (!LoginScreen) {
+    console.error('LoginScreen import failed - no default export found');
+    LoginScreen = FallbackScreen;
+  }
+} catch (error) {
+  console.error('LoginScreen import error:', error);
+  LoginScreen = FallbackScreen;
+}
+// Import other required screens safely
+let SignUpScreen, ForgotPasswordScreen, OnboardingScreen, ActiveRideScreen;
+let NavigationScreen, SettingsScreen, ProfileScreen, EarningsScreen;
+let TripHistoryScreen, SupportScreen, EmergencyContactScreen;
+
+try { SignUpScreen = require('@/screens/auth/SignUpScreen').default || FallbackScreen; } catch (e) { SignUpScreen = FallbackScreen; }
+try { ForgotPasswordScreen = require('@/screens/auth/ForgotPasswordScreen').default || FallbackScreen; } catch (e) { ForgotPasswordScreen = FallbackScreen; }
+try { OnboardingScreen = require('@/screens/auth/OnboardingScreen').default || FallbackScreen; } catch (e) { OnboardingScreen = FallbackScreen; }
+try { ActiveRideScreen = require('@/screens/ride/ActiveRideScreen').default || FallbackScreen; } catch (e) { ActiveRideScreen = FallbackScreen; }
+try { NavigationScreen = require('@/screens/navigation/NavigationScreen').default || FallbackScreen; } catch (e) { NavigationScreen = FallbackScreen; }
+try { SettingsScreen = require('@/screens/settings/SettingsScreen').default || FallbackScreen; } catch (e) { SettingsScreen = FallbackScreen; }
+try { ProfileScreen = require('@/screens/profile/ProfileScreen').default || FallbackScreen; } catch (e) { ProfileScreen = FallbackScreen; }
+try { EarningsScreen = require('@/screens/earnings/EarningsScreen').default || FallbackScreen; } catch (e) { EarningsScreen = FallbackScreen; }
+try { TripHistoryScreen = require('@/screens/trips/TripHistoryScreen').default || FallbackScreen; } catch (e) { TripHistoryScreen = FallbackScreen; }
+try { SupportScreen = require('@/screens/support/SupportScreen').default || FallbackScreen; } catch (e) { SupportScreen = FallbackScreen; }
+try { EmergencyContactScreen = require('@/screens/profile/EmergencyContactScreen').default || FallbackScreen; } catch (e) { EmergencyContactScreen = FallbackScreen; }
+
+// Optional imports with fallbacks (these may not exist)
+let RydeAnimation, AnalyticsDashboard, DriverToolsDashboard, SustainabilityDashboard;
+let CommunityDashboard, SafetyDashboard, CommunicationDashboard, VehicleDashboard;
+let PaymentDashboard, DynamicPricingDashboard, GamificationDashboard;
+let AccessibilityDashboard, WellnessDashboard;
+
+try {
+  RydeAnimation = require('@/screens/startup/RydeAnimation').default;
+} catch (e) { RydeAnimation = FallbackScreen; }
+
+try {
+  AnalyticsDashboard = require('@/screens/dashboard/AnalyticsDashboard').default;
+} catch (e) { AnalyticsDashboard = FallbackScreen; }
+
+try {
+  DriverToolsDashboard = require('@/screens/dashboard/DriverToolsDashboard').default;
+} catch (e) { DriverToolsDashboard = FallbackScreen; }
+
+try {
+  SustainabilityDashboard = require('@/screens/dashboard/SustainabilityDashboard').default;
+} catch (e) { SustainabilityDashboard = FallbackScreen; }
+
+try {
+  CommunityDashboard = require('@/screens/dashboard/CommunityDashboard').default;
+} catch (e) { CommunityDashboard = FallbackScreen; }
+
+try {
+  SafetyDashboard = require('@/screens/dashboard/SafetyDashboard').default;
+} catch (e) { SafetyDashboard = FallbackScreen; }
+
+try {
+  CommunicationDashboard = require('@/screens/dashboard/CommunicationDashboard').default;
+} catch (e) { CommunicationDashboard = FallbackScreen; }
+
+try {
+  VehicleDashboard = require('@/screens/dashboard/VehicleDashboard').default;
+} catch (e) { VehicleDashboard = FallbackScreen; }
+
+try {
+  PaymentDashboard = require('@/screens/dashboard/PaymentDashboard').default;
+} catch (e) { PaymentDashboard = FallbackScreen; }
+
+try {
+  DynamicPricingDashboard = require('@/screens/dashboard/DynamicPricingDashboard').default;
+} catch (e) { DynamicPricingDashboard = FallbackScreen; }
+
+try {
+  GamificationDashboard = require('@/screens/dashboard/GamificationDashboard').default;
+} catch (e) { GamificationDashboard = FallbackScreen; }
+
+try {
+  AccessibilityDashboard = require('@/screens/dashboard/AccessibilityDashboard').default;
+} catch (e) { AccessibilityDashboard = FallbackScreen; }
+
+try {
+  WellnessDashboard = require('@/screens/dashboard/WellnessDashboard').default;
+} catch (e) { WellnessDashboard = FallbackScreen; }
 
 const Stack = createNativeStackNavigator();
 
@@ -267,10 +363,7 @@ const AppNavigator = () => {
           gestureEnabled: true,
         }}
       />
-      <Stack.Screen
-        name="Banking"
-        component={require('@/screens/settings/BankingScreen').default}
-      />
+
       
       {/* Emergency Contact Screen */}
       <Stack.Screen 

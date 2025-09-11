@@ -2,12 +2,16 @@ import { auth, db } from './firebase/config';
 import { 
   doc, 
   updateDoc, 
+  setDoc,
   onSnapshot, 
-  getDoc,
-  GeoPoint,
+  getDoc, 
+  GeoPoint, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { getCurrentLocation } from './location';
+
+// Import simple location service that won't crash
+import SimpleLocationService from './simpleLocationService';
 
 class DriverStatusService {
   constructor() {
@@ -20,9 +24,45 @@ class DriverStatusService {
   }
 
   // Initialize service with current driver
-  initialize(driverId) {
+  async initialize(driverId, userData = null) {
     this.currentDriverId = driverId;
-    this.createDriverDocument();
+    await this.createDriverDocument();
+    
+    // Initialize simple location service
+    try {
+      await SimpleLocationService.initialize(driverId);
+      console.log('✅ Simple location service initialized');
+    } catch (error) {
+      console.warn('⚠️ Could not initialize location service:', error);
+    }
+    
+    // Update with user data if provided
+    if (userData) {
+      await this.updateDriverInfo(userData);
+    }
+  }
+
+  // Check if service is initialized
+  isInitialized() {
+    return this.currentDriverId !== null;
+  }
+
+  // Update driver information with user data
+  async updateDriverInfo(userData) {
+    if (!this.currentDriverId) {
+      return;
+    }
+
+    try {
+      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      await updateDoc(driverRef, {
+        email: userData.email || '',
+        displayName: userData.displayName || 'Driver',
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('❌ Error updating driver info:', error);
+    }
   }
 
   // Create or update driver document
@@ -34,12 +74,11 @@ class DriverStatusService {
 
     try {
       const driverRef = doc(this.db, 'drivers', this.currentDriverId);
-      const currentUser = this.auth.currentUser;
       
-      await updateDoc(driverRef, {
+      await setDoc(driverRef, {
         id: this.currentDriverId,
-        email: currentUser?.email || '',
-        displayName: currentUser?.displayName || 'Driver',
+        email: '', // Will be updated when user data is available
+        displayName: 'Driver',
         status: 'offline',
         isOnline: false,
         lastStatusUpdate: serverTimestamp(),
@@ -48,7 +87,7 @@ class DriverStatusService {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      console.log('✅ Driver document created/updated');
+      // Driver document created/updated
     } catch (error) {
       console.error('❌ Error creating driver document:', error);
     }
@@ -70,7 +109,6 @@ class DriverStatusService {
       });
 
       this.isOnline = status === 'available';
-      console.log('📱 Driver status updated:', status);
       return { success: true, status };
     } catch (error) {
       console.error('❌ Error updating driver status:', error);
@@ -99,8 +137,26 @@ class DriverStatusService {
     }
   }
 
-  // Start automatic location updates
+  // Start automatic location updates using simple service
   async startLocationUpdates(intervalMs = 30000) {
+    try {
+      const result = await SimpleLocationService.startTracking();
+      
+      if (result && result.success) {
+        console.log('📍 Simple location tracking started');
+        return { success: true, usingSimpleService: true };
+      } else {
+        console.warn('⚠️ Simple location service failed, using basic fallback');
+        return this.startBasicLocationUpdates(intervalMs);
+      }
+    } catch (error) {
+      console.warn('⚠️ Error with location tracking, using fallback:', error);
+      return this.startBasicLocationUpdates(intervalMs);
+    }
+  }
+
+  // Fallback basic location updates (legacy method)
+  async startBasicLocationUpdates(intervalMs = 30000) {
     if (this.locationUpdateInterval) {
       clearInterval(this.locationUpdateInterval);
     }
@@ -114,16 +170,26 @@ class DriverStatusService {
       }
     }, intervalMs);
 
-    console.log('📍 Location updates started');
+    console.log('📍 Basic location tracking started');
+    return { success: true, usingRealTimeService: false };
   }
 
   // Stop automatic location updates
-  stopLocationUpdates() {
+  async stopLocationUpdates() {
+    try {
+      // Stop simple location tracking
+      await SimpleLocationService.stopTracking();
+    } catch (error) {
+      console.warn('⚠️ Error stopping location service:', error);
+    }
+
+    // Also stop basic location updates (fallback)
     if (this.locationUpdateInterval) {
       clearInterval(this.locationUpdateInterval);
       this.locationUpdateInterval = null;
-      console.log('📍 Location updates stopped');
     }
+
+    console.log('🛑 Location tracking stopped');
   }
 
   // Listen for driver status changes
@@ -179,12 +245,18 @@ class DriverStatusService {
 
   // Go online
   async goOnline() {
+    if (!this.isInitialized()) {
+      throw new Error('DriverStatusService not initialized. Call initialize() first.');
+    }
     await this.updateDriverStatus('available');
     await this.startLocationUpdates();
   }
 
   // Go offline
   async goOffline() {
+    if (!this.isInitialized()) {
+      throw new Error('DriverStatusService not initialized. Call initialize() first.');
+    }
     await this.updateDriverStatus('offline');
     this.stopLocationUpdates();
   }

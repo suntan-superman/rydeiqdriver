@@ -20,19 +20,19 @@ const AnalyticsDashboard = ({ navigation }) => {
   const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
-    if (user?.uid) {
-      dispatch(fetchAnalyticsDashboard({ userId: user.uid, timeRange }));
+    if (user?.id) {
+      dispatch(fetchAnalyticsDashboard({ userId: user.id, timeRange }));
     }
     return () => dispatch(clearAnalyticsError());
-  }, [dispatch, user?.uid, timeRange]);
+  }, [dispatch, user?.id, timeRange]);
 
   const handleBack = () => {
     navigation.goBack();
   };
 
   const handleRetry = () => {
-    if (user?.uid) {
-      dispatch(fetchAnalyticsDashboard({ userId: user.uid, timeRange }));
+    if (user?.id) {
+      dispatch(fetchAnalyticsDashboard({ userId: user.id, timeRange }));
     }
   };
 

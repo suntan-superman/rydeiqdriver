@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,12 +18,177 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
-import { playRideRequestSound } from '@/utils/soundEffects';
-import RideRequestService from '@/services/rideRequestService';
-import RideRequestModal from '@/components/RideRequestModal';
-import DriverStatusService from '@/services/driverStatusService';
-import { getCurrentLocation, startLocationTracking, stopLocationTracking } from '@/services/location';
-import ConnectionTestService from '@/utils/connectionTest';
+// Safe service imports with error handling
+let RideRequestService;
+let RideRequestModal;
+let DriverBidSubmissionScreen;
+let DriverNotificationHandler;
+let driverBidNotificationService;
+let DriverStatusService;
+let realTimeLocationService;
+let simpleLocationService;
+let locationServices = {};
+
+try {
+  RideRequestService = require('@/services/rideRequestService').default;
+} catch (error) {
+  console.warn('⚠️ RideRequestService import failed:', error.message);
+  RideRequestService = {
+    initialize: () => {},
+    setRideRequestCallback: () => {},
+    stopListening: () => {}
+  };
+}
+
+try {
+  RideRequestModal = require('@/components/RideRequestModal').default;
+} catch (error) {
+  console.warn('⚠️ RideRequestModal import failed:', error.message);
+  RideRequestModal = ({ visible, onClose }) => null;
+}
+
+try {
+  DriverBidSubmissionScreen = require('@/components/DriverBidSubmissionScreen').default;
+  console.log('✅ DriverBidSubmissionScreen imported successfully');
+  console.log('✅ Type of DriverBidSubmissionScreen:', typeof DriverBidSubmissionScreen);
+} catch (error) {
+  console.warn('⚠️ DriverBidSubmissionScreen import failed:', error.message);
+  console.warn('⚠️ Using fallback component instead');
+  DriverBidSubmissionScreen = ({ isVisible, onClose }) => {
+    console.log('🚨 FALLBACK COMPONENT CALLED with isVisible:', isVisible);
+    return null;
+  };
+}
+
+try {
+  DriverNotificationHandler = require('@/components/DriverNotificationHandler').default;
+} catch (error) {
+  console.warn('⚠️ DriverNotificationHandler import failed:', error.message);
+  DriverNotificationHandler = ({ driverId }) => null;
+}
+
+try {
+  driverBidNotificationService = require('@/services/driverBidNotificationService').default;
+} catch (error) {
+  console.warn('⚠️ driverBidNotificationService import failed:', error.message);
+  driverBidNotificationService = {
+    initialize: () => {},
+    startListeningForBidAcceptance: () => Promise.resolve(() => {}),
+    stopAllListeners: () => {}
+  };
+}
+
+try {
+  DriverStatusService = require('@/services/driverStatusService').default;
+} catch (error) {
+  console.warn('⚠️ DriverStatusService import failed:', error.message);
+  DriverStatusService = {
+    initialize: () => Promise.resolve(),
+    listenForDriverStatus: () => {},
+    getCurrentDriverStatus: () => Promise.resolve({ isOnline: false }),
+    toggleOnlineStatus: () => Promise.resolve({ success: true }),
+    startLocationUpdates: () => Promise.resolve(),
+    stopLocationUpdates: () => Promise.resolve()
+  };
+}
+
+try {
+  const locationModule = require('@/services/location');
+  locationServices = {
+    getCurrentLocation: locationModule.getCurrentLocation || (() => Promise.reject()),
+    startLocationTracking: locationModule.startLocationTracking || (() => Promise.resolve()),
+    stopLocationTracking: locationModule.stopLocationTracking || (() => Promise.resolve())
+  };
+} catch (error) {
+  console.warn('⚠️ Location services import failed:', error.message);
+  locationServices = {
+    getCurrentLocation: () => Promise.reject(new Error('Location service not available')),
+    startLocationTracking: () => Promise.resolve(),
+    stopLocationTracking: () => Promise.resolve()
+  };
+}
+
+const { getCurrentLocation, startLocationTracking, stopLocationTracking } = locationServices;
+
+// Real-time and simple location service imports
+try {
+  realTimeLocationService = require('@/services/realTimeLocationService').default;
+} catch (error) {
+  console.warn('⚠️ realTimeLocationService import failed:', error.message);
+  realTimeLocationService = {
+    startTracking: () => Promise.resolve(),
+    stopTracking: () => Promise.resolve()
+  };
+}
+
+try {
+  simpleLocationService = require('@/services/simpleLocationService').default;
+} catch (error) {
+  console.warn('⚠️ simpleLocationService import failed:', error.message);
+  simpleLocationService = {
+    startTracking: () => Promise.resolve(),
+    stopTracking: () => Promise.resolve()
+  };
+}
+
+// Safe utility imports
+let ConnectionTestService;
+let DebugHelper;
+let FirebaseIndexHelper;
+let InitializationTest;
+let TestDriverSetup;
+let playRideRequestSound;
+
+try {
+  ConnectionTestService = require('@/utils/connectionTest').default;
+} catch (error) {
+  console.warn('⚠️ ConnectionTestService import failed:', error.message);
+  ConnectionTestService = { test: () => Promise.resolve() };
+}
+
+try {
+  DebugHelper = require('@/utils/debugHelper').default;
+} catch (error) {
+  console.warn('⚠️ DebugHelper import failed:', error.message);
+  DebugHelper = { log: () => {} };
+}
+
+try {
+  FirebaseIndexHelper = require('@/utils/firebaseIndexHelper').default;
+} catch (error) {
+  console.warn('⚠️ FirebaseIndexHelper import failed:', error.message);
+  FirebaseIndexHelper = { checkIndexRequirements: () => {} };
+}
+
+try {
+  InitializationTest = require('@/utils/initializationTest').default;
+} catch (error) {
+  console.warn('⚠️ InitializationTest import failed:', error.message);
+  InitializationTest = { run: () => Promise.resolve() };
+}
+
+try {
+  TestDriverSetup = require('@/utils/testDriverSetup').default;
+} catch (error) {
+  console.warn('⚠️ TestDriverSetup import failed:', error.message);
+  TestDriverSetup = { setup: () => Promise.resolve() };
+}
+
+try {
+  const soundEffects = require('@/utils/soundEffects');
+  playRideRequestSound = soundEffects.playRideRequestSound || (() => {});
+} catch (error) {
+  console.warn('⚠️ Sound effects import failed:', error.message);
+  playRideRequestSound = () => {};
+}
+// Safe import for LocationTestPanel
+let LocationTestPanel;
+try {
+  LocationTestPanel = require('@/components/LocationTestPanel').default;
+} catch (error) {
+  console.warn('LocationTestPanel not available:', error.message);
+  LocationTestPanel = ({ visible, onClose }) => null; // Fallback component
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -149,43 +314,234 @@ const HomeScreen = () => {
   const [showNavigationMenu, setShowNavigationMenu] = useState(false);
   const [rideRequest, setRideRequest] = useState(null);
   const [showRideRequestModal, setShowRideRequestModal] = useState(false);
+  const [showBidSubmissionModal, setShowBidSubmissionModal] = useState(false);
+  
+  // Debug logging for modal state
+  useEffect(() => {
+    console.log('🎯 Modal state changed:', {
+      showBidSubmissionModal,
+      showRideRequestModal,
+      rideRequest: !!rideRequest
+    });
+  }, [showBidSubmissionModal, showRideRequestModal, rideRequest]);
+  const [servicesInitialized, setServicesInitialized] = useState(false);
+  const [showLocationTestPanel, setShowLocationTestPanel] = useState(false);
+  
+  // Track when modal was explicitly closed to prevent immediate reopening
+  const [modalJustClosed, setModalJustClosed] = useState(false);
+  
+  // Track declined ride request IDs to prevent reopening same requests
+  // Use ref to ensure callback always has current value
+  const ignoredRideRequestIds = useRef(new Set());
+  
+  // Clear ignored ride requests every 30 minutes to prevent permanent blocking
+  useEffect(() => {
+    const clearIgnoredRequests = setInterval(() => {
+      if (ignoredRideRequestIds.current.size > 0) {
+        console.log('🧹 DRIVER DEBUG: Clearing', ignoredRideRequestIds.current.size, 'ignored ride requests (30min cleanup)');
+        ignoredRideRequestIds.current = new Set();
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+    
+    return () => clearInterval(clearIgnoredRequests);
+  }, []);
 
   // Determine approval status - check both approval status and onboarding completion
   const isApproved = user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
 
   // Initialize services when component mounts
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      // Initialize services
-      RideRequestService.initialize(currentUser.uid);
-      DriverStatusService.initialize(currentUser.uid);
-      
-      // Set callback for new ride requests
-      RideRequestService.setRideRequestCallback((newRideRequest) => {
-        setRideRequest(newRideRequest);
-        setShowRideRequestModal(true);
-        playRideRequestSound(); // Play notification sound
-      });
+    const initializeServices = async () => {
+      if (user && user.id) {
+        try {
+          // Initialize services with error handling
+          try {
+            RideRequestService.initialize(user.id);
+            
+            // Force restart listening to break out of any existing loops
+            if (typeof RideRequestService.forceRestartListening === 'function') {
+              RideRequestService.forceRestartListening();
+              console.log('🔄 Force restarted ride request listening on app open');
+            }
+          } catch (error) {
+            console.warn('⚠️ RideRequestService initialization failed:', error);
+          }
 
-      // Listen for driver status changes
-      DriverStatusService.listenForDriverStatus((driverStatus) => {
-        setIsOnline(driverStatus.isOnline);
-      });
+          try {
+            if (DriverStatusService && typeof DriverStatusService.initialize === 'function') {
+              await DriverStatusService.initialize(user.id, {
+                email: user?.email || '',
+                displayName: user?.displayName || 'Driver'
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ DriverStatusService initialization failed:', error);
+          }
 
-      // Get initial status
-      DriverStatusService.getCurrentDriverStatus().then((status) => {
-        if (status) {
-          setIsOnline(status.isOnline);
+          try {
+            if (driverBidNotificationService && typeof driverBidNotificationService.initialize === 'function') {
+              driverBidNotificationService.initialize(user.id);
+            }
+          } catch (error) {
+            console.warn('⚠️ driverBidNotificationService initialization failed:', error);
+          }
+          
+          // Set callback for new ride requests
+          try {
+            if (RideRequestService && typeof RideRequestService.setRideRequestCallback === 'function') {
+              RideRequestService.setRideRequestCallback((newRideRequest) => {
+                try {
+                  if (newRideRequest) {
+                    console.log('🎯 New ride request received:', newRideRequest);
+                    console.log('🚪 DRIVER DEBUG: modalJustClosed state:', modalJustClosed);
+                    
+                    // Don't open modal if it was just closed
+                    if (modalJustClosed) {
+                      console.log('🚫 DRIVER DEBUG: Modal was just closed - ignoring ride request to prevent reopening');
+                      return;
+                    }
+                    
+                    // Check if this ride request ID has been previously ignored/declined
+                    if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
+                      console.log('🚫 DRIVER DEBUG: Ride request already ignored/declined - not showing modal:', newRideRequest.id);
+                      console.log('🚫 DRIVER DEBUG: Current ignored list:', Array.from(ignoredRideRequestIds.current));
+                      return;
+                    }
+                    
+                    // Set ride request first, then show modal after a brief delay to ensure state is updated
+                    setRideRequest(newRideRequest);
+                    
+                    // Use setTimeout to ensure the rideRequest state is updated before showing modal
+                    setTimeout(() => {
+                      try {
+                        // Double-check modalJustClosed in case it changed during the timeout
+                        if (modalJustClosed) {
+                          console.log('🚫 DRIVER DEBUG: Modal was closed during timeout - aborting modal open');
+                          return;
+                        }
+                        
+                        // Double-check ignored list in case it changed during timeout
+                        if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
+                          console.log('🚫 DRIVER DEBUG: Ride request was ignored during timeout - aborting modal open:', newRideRequest.id);
+                          return;
+                        }
+                        
+                        console.log('🎯 Showing bid submission modal...');
+                        setShowBidSubmissionModal(true);
+                      } catch (modalError) {
+                        console.warn('⚠️ Bid submission modal failed, using fallback:', modalError);
+                        setShowRideRequestModal(true);
+                      }
+                    }, 100); // Small delay to ensure state update
+                    
+                    try {
+                      playRideRequestSound(); // Play notification sound
+                    } catch (soundError) {
+                      // Silent fallback for sound errors
+                    }
+                  }
+                } catch (callbackError) {
+                  console.error('❌ Callback error:', callbackError);
+                }
+              });
+            }
+          } catch (error) {
+            // Silent fallback for service setup errors
+          }
+
+          // Listen for driver status changes
+          try {
+            if (DriverStatusService && typeof DriverStatusService.listenForDriverStatus === 'function') {
+              DriverStatusService.listenForDriverStatus((driverStatus) => {
+                if (driverStatus && typeof driverStatus.isOnline !== 'undefined') {
+                  setIsOnline(driverStatus.isOnline);
+                }
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to set driver status listener:', error);
+          }
+
+          // Get initial status with timeout
+          try {
+            if (DriverStatusService && typeof DriverStatusService.getCurrentDriverStatus === 'function') {
+              const status = await Promise.race([
+                DriverStatusService.getCurrentDriverStatus(),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 3000)
+                )
+              ]);
+              
+              if (status && typeof status.isOnline !== 'undefined') {
+                setIsOnline(status.isOnline);
+              } else {
+                setIsOnline(false);
+              }
+            } else {
+              setIsOnline(false);
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to get initial driver status:', error);
+            setIsOnline(false);
+          }
+
+          // Mark as initialized regardless of individual service results
+          setServicesInitialized(true);
+          
+        } catch (error) {
+          console.error('❌ Error during service initialization:', error);
+          // Still mark as initialized to allow app to function
+          setServicesInitialized(true);
+          setIsOnline(false);
         }
-      });
-    }
+      } else {
+        setServicesInitialized(false);
+      }
+    };
+
+    initializeServices();
 
     return () => {
-      RideRequestService.cleanup();
-      DriverStatusService.cleanup();
+      try {
+        RideRequestService.cleanup();
+        DriverStatusService.cleanup();
+        if (driverBidNotificationService && typeof driverBidNotificationService.stopAllListeners === 'function') {
+          driverBidNotificationService.stopAllListeners();
+        }
+        setServicesInitialized(false);
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+      }
     };
-  }, []);
+  }, [user]);
+
+  // Monitor servicesInitialized state changes
+  useEffect(() => {
+    // State change monitoring removed for cleaner logs
+  }, [servicesInitialized]);
+
+  // Restart ride request listening when driver is online and back on home screen
+  useEffect(() => {
+    if (isOnline && servicesInitialized && !showBidSubmissionModal && !showRideRequestModal) {
+      try {
+        console.log('🔄 Driver is online and on home screen, ensuring ride request listening is active');
+        if (RideRequestService && typeof RideRequestService.startListeningForRideRequests === 'function') {
+          RideRequestService.startListeningForRideRequests();
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to restart ride request listening:', error);
+      }
+    } else if (!isOnline) {
+      try {
+        console.log('🛑 Driver is offline, stopping ride request listening');
+        if (RideRequestService && typeof RideRequestService.stopListeningForRideRequests === 'function') {
+          RideRequestService.stopListeningForRideRequests();
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to stop ride request listening:', error);
+      }
+    }
+  }, [isOnline, servicesInitialized, showBidSubmissionModal, showRideRequestModal]);
 
   // Location tracking functions
   const startLocationUpdates = async () => {
@@ -201,12 +557,184 @@ const HomeScreen = () => {
     setShowRideRequestModal(false);
     setRideRequest(null);
   };
+
+  // Handle bid submission modal close
+  const handleBidSubmissionModalClose = () => {
+    console.log('🚪 DRIVER DEBUG: handleBidSubmissionModalClose called');
+    console.log('🚪 DRIVER DEBUG: Current modal state before close:', showBidSubmissionModal);
+    
+    // Add current ride request to ignored list to prevent reopening
+    if (rideRequest?.id) {
+      ignoredRideRequestIds.current.add(rideRequest.id);
+      console.log('🚫 DRIVER DEBUG: Added ride request to ignored list:', rideRequest.id);
+      console.log('🚫 DRIVER DEBUG: Ignored list now contains:', Array.from(ignoredRideRequestIds.current));
+    }
+    
+    setShowBidSubmissionModal(false);
+    setRideRequest(null);
+    setModalJustClosed(true); // Prevent immediate reopening
+    
+    // Clear the "just closed" flag after 2 seconds
+    setTimeout(() => {
+      setModalJustClosed(false);
+      console.log('🚪 DRIVER DEBUG: Modal cooldown period ended - can open again');
+    }, 2000);
+    
+    console.log('🚪 DRIVER DEBUG: Modal close requested - should be false now');
+  };
+
+  // Handle successful bid submission
+  const handleBidSubmitted = (bidData) => {
+    console.log('🎯 Bid submitted successfully:', bidData);
+    Alert.alert(
+      'Bid Submitted!',
+      `Your bid of $${bidData.bidAmount.toFixed(2)} has been submitted. We'll notify you when the rider responds.`
+    );
+  };
+
+  // Handle bid acceptance
+  const handleBidAccepted = async (acceptanceData) => {
+    console.log('🎉 Bid accepted!', acceptanceData);
+    setShowBidSubmissionModal(false);
+    
+    // Create ride data for navigation using the actual ride request data
+    const rideData = {
+      rideId: acceptanceData.rideRequestId,
+      customerId: rideRequest?.riderId || 'customer',
+      customerName: rideRequest?.riderInfo?.name || 'Rider',
+      customerPhone: rideRequest?.riderInfo?.phone || '555-1234',
+      pickup: {
+        address: rideRequest?.pickup?.address || 'Pickup Location',
+        coordinates: {
+          latitude: rideRequest?.pickup?.lat || rideRequest?.pickup?.coordinates?.lat,
+          longitude: rideRequest?.pickup?.lng || rideRequest?.pickup?.coordinates?.lng
+        }
+      },
+      destination: {
+        address: rideRequest?.dropoff?.address || rideRequest?.destination?.address || 'Destination',
+        coordinates: {
+          latitude: rideRequest?.dropoff?.lat || rideRequest?.destination?.lat || rideRequest?.dropoff?.coordinates?.lat || rideRequest?.destination?.coordinates?.lat,
+          longitude: rideRequest?.dropoff?.lng || rideRequest?.destination?.lng || rideRequest?.dropoff?.coordinates?.lng || rideRequest?.destination?.coordinates?.lng
+        }
+      },
+      estimatedDistance: rideRequest?.estimatedDistance || rideRequest?.distanceInMiles || 'Unknown',
+      estimatedDuration: rideRequest?.estimatedDuration || 'Unknown',
+      bidAmount: acceptanceData.bidAmount || rideRequest?.acceptedBid,
+      state: 'en-route-pickup'
+    };
+    
+    console.log('🗺️ Navigation ride data:', rideData);
+    setRideRequest(null);
+    
+    // Start active location tracking for rider to track driver
+    console.log('🎯 Starting active location tracking for accepted ride');
+    try {
+      // Try real-time location service first
+      if (realTimeLocationService && realTimeLocationService.startTracking) {
+        await realTimeLocationService.startTracking();
+        console.log('✅ Real-time location service started');
+      }
+      
+      // Try simple location service as backup
+      if (simpleLocationService && simpleLocationService.startTracking) {
+        await simpleLocationService.startTracking();
+        console.log('✅ Simple location service started');
+      }
+      
+      // Also use the general location tracking as additional backup
+      if (startLocationTracking) {
+        await startLocationTracking();
+        console.log('✅ General location tracking started');
+      }
+    } catch (error) {
+      console.error('❌ Error starting location tracking:', error);
+      // Continue anyway - don't block the user flow
+    }
+    
+    // Navigate to ride details or active ride screen
+    Alert.alert(
+      'Congratulations!',
+      `Your bid was accepted! Ready to pick up the rider?`,
+      [
+        { text: 'View Details', onPress: () => navigation.navigate('RideDetails', { rideRequestId: acceptanceData.rideRequestId, rideData }) },
+        { text: 'Start Navigation', onPress: () => navigation.navigate('Navigation', { rideData }) }
+      ]
+    );
+  };
+
+  // Handle ride cancellation during bidding
+  const handleRideCancelledDuringBidding = (cancellationData) => {
+    console.log('❌ Ride cancelled during bidding:', cancellationData);
+    setShowBidSubmissionModal(false);
+    setRideRequest(null);
+    
+    Alert.alert(
+      'Ride Cancelled',
+      'The ride was cancelled by the rider.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Handle notification handler callbacks
+  const handleNavigateToRide = (rideRequestId, screen) => {
+    console.log('📱 Navigate to ride:', rideRequestId, screen);
+    
+    // Create ride data if we have rideRequest available
+    const rideData = rideRequest ? {
+      rideId: rideRequestId,
+      customerId: rideRequest?.riderId || 'customer',
+      customerName: rideRequest?.riderInfo?.name || 'Rider',
+      customerPhone: rideRequest?.riderInfo?.phone || '555-1234',
+      pickup: {
+        address: rideRequest?.pickup?.address || 'Pickup Location',
+        coordinates: {
+          latitude: rideRequest?.pickup?.lat || rideRequest?.pickup?.coordinates?.lat,
+          longitude: rideRequest?.pickup?.lng || rideRequest?.pickup?.coordinates?.lng
+        }
+      },
+      destination: {
+        address: rideRequest?.dropoff?.address || rideRequest?.destination?.address || 'Destination',
+        coordinates: {
+          latitude: rideRequest?.dropoff?.lat || rideRequest?.destination?.lat || rideRequest?.dropoff?.coordinates?.lat || rideRequest?.destination?.coordinates?.lat,
+          longitude: rideRequest?.dropoff?.lng || rideRequest?.destination?.lng || rideRequest?.dropoff?.coordinates?.lng || rideRequest?.destination?.coordinates?.lng
+        }
+      },
+      estimatedDistance: rideRequest?.estimatedDistance || rideRequest?.distanceInMiles || 'Unknown',
+      estimatedDuration: rideRequest?.estimatedDuration || 'Unknown',
+      state: 'en-route-pickup'
+    } : null;
+    
+    switch (screen) {
+      case 'ride_details':
+        navigation.navigate('RideDetails', { rideRequestId, rideData });
+        break;
+      case 'navigation':
+        navigation.navigate('Navigation', { rideData });
+        break;
+      case 'contact_rider':
+        navigation.navigate('ContactRider', { rideRequestId, rideData });
+        break;
+      default:
+        navigation.navigate('RideDetails', { rideRequestId, rideData });
+    }
+  };
   
 
 
   // Handle online/offline toggle
   const handleStatusToggle = async () => {
     try {
+      // Check if services are initialized
+      if (!user || !user.id) {
+        Alert.alert('Error', 'User not authenticated. Please sign in again.');
+        return;
+      }
+
+      if (!servicesInitialized) {
+        Alert.alert('Error', 'Services are still initializing. Please wait a moment and try again.');
+        return;
+      }
+
       if (isOnline) {
         Alert.alert(
           'Go Offline',
@@ -217,7 +745,12 @@ const HomeScreen = () => {
               text: 'Go Offline', 
               style: 'destructive',
               onPress: async () => {
-                await DriverStatusService.goOffline();
+                try {
+                  await DriverStatusService.goOffline();
+                } catch (error) {
+                  console.error('Error going offline:', error);
+                  Alert.alert('Error', 'Failed to go offline. Please try again.');
+                }
               }
             }
           ]
@@ -232,19 +765,26 @@ const HomeScreen = () => {
   };
 
   // Status button configuration
-  const statusConfig = isOnline 
+  const statusConfig = !servicesInitialized
     ? {
-        text: 'ONLINE',
-        subtext: 'Receiving ride requests',
-        backgroundColor: COLORS.success,
-        icon: 'radio-button-on'
+        text: 'INITIALIZING',
+        subtext: 'Setting up services...',
+        backgroundColor: COLORS.secondary,
+        icon: 'hourglass'
       }
-    : {
-        text: 'OFFLINE', 
-        subtext: 'Tap to go online',
-        backgroundColor: COLORS.offline,
-        icon: 'radio-button-off'
-      };
+    : isOnline 
+      ? {
+          text: 'ONLINE',
+          subtext: 'Receiving ride requests',
+          backgroundColor: COLORS.success,
+          icon: 'radio-button-on'
+        }
+      : {
+          text: 'OFFLINE', 
+          subtext: 'Tap to go online',
+          backgroundColor: COLORS.offline,
+          icon: 'radio-button-off'
+        };
 
   // Handle ride request actions
   const handleAcceptRide = (request) => {
@@ -310,6 +850,194 @@ const HomeScreen = () => {
     }
   };
 
+  // Debug functionality
+  const runDebugCheck = async () => {
+    try {
+      const result = await DebugHelper.runDebugCheck();
+      Alert.alert(
+        'Debug Check Complete',
+        result.success ? 'All checks passed!' : 'Some checks failed. Check console for details.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Debug Error', 'Failed to run debug check');
+    }
+  };
+
+  // Show Firebase index information
+  const showIndexInfo = () => {
+    FirebaseIndexHelper.logIndexRequirements();
+    Alert.alert(
+      'Firebase Index Info',
+      'Index requirements have been logged to the console. Check the console for details and creation links.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Test initialization
+  const testInitialization = async () => {
+    try {
+      if (!user || !user.id) {
+        Alert.alert('Error', 'User not authenticated. Please sign in first.');
+        return;
+      }
+
+      Alert.alert(
+        'Test Initialization',
+        'This will test service initialization and methods. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Run Test',
+            onPress: async () => {
+              await InitializationTest.testServiceInitialization(user.id, {
+                email: user.email,
+                displayName: user.displayName
+              });
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Test Error', 'Failed to run initialization test');
+    }
+  };
+
+  // Debug current state
+  const debugCurrentState = () => {
+    Alert.alert(
+      'Debug Info',
+      `Services Initialized: ${servicesInitialized}\nIs Online: ${isOnline}\nUser: ${user ? 'Authenticated' : 'Not authenticated'}\nUser UID: ${user?.id || 'null'}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Force initialization completion
+  const forceInitialization = () => {
+    setIsOnline(false);
+    setServicesInitialized(true);
+    Alert.alert('Success', 'Initialization has been forced to complete.');
+  };
+
+  // Simple initialization for testing
+  const simpleInitialization = () => {
+    try {
+      // Basic initialization without complex services
+      setIsOnline(false);
+      setServicesInitialized(true);
+      Alert.alert('Success', 'Simple initialization completed successfully.');
+    } catch (error) {
+      console.error('❌ Simple initialization failed:', error);
+      Alert.alert('Error', 'Simple initialization failed: ' + error.message);
+    }
+  };
+
+  // Test driver setup functions
+  const setupTestDriver = async () => {
+    try {
+      Alert.alert(
+        'Setup Test Driver',
+        'This will create a test driver profile and rider profile for testing. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Setup',
+            onPress: async () => {
+              try {
+                const result = await TestDriverSetup.runComprehensiveTest();
+                if (result.success) {
+                  Alert.alert('Success', 'Test driver setup completed successfully!');
+                } else {
+                  Alert.alert('Partial Success', `Test completed with warnings: ${result.error}`);
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Failed to setup test driver: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to setup test driver');
+    }
+  };
+
+  const createTestRideRequest = async () => {
+    try {
+      Alert.alert(
+        'Create Test Ride Request',
+        'This will create a test ride request for the test driver. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Create',
+            onPress: async () => {
+              try {
+                const result = await TestDriverSetup.createTestRideRequest();
+                Alert.alert('Success', `Test ride request created: ${result.rideRequestId}`);
+              } catch (error) {
+                Alert.alert('Error', 'Failed to create test ride request: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create test ride request');
+    }
+  };
+
+  const simulateMultipleRideRequests = async () => {
+    try {
+      Alert.alert(
+        'Simulate Multiple Ride Requests',
+        'This will create 3 test ride requests with 2-second intervals. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Simulate',
+            onPress: async () => {
+              try {
+                const results = await TestDriverSetup.simulateMultipleRideRequests(3, 2000);
+                const successCount = results.filter(r => r.success).length;
+                Alert.alert('Success', `Created ${successCount} test ride requests successfully!`);
+              } catch (error) {
+                Alert.alert('Error', 'Failed to simulate ride requests: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to simulate ride requests');
+    }
+  };
+
+  const cleanupTestData = async () => {
+    try {
+      Alert.alert(
+        'Cleanup Test Data',
+        'This will mark the test driver as offline. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Cleanup',
+            onPress: async () => {
+              try {
+                await TestDriverSetup.cleanupTestData();
+                Alert.alert('Success', 'Test data cleanup completed!');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to cleanup test data: ' + error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to cleanup test data');
+    }
+  };
+
   // Pending approval banner
   const PendingApprovalBanner = () => (
     <View style={styles.pendingBanner}>
@@ -360,11 +1088,11 @@ const HomeScreen = () => {
         
         {/* Online/Offline Status Card */}
         <View style={styles.statusCard}>
-          {/* Online/Offline Toggle - disabled if not approved */}
+          {/* Online/Offline Toggle - disabled if not approved or services not initialized */}
           <TouchableOpacity
-            style={[styles.statusButton, { backgroundColor: statusConfig.backgroundColor, opacity: isApproved ? 1 : 0.5 }]}
-            onPress={isApproved ? handleStatusToggle : undefined}
-            disabled={!isApproved}
+            style={[styles.statusButton, { backgroundColor: statusConfig.backgroundColor, opacity: (isApproved && servicesInitialized) ? 1 : 0.5 }]}
+            onPress={(isApproved && servicesInitialized) ? handleStatusToggle : undefined}
+            disabled={!isApproved || !servicesInitialized}
           >
             <Ionicons 
               name={statusConfig.icon} 
@@ -586,8 +1314,7 @@ const HomeScreen = () => {
         </View>
 
         {/* Demo Section (for testing) */}
-        {isOnline && (
-          <View style={styles.demoSection}>
+        <View style={styles.demoSection}>
             <TouchableOpacity 
               style={styles.demoButton}
               onPress={triggerDemoRideRequest}
@@ -605,8 +1332,111 @@ const HomeScreen = () => {
               <Ionicons name="bug" size={20} color={COLORS.white} />
               <Text style={styles.demoButtonText}>Test Connection</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.warning, marginTop: 12 }]}
+              onPress={runDebugCheck}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="search" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Debug Check</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.gray500, marginTop: 12 }]}
+              onPress={showIndexInfo}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="server" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Firebase Indexes</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.primary[600], marginTop: 12 }]}
+              onPress={() => setShowLocationTestPanel(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="location" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Test Location Override</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.primary[500], marginTop: 12 }]}
+              onPress={testInitialization}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Test Initialization</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.warning, marginTop: 12 }]}
+              onPress={debugCurrentState}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bug" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Debug State</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.error, marginTop: 12 }]}
+              onPress={forceInitialization}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Force Init</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.demoButton, { backgroundColor: COLORS.info, marginTop: 12 }]}
+              onPress={simpleInitialization}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="play" size={20} color={COLORS.white} />
+              <Text style={styles.demoButtonText}>Simple Init</Text>
+            </TouchableOpacity>
+            
+            {/* Test Driver Setup Section */}
+            <View style={styles.demoSection}>
+              <Text style={styles.demoSectionTitle}>🧪 Test Driver Setup</Text>
+              
+              <TouchableOpacity 
+                style={[styles.demoButton, { backgroundColor: COLORS.success, marginTop: 12 }]}
+                onPress={setupTestDriver}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="car" size={20} color={COLORS.white} />
+                <Text style={styles.demoButtonText}>Setup Test Driver</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.demoButton, { backgroundColor: COLORS.primary[500], marginTop: 12 }]}
+                onPress={createTestRideRequest}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={20} color={COLORS.white} />
+                <Text style={styles.demoButtonText}>Create Test Ride Request</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.demoButton, { backgroundColor: COLORS.gray500, marginTop: 12 }]}
+                onPress={simulateMultipleRideRequests}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="repeat" size={20} color={COLORS.white} />
+                <Text style={styles.demoButtonText}>Simulate Multiple Requests</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.demoButton, { backgroundColor: COLORS.warning, marginTop: 12 }]}
+                onPress={cleanupTestData}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="trash" size={20} color={COLORS.white} />
+                <Text style={styles.demoButtonText}>Cleanup Test Data</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
 
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
@@ -625,6 +1455,44 @@ const HomeScreen = () => {
         visible={showRideRequestModal}
         rideRequest={rideRequest}
         onClose={handleRideRequestModalClose}
+        driverVehicle={{
+          make: 'Toyota',
+          model: 'Camry',
+          year: '2020',
+          vehicleType: 'standard',
+          driverId: user?.uid
+        }}
+      />
+
+      {/* Enhanced Bid Submission Screen */}
+      {console.log('🎯 Rendering DriverBidSubmissionScreen with visible:', showBidSubmissionModal)}
+      <DriverBidSubmissionScreen
+        isVisible={showBidSubmissionModal}
+        rideRequest={rideRequest}
+        driverInfo={{
+          id: user?.uid || user?.id,
+          name: user?.displayName || 'Driver',
+          email: user?.email
+        }}
+        driverVehicle={{
+          make: 'Toyota',
+          model: 'Camry',
+          year: '2020',
+          vehicleType: 'standard',
+          driverId: user?.uid || user?.id
+        }}
+        onBidSubmitted={handleBidSubmitted}
+        onBidAccepted={handleBidAccepted}
+        onRideCancelled={handleRideCancelledDuringBidding}
+        onClose={handleBidSubmissionModalClose}
+      />
+
+      {/* Driver Notification Handler */}
+      <DriverNotificationHandler
+        driverId={user?.uid || user?.id}
+        onBidAccepted={handleBidAccepted}
+        onNavigateToRide={handleNavigateToRide}
+        onRideCancelled={handleRideCancelledDuringBidding}
       />
 
       {/* Navigation Menu Modal */}
@@ -633,6 +1501,12 @@ const HomeScreen = () => {
         onClose={() => setShowNavigationMenu(false)}
         navigation={navigation}
         user={user}
+      />
+
+      {/* Location Test Panel */}
+      <LocationTestPanel
+        visible={showLocationTestPanel}
+        onClose={() => setShowLocationTestPanel(false)}
       />
     </SafeAreaView>
   );
@@ -882,6 +1756,13 @@ const styles = StyleSheet.create({
   },
   demoSection: {
     marginBottom: 20,
+  },
+  demoSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+    textAlign: 'center',
   },
   demoButton: {
     backgroundColor: COLORS.warning,

@@ -31,7 +31,7 @@ const ANIMATION_CONFIG = {
 
 // Brand Configuration
 const BRAND_CONFIG = {
-  PRIMARY_WORD: "RYDEIQ",
+  PRIMARY_WORD: "ANYRYDE",
   SECONDARY_WORD: "WORKSIDE SOFTWARE",
   TAGLINE: "Your rides. Your rates. Your rules.",
   PRIMARY_COLOR: COLORS.primary[500], // Enhanced green

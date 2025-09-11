@@ -257,13 +257,14 @@ export const getVehicleMPG = async (make, model, year, vehicleType = 'standard',
 };
 
 /**
- * Calculate fuel cost for a trip
+ * Calculate fuel cost for a trip with enhanced fare calculation features
  * @param {Object} params - Calculation parameters
  * @param {number} params.distance - Trip distance in miles
- * @param {Object} params.vehicle - Vehicle information
+ * @param {Object} params.vehicle - Vehicle information (make, model, year, etc.)
  * @param {number} params.trafficFactor - Traffic factor (1.0 = normal, 1.2 = heavy traffic)
  * @param {Object} params.customFuelPrices - Custom fuel prices (optional)
  * @param {Object} params.location - Driver location for local fuel prices
+ * @param {boolean} params.includeDetailed - Include detailed breakdown for fare calculation
  * @returns {Object} Detailed fuel cost breakdown
  */
 export const calculateFuelCost = async ({
@@ -271,12 +272,15 @@ export const calculateFuelCost = async ({
   vehicle,
   trafficFactor = 1.0,
   customFuelPrices = null,
-  location = null
+  location = null,
+  includeDetailed = false
 }) => {
   if (!distance || distance <= 0) {
     return {
       totalCost: 0,
       costBreakdown: {},
+      vehicleData: null,
+      fuelPrices: null,
       error: 'Invalid distance'
     };
   }
@@ -293,6 +297,8 @@ export const calculateFuelCost = async ({
 
   // Get current fuel prices (now async)
   const fuelPrices = customFuelPrices || await getCurrentFuelPrices(location);
+
+
 
   // Calculate effective MPG based on traffic
   // Heavy traffic reduces fuel efficiency
@@ -343,21 +349,146 @@ export const calculateFuelCost = async ({
     };
   }
 
-  return {
+  // Enhanced return data for fare calculation interface
+  const result = {
     totalCost: Math.round(totalCost * 100) / 100, // Round to cents
     costBreakdown,
-    vehicleInfo: {
+    vehicleData: {
       make: mpgData.make,
       model: mpgData.model,
       fuelType: mpgData.fuelType,
-      dataSource: mpgData.source
+      dataSource: mpgData.source,
+      city: mpgData.city,
+      highway: mpgData.highway,
+      combined: mpgData.combined,
+      effectiveMPG: Math.round(effectiveMPG * 10) / 10
     },
+    fuelPrices: fuelPrices,
     trafficImpact: {
       factor: trafficFactor,
       originalMPG: mpgData.combined,
       effectiveMPG: Math.round(effectiveMPG * 10) / 10
+    },
+    tripDetails: {
+      distance: distance,
+      fuelNeeded: mpgData.fuelType === 'electric' ? 
+        ((distance / 100) * (100 / effectiveMPG)).toFixed(2) : 
+        (distance / effectiveMPG).toFixed(3),
+      unit: mpgData.fuelType === 'electric' ? 'kWh' : 'gallons'
     }
   };
+
+  // Add detailed breakdown if requested (for fare calculation UI)
+  if (includeDetailed) {
+    result.fareCalculationData = {
+      tripDistance: distance,
+      vehicleMPG: mpgData.combined,
+      effectiveMPG: Math.round(effectiveMPG * 10) / 10,
+      fuelType: mpgData.fuelType,
+      fuelPrice: mpgData.fuelType === 'electric' ? 
+        fuelPrices.electricity : 
+        (mpgData.fuelType === 'hybrid' ? fuelPrices.hybrid : fuelPrices.gasoline),
+      estimatedFuelCost: Math.round(totalCost * 100) / 100,
+      dataQuality: {
+        vehicleDataSource: mpgData.source,
+        fuelPriceSource: fuelPrices.source,
+        lastUpdated: fuelPrices.lastUpdated
+      }
+    };
+  }
+
+  return result;
+};
+
+/**
+ * Calculate comprehensive fare estimate for bid interface
+ * This function provides all the data needed for the fare calculation UI
+ * @param {Object} rideRequest - Ride request data
+ * @param {Object} driverVehicle - Driver's vehicle information
+ * @param {Object} driverLocation - Driver's current location
+ * @param {Object} options - Additional options
+ * @returns {Object} Comprehensive fare calculation data
+ */
+export const calculateFareEstimate = async (rideRequest, driverVehicle, driverLocation, options = {}) => {
+  try {
+    // Extract trip distance from ride request
+    const tripDistance = parseFloat(rideRequest.estimatedDistance?.replace(/[^\d.]/g, '')) || 0;
+    
+    if (tripDistance === 0) {
+      throw new Error('Trip distance not available');
+    }
+
+    // Provide safe fallback location if none provided
+    const safeLocation = driverLocation || {
+      latitude: 35.3733,
+      longitude: -119.0187,
+      isFallback: true
+    };
+
+    // Get fuel cost calculation with detailed breakdown
+    const fuelCostResult = await calculateFuelCost({
+      distance: tripDistance,
+      vehicle: driverVehicle,
+      location: safeLocation,
+      includeDetailed: true,
+      trafficFactor: options.trafficFactor || 1.0
+    });
+
+    // Calculate additional cost estimates
+    const maintenanceCostPerMile = options.maintenanceCostPerMile || 0.15;
+    const estimatedMaintenanceCost = tripDistance * maintenanceCostPerMile;
+    
+    // Extract estimated duration for time value calculation
+    const estimatedDuration = parseFloat(rideRequest.estimatedDuration?.replace(/[^\d.]/g, '')) || 30;
+    const timeValuePerHour = options.timeValuePerHour || 15; // $15/hour default
+    const estimatedTimeValue = (estimatedDuration / 60) * timeValuePerHour;
+
+    // Compile comprehensive fare data
+    const fareEstimate = {
+      // Basic trip info
+      tripDistance,
+      estimatedDuration,
+      
+      // Vehicle and fuel info
+      vehicleMPG: fuelCostResult.vehicleData.combined,
+      effectiveMPG: fuelCostResult.vehicleData.effectiveMPG,
+      fuelType: fuelCostResult.vehicleData.fuelType,
+      fuelPrice: fuelCostResult.fareCalculationData.fuelPrice,
+      
+      // Cost estimates
+      estimatedFuelCost: fuelCostResult.totalCost,
+      estimatedMaintenanceCost,
+      estimatedTimeValue,
+      totalEstimatedCosts: fuelCostResult.totalCost + estimatedMaintenanceCost + estimatedTimeValue,
+      
+      // Data quality and sources
+      fuelPriceSource: fuelCostResult.fuelPrices.source,
+      vehicleDataSource: fuelCostResult.vehicleData.dataSource,
+      lastUpdated: fuelCostResult.fuelPrices.lastUpdated,
+      
+      // Additional details for UI
+      fuelNeeded: fuelCostResult.tripDetails.fuelNeeded,
+      fuelUnit: fuelCostResult.tripDetails.unit,
+      trafficFactor: fuelCostResult.trafficImpact.factor,
+      
+      // Raw data for advanced calculations
+      rawFuelData: fuelCostResult
+    };
+
+    return {
+      success: true,
+      data: fareEstimate,
+      error: null
+    };
+
+  } catch (error) {
+    console.error('Error calculating fare estimate:', error);
+    return {
+      success: false,
+      data: null,
+      error: error.message
+    };
+  }
 };
 
 /**

@@ -42,6 +42,20 @@ export const initializeLocationServices = async () => {
 
 export const getCurrentLocation = async () => {
   try {
+    // Check if location permission is granted
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      // Return default location (New York City) if permission not granted
+      return {
+        latitude: 40.7128,
+        longitude: -74.006,
+        accuracy: 1000,
+        heading: 0,
+        speed: 0,
+        timestamp: Date.now(),
+      };
+    }
+
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.High,
       maximumAge: 10000, // Use cached location if less than 10 seconds old
@@ -57,7 +71,15 @@ export const getCurrentLocation = async () => {
     };
   } catch (error) {
     console.error('Error getting current location:', error);
-    throw error;
+    // Return default location instead of throwing error
+    return {
+      latitude: 40.7128,
+      longitude: -74.006,
+      accuracy: 1000,
+      heading: 0,
+      speed: 0,
+      timestamp: Date.now(),
+    };
   }
 };
 

@@ -84,7 +84,10 @@ class ConnectionTestService {
 
       // Initialize services
       RideRequestService.initialize(currentUser.uid);
-      DriverStatusService.initialize(currentUser.uid);
+      DriverStatusService.initialize(currentUser.uid, {
+        email: currentUser.email,
+        displayName: currentUser.displayName
+      });
 
       this.addTestResult('Service Initialization', 'PASS', 'Services initialized successfully');
     } catch (error) {
@@ -220,7 +223,7 @@ class ConnectionTestService {
       const testRequest = {
         ...mockRideRequest,
         id: `simulated_ride_${Date.now()}`,
-        driverId: auth.currentUser?.uid
+        driverId: auth.currentUser?.uid || 'test_driver'
       };
 
       // This would normally be sent from the rider app

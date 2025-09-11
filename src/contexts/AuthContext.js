@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { auth, AuthService } from '../services/firebase/config';
 import { playSignInOutSound } from '../utils/soundEffects';
@@ -9,6 +10,7 @@ const AuthContext = createContext({});
 const STORAGE_KEYS = {
   CREDENTIALS: 'driver_credentials',
   USER_DATA: 'driver_user_data',
+  USER_PROFILE: 'driver_profile_data', // For larger profile data in AsyncStorage
 };
 
 export const AuthProvider = ({ children }) => {
@@ -30,14 +32,14 @@ export const AuthProvider = ({ children }) => {
           try {
             const result = await AuthService.fetchDriverData(firebaseUser.uid);
             
-            if (result.success) {
+            if (result.success && result.driverData) {
               const userData = {
                 id: firebaseUser.uid,
                 email: firebaseUser.email,
-                displayName: firebaseUser.displayName || result.driverData.displayName,
+                displayName: firebaseUser.displayName || result.driverData?.displayName || 'Driver',
                 emailVerified: firebaseUser.emailVerified,
-                // Include all driver data from Firestore
-                ...result.driverData,
+                // Include all driver data from Firestore (safely)
+                ...(result.driverData || {}),
               };
               setUser(userData);
               setIsAuthenticated(true);
@@ -119,11 +121,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Load full user profile from AsyncStorage
+  const loadUserProfile = async () => {
+    try {
+      const profileString = await AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE);
+      if (profileString) {
+        const profile = JSON.parse(profileString);
+        return { success: true, profile };
+      }
+      return { success: false, message: 'No saved profile found' };
+    } catch (error) {
+      console.error('Failed to load user profile:', error);
+      return { success: false, error };
+    }
+  };
+
   // Clear saved credentials
   const clearSavedCredentials = async () => {
     try {
       await SecureStore.deleteItemAsync(STORAGE_KEYS.CREDENTIALS);
       await SecureStore.deleteItemAsync(STORAGE_KEYS.USER_DATA);
+      await AsyncStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
       return { success: true };
     } catch (error) {
       console.error('Failed to clear credentials:', error);
@@ -137,21 +155,27 @@ export const AuthProvider = ({ children }) => {
       const result = await AuthService.signIn(email, password);
       
       if (result.success) {
-        // Save user data to SecureStore
-        const userData = {
+        // Save essential user data to SecureStore (keep under 2048 bytes)
+        const essentialUserData = {
           uid: result.user.id,
           email: result.user.email,
           displayName: result.user.displayName,
-          photoURL: result.user.photoURL || null,
           emailVerified: result.user.emailVerified,
           lastSignIn: new Date().toISOString(),
+        };
+        
+        // Save larger profile data to AsyncStorage
+        const fullUserData = {
+          ...essentialUserData,
+          photoURL: result.user.photoURL || null,
           // Include all driver data from Firestore
           ...result.user,
         };
         
-        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(essentialUserData));
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(fullUserData));
         
-        return { success: true, user: userData };
+        return { success: true, user: fullUserData };
       } else {
         return result; // Return the error from AuthService
       }
@@ -172,21 +196,27 @@ export const AuthProvider = ({ children }) => {
       const result = await AuthService.signUp(email, password, { name: displayName });
       
       if (result.success) {
-        // Save user data to SecureStore
-        const userData = {
+        // Save essential user data to SecureStore (keep under 2048 bytes)
+        const essentialUserData = {
           uid: result.user.id,
           email: result.user.email,
           displayName: result.user.displayName,
-          photoURL: result.user.photoURL || null,
           emailVerified: result.user.emailVerified,
           createdAt: new Date().toISOString(),
+        };
+        
+        // Save larger profile data to AsyncStorage
+        const fullUserData = {
+          ...essentialUserData,
+          photoURL: result.user.photoURL || null,
           // Include all driver data from Firestore
           ...result.user,
         };
         
-        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(essentialUserData));
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(fullUserData));
         
-        return { success: true, user: userData };
+        return { success: true, user: fullUserData };
       } else {
         return result; // Return the error from AuthService
       }
@@ -288,6 +318,7 @@ export const AuthProvider = ({ children }) => {
     // Credential management
     saveCredentials,
     loadSavedCredentials,
+    loadUserProfile,
     clearSavedCredentials,
     testSecureStore,
   };

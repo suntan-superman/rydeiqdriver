@@ -12,19 +12,19 @@ const WellnessDashboard = ({ navigation }) => {
   const { dashboard, isLoading, error } = useSelector(state => state.wellness);
 
   useEffect(() => {
-    if (user?.uid) {
-      dispatch(fetchWellnessDashboard({ userId: user.uid }));
+    if (user?.id) {
+      dispatch(fetchWellnessDashboard({ userId: user.id }));
     }
     return () => dispatch(clearWellnessError());
-  }, [dispatch, user?.uid]);
+  }, [dispatch, user?.id]);
 
   const handleBack = () => {
     navigation.goBack();
   };
 
   const handleRetry = () => {
-    if (user?.uid) {
-      dispatch(fetchWellnessDashboard({ userId: user.uid }));
+    if (user?.id) {
+      dispatch(fetchWellnessDashboard({ userId: user.id }));
     }
   };
 

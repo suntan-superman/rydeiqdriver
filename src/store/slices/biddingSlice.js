@@ -35,6 +35,8 @@ const initialState = {
     { label: '+$10', value: 10 },
     { label: 'Custom', value: 'custom' }
   ],
+  fareCalculation: null,
+  isCalculatingFare: false,
   isLoading: false,
   error: null
 };
@@ -230,6 +232,26 @@ export const loadBidHistory = createAsyncThunk(
   }
 );
 
+export const calculateFareEstimate = createAsyncThunk(
+  'bidding/calculateFareEstimate',
+  async ({ rideRequest, driverVehicle, driverLocation }, { rejectWithValue }) => {
+    try {
+      // Import here to avoid circular dependencies
+      const { calculateFareEstimate } = await import('@/utils/fuelEstimation');
+      
+      const result = await calculateFareEstimate(rideRequest, driverVehicle, driverLocation);
+      
+      if (!result.success) {
+        return rejectWithValue(result.error);
+      }
+      
+      return result.data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const calculateOptimalBid = createAsyncThunk(
   'bidding/calculateOptimalBid',
   async ({ 
@@ -403,6 +425,12 @@ const biddingSlice = createSlice({
     clearActiveBids: (state) => {
       state.activeBids = [];
     },
+    setFareCalculation: (state, action) => {
+      state.fareCalculation = action.payload;
+    },
+    clearFareCalculation: (state) => {
+      state.fareCalculation = null;
+    },
     expireBid: (state, action) => {
       const bidId = action.payload;
       const bidIndex = state.activeBids.findIndex(bid => bid.id === bidId);
@@ -507,6 +535,20 @@ const biddingSlice = createSlice({
       .addCase(calculateOptimalBid.fulfilled, (state, action) => {
         // Store the calculation result for UI display
         state.lastOptimalBidCalculation = action.payload;
+      })
+      
+      // Calculate fare estimate
+      .addCase(calculateFareEstimate.pending, (state) => {
+        state.isCalculatingFare = true;
+        state.error = null;
+      })
+      .addCase(calculateFareEstimate.fulfilled, (state, action) => {
+        state.isCalculatingFare = false;
+        state.fareCalculation = action.payload;
+      })
+      .addCase(calculateFareEstimate.rejected, (state, action) => {
+        state.isCalculatingFare = false;
+        state.error = action.payload;
       });
   }
 });
@@ -523,6 +565,8 @@ export const {
   updateBidStatus,
   updateQuickBidOptions,
   clearActiveBids,
+  setFareCalculation,
+  clearFareCalculation,
   expireBid
 } = biddingSlice.actions;
 
@@ -535,6 +579,8 @@ export const selectQuickBidOptions = (state) => state.bidding.quickBidOptions;
 export const selectBiddingLoading = (state) => state.bidding.isLoading;
 export const selectBiddingError = (state) => state.bidding.error;
 export const selectLastOptimalBidCalculation = (state) => state.bidding.lastOptimalBidCalculation;
+export const selectFareCalculation = (state) => state.bidding.fareCalculation;
+export const selectIsCalculatingFare = (state) => state.bidding.isCalculatingFare;
 export const selectHasActiveBids = (state) => state.bidding.activeBids.length > 0;
 
 // Helper selectors

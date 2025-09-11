@@ -190,17 +190,17 @@ export class AuthService {
       
       // Get additional driver data from Firestore
       const driverDoc = await getDoc(doc(db, 'drivers', user.uid));
-      const driverData = driverDoc.exists() ? driverDoc.data() : {};
+      const driverData = driverDoc.exists() ? (driverDoc.data() || {}) : {};
       
       return {
         success: true,
         user: {
           id: user.uid,
           email: user.email,
-          displayName: user.displayName || driverData.displayName,
+          displayName: user.displayName || driverData?.displayName || 'Driver',
           emailVerified: user.emailVerified,
-          // Include all driver data from Firestore
-          ...driverData,
+          // Include all driver data from Firestore (safely)
+          ...(driverData || {}),
         },
       };
     } catch (error) {
@@ -271,20 +271,23 @@ export class AuthService {
       
       const driverDoc = await getDoc(doc(db, 'drivers', userId));
       if (driverDoc.exists()) {
+        const data = driverDoc.data();
         return {
           success: true,
-          driverData: driverDoc.data(),
+          driverData: data || {}, // Ensure we never return undefined
         };
       } else {
         return {
           success: false,
           error: { message: 'Driver document not found' },
+          driverData: {}, // Provide empty object as fallback
         };
       }
     } catch (error) {
       return {
         success: false,
         error: { message: error.message },
+        driverData: {}, // Provide empty object as fallback
       };
     }
   }

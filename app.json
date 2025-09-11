@@ -119,7 +119,6 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-
       [
         "expo-camera",
         {
@@ -139,7 +138,6 @@
           "faceIDPermission": "AnyRyde uses Face ID for secure and convenient authentication."
         }
       ],
-
       [
         "expo-build-properties",
         {
@@ -154,7 +152,8 @@
             "deploymentTarget": "15.1"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {},
     "extra": {

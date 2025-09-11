@@ -3,8 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, Animated, Easing } from 'react-native';
 
-// Step 1: Test constants import
-import { COLORS } from '@/constants';
+// Step 1: Test constants import with safety
+let COLORS;
+try {
+  COLORS = require('@/constants').COLORS || { 
+    primary: '#10B981', 
+    gray: { 600: '#6B7280' } 
+  };
+} catch (error) {
+  console.warn('Constants import failed, using fallback');
+  COLORS = { 
+    primary: '#10B981', 
+    gray: { 600: '#6B7280' } 
+  };
+}
 
 // Step 2: Test Redux store setup
 import { Provider } from 'react-redux';
@@ -89,12 +101,19 @@ function AppContent() {
     return <SimpleLoadingScreen />;
   }
 
-  // Load navigation
+  // Load navigation safely
   try {
-    const NavigationLibrary = require('@react-navigation/native');
-    const { NavigationContainer } = NavigationLibrary;
+    const { NavigationContainer } = require('@react-navigation/native');
     const AppNavigatorModule = require('@/navigation/AppNavigator');
-    const AppNavigator = AppNavigatorModule.default;
+    const AppNavigator = AppNavigatorModule?.default || AppNavigatorModule;
+    
+    if (!NavigationContainer) {
+      throw new Error('NavigationContainer not available');
+    }
+    
+    if (!AppNavigator) {
+      throw new Error('AppNavigator not available - check for import errors in navigation files');
+    }
     
     return (
       <NavigationContainer>
@@ -103,9 +122,12 @@ function AppContent() {
     );
     
   } catch (error) {
+    console.error('Navigation error:', error);
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>❌ Navigation Error</Text>
+        <Text style={styles.debugText}>Error: {error?.message || 'Unknown'}</Text>
+        <Text style={styles.debugText}>Check console for import errors</Text>
         <Text style={styles.debugText}>Please restart the app</Text>
       </View>
     );
