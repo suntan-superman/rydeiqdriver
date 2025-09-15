@@ -505,11 +505,11 @@ class DriverBidNotificationService {
    * Stop all active listeners
    */
   stopAllListeners() {
-    console.log('🔇 Stopping all bid notification listeners...');
+    // console.log('🔇 Stopping all bid notification listeners...');
     
     for (const [rideRequestId, listener] of this.activeListeners) {
       listener(); // Call unsubscribe function
-      console.log(`🔇 Stopped listening for ride ${rideRequestId}`);
+      // console.log(`🔇 Stopped listening for ride ${rideRequestId}`);
     }
     
     this.activeListeners.clear();
@@ -532,6 +532,89 @@ class DriverBidNotificationService {
    */
   isListeningForRide(rideRequestId) {
     return this.activeListeners.has(rideRequestId);
+  }
+
+  /**
+   * Start listening for ride status changes (cancellation, completion) after bid acceptance
+   * @param {string} rideRequestId - The ride request ID
+   * @param {string} driverId - Driver's ID
+   * @param {Function} onRideCancelled - Callback when ride is cancelled
+   * @param {Function} onRideCompleted - Callback when ride is completed
+   * @returns {Function} Unsubscribe function
+   */
+  async startListeningForRideStatusChanges(rideRequestId, driverId, onRideCancelled = null, onRideCompleted = null) {
+    try {
+      console.log('🎧 Starting ride status listener for:', rideRequestId);
+      
+      // Check if Firebase is available
+      if (!this.db || !doc || !onSnapshot) {
+        console.warn('⚠️ Firebase not available for ride status listening - using fallback');
+        return () => {}; // Return empty unsubscribe function
+      }
+
+      // Create Firebase listener for ride request document
+      const rideRequestRef = doc(this.db, 'rideRequests', rideRequestId);
+      
+      const unsubscribe = onSnapshot(rideRequestRef, (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const rideData = docSnapshot.data();
+          console.log('🔄 Ride status update:', {
+            rideRequestId,
+            status: rideData.status,
+            driverId
+          });
+          
+          switch (rideData.status) {
+            case 'cancelled':
+              console.log('🚨 RIDE CANCELLATION DETECTED in status listener:', rideRequestId);
+              if (onRideCancelled) {
+                onRideCancelled({
+                  rideRequestId,
+                  reason: 'ride_cancelled',
+                  cancelledBy: rideData.cancelledBy
+                });
+              }
+              this.stopListening(`${rideRequestId}_status`);
+              break;
+              
+            case 'completed':
+              console.log('✅ RIDE COMPLETION DETECTED in status listener:', rideRequestId);
+              if (onRideCompleted) {
+                onRideCompleted({
+                  rideRequestId,
+                  rideData
+                });
+              }
+              this.stopListening(`${rideRequestId}_status`);
+              break;
+              
+            default:
+              console.log(`📊 Ride ${rideRequestId} status: ${rideData.status}`);
+          }
+        } else {
+          console.log('🚨 Ride document deleted - treating as cancellation');
+          if (onRideCancelled) {
+            onRideCancelled({
+              rideRequestId,
+              reason: 'ride_cancelled',
+              cancelledBy: 'unknown'
+            });
+          }
+          this.stopListening(`${rideRequestId}_status`);
+        }
+      }, (error) => {
+        console.error('❌ Error in ride status listener:', error);
+      });
+
+      // Store the listener for cleanup
+      this.activeListeners.set(`${rideRequestId}_status`, unsubscribe);
+      console.log(`🎧 Started ride status listener for ${rideRequestId}`);
+      return unsubscribe;
+
+    } catch (error) {
+      console.error('❌ Error starting ride status listener:', error);
+      throw error;
+    }
   }
 }
 

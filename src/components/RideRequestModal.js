@@ -170,7 +170,7 @@ const RideRequestModal = ({
     if (!userTookAction && rideRequest?.id && RideRequestService) {
       if (typeof RideRequestService.declineRideRequest === 'function') {
         RideRequestService.declineRideRequest(rideRequest.id);
-        console.log('🚫 Modal closed without action - marked as declined:', rideRequest.id);
+        // console.log('🚫 Modal closed without action - marked as declined:', rideRequest.id);
       }
     }
     

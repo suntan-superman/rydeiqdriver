@@ -45,10 +45,10 @@ export const getCurrentLocation = async () => {
     // Check if location permission is granted
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status !== 'granted') {
-      // Return default location (New York City) if permission not granted
+      // Return default location (Bakersfield, CA) if permission not granted
       return {
-        latitude: 40.7128,
-        longitude: -74.006,
+        latitude: 35.3733,
+        longitude: -119.0187,
         accuracy: 1000,
         heading: 0,
         speed: 0,
@@ -73,8 +73,8 @@ export const getCurrentLocation = async () => {
     console.error('Error getting current location:', error);
     // Return default location instead of throwing error
     return {
-      latitude: 40.7128,
-      longitude: -74.006,
+      latitude: 35.3733,
+      longitude: -119.0187,
       accuracy: 1000,
       heading: 0,
       speed: 0,

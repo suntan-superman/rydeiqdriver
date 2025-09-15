@@ -88,7 +88,7 @@ const DriverNotificationHandler = ({
   const initializeNotificationHandler = () => {
     try {
       driverBidNotificationService.initialize(driverId);
-      console.log('🔔 Driver notification handler initialized for:', driverId);
+      // console.log('🔔 Driver notification handler initialized for:', driverId);
     } catch (error) {
       console.error('❌ Error initializing notification handler:', error);
     }
@@ -157,7 +157,7 @@ const DriverNotificationHandler = ({
    * @param {Object} bidData - Bid acceptance data
    */
   const handleBidAccepted = (bidData) => {
-    console.log('🎉 Handling bid acceptance in notification handler:', bidData);
+    // console.log('🎉 Handling bid acceptance in notification handler:', bidData);
 
     // Show floating notification
     showNotification({
@@ -209,7 +209,7 @@ const DriverNotificationHandler = ({
    * @param {Object} expirationData - Expiration data
    */
   const handleBiddingExpired = (expirationData) => {
-    console.log('⏰ Handling bidding expiration:', expirationData);
+    // console.log('⏰ Handling bidding expiration:', expirationData);
 
     showNotification({
       type: 'bidding_expired',
@@ -242,7 +242,7 @@ const DriverNotificationHandler = ({
         handleBiddingExpired
       );
       
-      console.log(`🎧 Started listening for bid acceptance on ${rideRequestId}`);
+      // console.log(`🎧 Started listening for bid acceptance on ${rideRequestId}`);
     } catch (error) {
       console.error('❌ Error starting bid listener:', error);
     }

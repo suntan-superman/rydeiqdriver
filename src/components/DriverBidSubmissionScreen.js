@@ -68,7 +68,7 @@ try {
 
 try {
   Location = require('expo-location');
-  console.log('✅ expo-location imported successfully');
+  // console.log('✅ expo-location imported successfully');
 } catch (e) {
   console.warn('⚠️ expo-location not available on iOS device:', e.message);
   Location = null;
@@ -78,7 +78,7 @@ try {
 let RideRequestService, costEstimationService, FareCalculationCard;
 try {
   RideRequestService = require('@/services/rideRequestService').default;
-  console.log('✅ RideRequestService imported successfully');
+  // console.log('✅ RideRequestService imported successfully');
 } catch (e) { 
   console.warn('⚠️ RideRequestService import failed:', e.message);
   RideRequestService = null; 
@@ -89,7 +89,7 @@ try {
 
 try {
   FareCalculationCard = require('@/components/FareCalculationCard').default;
-  console.log('✅ FareCalculationCard imported successfully');
+  // console.log('✅ FareCalculationCard imported successfully');
 } catch (e) { 
   console.warn('⚠️ FareCalculationCard not available on iOS device:', e.message);
   FareCalculationCard = null; 
@@ -116,7 +116,7 @@ const DriverBidSubmissionScreen = ({
   const [customBidAmount, setCustomBidAmountInternal] = useState('15.00');
   
   const setCustomBidAmount = (value) => {
-    console.log('🔧 setCustomBidAmount called with:', value, 'type:', typeof value);
+    // console.log('🔧 setCustomBidAmount called with:', value, 'type:', typeof value);
     if (value === '' || value === null || value === undefined) {
       console.log('❌ Preventing empty value - not setting');
       return;
@@ -133,7 +133,7 @@ const DriverBidSubmissionScreen = ({
       console.log('❌ Preventing non-numeric string - not setting');
       return;
     }
-    console.log('✅ Setting customBidAmount to:', value);
+    // console.log('✅ Setting customBidAmount to:', value);
     setCustomBidAmountInternal(value);
   };
   const [currentPrice, setCurrentPrice] = useState(15);
@@ -162,7 +162,7 @@ const DriverBidSubmissionScreen = ({
   const reverseGeocode = async (lat, lng) => {
     // Safety check for Location availability
     if (!Location) {
-      console.log('⚠️ Location service not available - using coordinates');
+      // console.log('⚠️ Location service not available - using coordinates');
       return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     }
     
@@ -191,13 +191,13 @@ const DriverBidSubmissionScreen = ({
   // Setup service references once
   useEffect(() => {
     if (driverBidNotificationService && RideRequestService) {
-      console.log('🔗 Setting up service references');
+      // console.log('🔗 Setting up service references');
       driverBidNotificationService.setRideRequestService(RideRequestService);
     }
   }, []);
 
   useEffect(() => {
-    console.log('🎯 DriverBidSubmissionScreen useEffect - isVisible:', isVisible, 'rideRequest:', !!rideRequest);
+    // console.log('🎯 DriverBidSubmissionScreen useEffect - isVisible:', isVisible, 'rideRequest:', !!rideRequest);
     
     // Comment out potentially problematic functionality for iOS debugging
     /*
@@ -212,7 +212,7 @@ const DriverBidSubmissionScreen = ({
   }, [isVisible, rideRequest]);
 
   useEffect(() => {
-    console.log('🎯 DriverBidSubmissionScreen animation useEffect - isListeningForAcceptance:', isListeningForAcceptance);
+    // console.log('🎯 DriverBidSubmissionScreen animation useEffect - isListeningForAcceptance:', isListeningForAcceptance);
     
     // Comment out animations for iOS debugging
     /*
@@ -226,7 +226,7 @@ const DriverBidSubmissionScreen = ({
 
   // Calculate net earnings when bid amount changes
   useEffect(() => {
-    console.log('🎯 DriverBidSubmissionScreen earnings useEffect - customBidAmount:', customBidAmount);
+    // console.log('🎯 DriverBidSubmissionScreen earnings useEffect - customBidAmount:', customBidAmount);
     
     // Comment out for iOS debugging
     /*
@@ -263,7 +263,7 @@ const DriverBidSubmissionScreen = ({
    * Reset component state
    */
   const resetState = () => {
-    console.log('🔄 resetState called - NOT resetting customBidAmount to prevent NaN');
+    // console.log('🔄 resetState called - NOT resetting customBidAmount to prevent NaN');
     // Don't reset customBidAmount to empty string - it causes NaN
     // setCustomBidAmount(''); // REMOVED - causes NaN
     setIsSubmittingBid(false);
@@ -349,7 +349,7 @@ const DriverBidSubmissionScreen = ({
    * Handle smart bid calculation
    */
   const handleSmartBid = () => {
-    console.log('🎯 Smart Bid clicked - fareCalculation:', fareCalculation);
+    // console.log('🎯 Smart Bid clicked - fareCalculation:', fareCalculation);
     if (!fareCalculation || !fareCalculation.totalEstimatedCosts) {
       Alert.alert(
         'Smart Bid Unavailable', 
@@ -394,11 +394,11 @@ const DriverBidSubmissionScreen = ({
    * Submit the bid
    */
   const handleSubmitBid = async () => {
-    console.log('🚀 handleSubmitBid called');
-    console.log('💰 customBidAmount:', customBidAmount);
+    // console.log('🚀 handleSubmitBid called');
+    // console.log('💰 customBidAmount:', customBidAmount);
     
     const bidAmount = parseFloat(customBidAmount);
-    console.log('💰 Parsed bid amount:', bidAmount);
+    // console.log('💰 Parsed bid amount:', bidAmount);
     
     if (isNaN(bidAmount) || bidAmount < 5) {
       console.error('❌ Invalid bid amount:', bidAmount);
@@ -406,10 +406,10 @@ const DriverBidSubmissionScreen = ({
       return;
     }
 
-    console.log('🚗 RideRequestService check:', !!RideRequestService);
-    console.log('🔄 RideRequestService initialized:', RideRequestService?.isInitialized?.());
-    console.log('📋 Ride request ID check:', rideRequest?.id);
-    console.log('👤 Driver info:', driverInfo);
+    // console.log('🚗 RideRequestService check:', !!RideRequestService);
+    // console.log('🔄 RideRequestService initialized:', RideRequestService?.isInitialized?.());
+    // console.log('📋 Ride request ID check:', rideRequest?.id);
+    // console.log('👤 Driver info:', driverInfo);
     
     if (!RideRequestService) {
       console.error('❌ RideRequestService not available');
@@ -436,14 +436,14 @@ const DriverBidSubmissionScreen = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Submit bid to Firebase
-      console.log('🎯 Submitting bid:', { rideRequestId: rideRequest.id, bidAmount, RideRequestService: !!RideRequestService });
+      // console.log('🎯 Submitting bid:', { rideRequestId: rideRequest.id, bidAmount, RideRequestService: !!RideRequestService });
       
       if (!RideRequestService) {
         throw new Error('RideRequestService not available');
       }
       
       const result = await RideRequestService.submitCustomBid(rideRequest.id, bidAmount);
-      console.log('🎯 Bid submission result:', result);
+      // console.log('🎯 Bid submission result:', result);
       
       if (result.success) {
         setIsSubmittingBid(false);
@@ -477,11 +477,11 @@ const DriverBidSubmissionScreen = ({
             {
               text: 'OK',
               onPress: () => {
-                console.log('✅ User acknowledged bid submission - closing modal');
-                console.log('🔍 onClose function available:', typeof onClose);
+                // console.log('✅ User acknowledged bid submission - closing modal');
+                // console.log('🔍 onClose function available:', typeof onClose);
                 // Close the modal immediately after user confirms
                 if (onClose) {
-                  console.log('🚪 Calling onClose to close bid submission modal');
+                  // console.log('🚪 Calling onClose to close bid submission modal');
                   onClose();
                 } else {
                   console.error('❌ onClose function not available - modal will not close');
@@ -494,7 +494,7 @@ const DriverBidSubmissionScreen = ({
         // Set 5-minute timeout to automatically close and restart listening
         setTimeout(() => {
           if (isListeningForAcceptance) {
-            console.log('⏰ Bid timeout reached, closing bid screen and restarting ride request listening');
+            // console.log('⏰ Bid timeout reached, closing bid screen and restarting ride request listening');
             
             // Stop listening for this specific bid
             if (driverBidNotificationService && rideRequest?.id) {
@@ -536,7 +536,7 @@ const DriverBidSubmissionScreen = ({
    * Handle bid acceptance callback
    */
   const handleBidAcceptanceCallback = (acceptanceData) => {
-    console.log('🎉 Bid accepted! Closing bid screen and navigating to ride');
+    // console.log('🎉 Bid accepted! Closing bid screen and navigating to ride');
     
     // Force reset all state immediately
     setIsListeningForAcceptance(false);
@@ -548,7 +548,7 @@ const DriverBidSubmissionScreen = ({
     }
     
     // Close the bid submission screen after bid acceptance
-    console.log('🚪 Calling onClose from handleBidAcceptanceCallback');
+    // console.log('🚪 Calling onClose from handleBidAcceptanceCallback');
     if (onClose) {
       onClose();
     }
@@ -558,7 +558,7 @@ const DriverBidSubmissionScreen = ({
    * Handle ride cancellation callback
    */
   const handleRideCancelledCallback = (cancellationData) => {
-    console.log('❌ Ride cancelled! Closing bid screen and restarting listening');
+    // console.log('❌ Ride cancelled! Closing bid screen and restarting listening');
     
     // Force reset all state immediately
     setIsListeningForAcceptance(false);
@@ -575,7 +575,7 @@ const DriverBidSubmissionScreen = ({
     }
     
     // Close the bid submission screen
-    console.log('🚪 Calling onClose from handleRideCancelledCallback');
+    // console.log('🚪 Calling onClose from handleRideCancelledCallback');
     if (onClose) {
       onClose();
     }
@@ -585,7 +585,7 @@ const DriverBidSubmissionScreen = ({
    * Handle bidding expiration callback
    */
   const handleBiddingExpiredCallback = (expirationData) => {
-    console.log('⏰ Bidding expired! Closing bid screen and restarting listening');
+    // console.log('⏰ Bidding expired! Closing bid screen and restarting listening');
     
     // Force reset all state immediately
     setIsListeningForAcceptance(false);
@@ -603,7 +603,7 @@ const DriverBidSubmissionScreen = ({
     }
     
     // Close the bid submission screen
-    console.log('🚪 Calling onClose from handleBiddingExpiredCallback');
+    // console.log('🚪 Calling onClose from handleBiddingExpiredCallback');
     if (onClose) {
       onClose();
     }
@@ -645,8 +645,8 @@ const DriverBidSubmissionScreen = ({
    * Handle modal close
    */
   const handleClose = () => {
-    console.log('🚪 DriverBidSubmissionScreen handleClose called');
-    console.log('🚪 isListeningForAcceptance:', isListeningForAcceptance);
+    // console.log('🚪 DriverBidSubmissionScreen handleClose called');
+    // console.log('🚪 isListeningForAcceptance:', isListeningForAcceptance);
     
     if (isListeningForAcceptance) {
       Alert.alert(
@@ -658,7 +658,7 @@ const DriverBidSubmissionScreen = ({
             text: 'Close', 
             style: 'destructive',
             onPress: () => {
-              console.log('🚪 User confirmed close while listening');
+              // console.log('🚪 User confirmed close while listening');
               
               // Force reset all state
               setIsListeningForAcceptance(false);
@@ -672,17 +672,17 @@ const DriverBidSubmissionScreen = ({
               // Mark as declined if closing without bidding
               if (rideRequest?.id && RideRequestService && typeof RideRequestService.declineRideRequest === 'function') {
                 RideRequestService.declineRideRequest(rideRequest.id);
-                console.log('🚫 Bid screen closed while listening - marked as declined:', rideRequest.id);
+                // console.log('🚫 Bid screen closed while listening - marked as declined:', rideRequest.id);
               }
               
-              console.log('🚪 Calling onClose from handleClose');
+              // console.log('🚪 Calling onClose from handleClose');
               onClose();
             }
           }
         ]
       );
     } else {
-      console.log('🚪 Closing without listening confirmation');
+      // console.log('🚪 Closing without listening confirmation');
       
       // Force reset all state
       setIsListeningForAcceptance(false);
@@ -692,10 +692,10 @@ const DriverBidSubmissionScreen = ({
       // Mark as declined if closing without bidding
       if (rideRequest?.id && RideRequestService && typeof RideRequestService.declineRideRequest === 'function') {
         RideRequestService.declineRideRequest(rideRequest.id);
-        console.log('🚫 Bid screen closed without action - marked as declined:', rideRequest.id);
+        // console.log('🚫 Bid screen closed without action - marked as declined:', rideRequest.id);
       }
       
-      console.log('🚪 Calling onClose from handleClose');
+      // console.log('🚪 Calling onClose from handleClose');
       onClose();
     }
   };
@@ -948,15 +948,15 @@ const DriverBidSubmissionScreen = ({
                 elevation: 3
               }}
               onPress={async () => {
-                console.log('🎯 Accept Default Bid pressed!');
-                console.log('💰 Current price:', currentPrice);
-                console.log('🚗 RideRequestService available:', !!RideRequestService);
-                console.log('📋 Ride request ID:', rideRequest?.id);
+                // console.log('🎯 Accept Default Bid pressed!');
+                // console.log('💰 Current price:', currentPrice);
+                // console.log('🚗 RideRequestService available:', !!RideRequestService);
+                // console.log('📋 Ride request ID:', rideRequest?.id);
                 
                 try {
                   const bidAmount = currentPrice.toFixed(2);
                   setCustomBidAmount(bidAmount);
-                  console.log('💰 Setting bid amount to:', bidAmount);
+                  // console.log('💰 Setting bid amount to:', bidAmount);
                   
                   // Small delay to ensure state is updated
                   setTimeout(() => {
@@ -1032,7 +1032,7 @@ const DriverBidSubmissionScreen = ({
                 placeholder="$0.00"
                 value={customBidAmount}
                 onChangeText={(value) => {
-                  console.log('💰 TextInput changed:', value);
+                  // console.log('💰 TextInput changed:', value);
                   setCustomBidAmount(value);
                 }}
                 keyboardType="numeric"

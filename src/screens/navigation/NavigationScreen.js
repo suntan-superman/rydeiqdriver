@@ -38,11 +38,11 @@ const NavigationScreen = ({ route }) => {
     customerPhone: '+1 (555) 123-4567',
     pickup: {
       address: '123 Main Street, Downtown',
-      coordinates: { latitude: 40.7128, longitude: -74.0060 }
+      coordinates: { latitude: 35.3733, longitude: -119.0187 }
     },
     destination: {
       address: '456 Oak Avenue, Uptown',
-      coordinates: { latitude: 40.7589, longitude: -73.9851 }
+      coordinates: { latitude: 35.3733, longitude: -119.0187 }
     },
     estimatedDistance: '3.2 miles',
     estimatedDuration: '12 minutes',
@@ -52,11 +52,19 @@ const NavigationScreen = ({ route }) => {
 
   const [ride] = useState({ ...defaultRide, ...rideData });
   const [currentLocation, setCurrentLocation] = useState({
-    latitude: 40.7128,
-    longitude: -74.0060,
+    latitude: 35.3733,
+    longitude: -119.0187,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
+
+  // Debug logging for ride data
+  useEffect(() => {
+    console.log('🗺️ NavigationScreen received rideData:', rideData);
+    console.log('🗺️ NavigationScreen ride object:', ride);
+    console.log('🗺️ NavigationScreen pickup coordinates:', ride.pickup.coordinates);
+    console.log('🗺️ NavigationScreen destination coordinates:', ride.destination.coordinates);
+  }, [rideData, ride]);
   const [showDirections, setShowDirections] = useState(true);
   const [duration, setDuration] = useState(0);
   const [distance, setDistance] = useState(0);

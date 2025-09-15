@@ -49,13 +49,13 @@ try {
 
 try {
   DriverBidSubmissionScreen = require('@/components/DriverBidSubmissionScreen').default;
-  console.log('✅ DriverBidSubmissionScreen imported successfully');
-  console.log('✅ Type of DriverBidSubmissionScreen:', typeof DriverBidSubmissionScreen);
+  // console.log('✅ DriverBidSubmissionScreen imported successfully');
+  // console.log('✅ Type of DriverBidSubmissionScreen:', typeof DriverBidSubmissionScreen);
 } catch (error) {
   console.warn('⚠️ DriverBidSubmissionScreen import failed:', error.message);
   console.warn('⚠️ Using fallback component instead');
   DriverBidSubmissionScreen = ({ isVisible, onClose }) => {
-    console.log('🚨 FALLBACK COMPONENT CALLED with isVisible:', isVisible);
+    // console.log('🚨 FALLBACK COMPONENT CALLED with isVisible:', isVisible);
     return null;
   };
 }
@@ -74,6 +74,7 @@ try {
   driverBidNotificationService = {
     initialize: () => {},
     startListeningForBidAcceptance: () => Promise.resolve(() => {}),
+    startListeningForRideStatusChanges: () => Promise.resolve(() => {}),
     stopAllListeners: () => {}
   };
 }
@@ -318,11 +319,11 @@ const HomeScreen = () => {
   
   // Debug logging for modal state
   useEffect(() => {
-    console.log('🎯 Modal state changed:', {
-      showBidSubmissionModal,
-      showRideRequestModal,
-      rideRequest: !!rideRequest
-    });
+    // console.log('🎯 Modal state changed:', {
+    //   showBidSubmissionModal,
+    //   showRideRequestModal,
+    //   rideRequest: !!rideRequest
+    // });
   }, [showBidSubmissionModal, showRideRequestModal, rideRequest]);
   const [servicesInitialized, setServicesInitialized] = useState(false);
   const [showLocationTestPanel, setShowLocationTestPanel] = useState(false);
@@ -338,7 +339,7 @@ const HomeScreen = () => {
   useEffect(() => {
     const clearIgnoredRequests = setInterval(() => {
       if (ignoredRideRequestIds.current.size > 0) {
-        console.log('🧹 DRIVER DEBUG: Clearing', ignoredRideRequestIds.current.size, 'ignored ride requests (30min cleanup)');
+        // console.log('🧹 DRIVER DEBUG: Clearing', ignoredRideRequestIds.current.size, 'ignored ride requests (30min cleanup)');
         ignoredRideRequestIds.current = new Set();
       }
     }, 30 * 60 * 1000); // 30 minutes
@@ -361,7 +362,7 @@ const HomeScreen = () => {
             // Force restart listening to break out of any existing loops
             if (typeof RideRequestService.forceRestartListening === 'function') {
               RideRequestService.forceRestartListening();
-              console.log('🔄 Force restarted ride request listening on app open');
+              // console.log('🔄 Force restarted ride request listening on app open');
             }
           } catch (error) {
             console.warn('⚠️ RideRequestService initialization failed:', error);
@@ -385,6 +386,16 @@ const HomeScreen = () => {
           } catch (error) {
             console.warn('⚠️ driverBidNotificationService initialization failed:', error);
           }
+
+          // Initialize real-time location service
+          try {
+            if (realTimeLocationService && typeof realTimeLocationService.initialize === 'function') {
+              await realTimeLocationService.initialize(user.id);
+              // console.log('✅ Real-time location service initialized for driver:', user.id);
+            }
+          } catch (error) {
+            console.warn('⚠️ realTimeLocationService initialization failed:', error);
+          }
           
           // Set callback for new ride requests
           try {
@@ -392,19 +403,21 @@ const HomeScreen = () => {
               RideRequestService.setRideRequestCallback((newRideRequest) => {
                 try {
                   if (newRideRequest) {
-                    console.log('🎯 New ride request received:', newRideRequest);
-                    console.log('🚪 DRIVER DEBUG: modalJustClosed state:', modalJustClosed);
+                    // console.log('🎯 New ride request received:', newRideRequest);
+                    // console.log('🎯 New ride request pickup:', newRideRequest.pickup);
+                    // console.log('🎯 New ride request dropoff:', newRideRequest.dropoff);
+                    // console.log('🚪 DRIVER DEBUG: modalJustClosed state:', modalJustClosed);
                     
                     // Don't open modal if it was just closed
                     if (modalJustClosed) {
-                      console.log('🚫 DRIVER DEBUG: Modal was just closed - ignoring ride request to prevent reopening');
+                      // console.log('🚫 DRIVER DEBUG: Modal was just closed - ignoring ride request to prevent reopening');
                       return;
                     }
                     
                     // Check if this ride request ID has been previously ignored/declined
                     if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
-                      console.log('🚫 DRIVER DEBUG: Ride request already ignored/declined - not showing modal:', newRideRequest.id);
-                      console.log('🚫 DRIVER DEBUG: Current ignored list:', Array.from(ignoredRideRequestIds.current));
+                      // console.log('🚫 DRIVER DEBUG: Ride request already ignored/declined - not showing modal:', newRideRequest.id);
+                      // console.log('🚫 DRIVER DEBUG: Current ignored list:', Array.from(ignoredRideRequestIds.current));
                       return;
                     }
                     
@@ -416,17 +429,17 @@ const HomeScreen = () => {
                       try {
                         // Double-check modalJustClosed in case it changed during the timeout
                         if (modalJustClosed) {
-                          console.log('🚫 DRIVER DEBUG: Modal was closed during timeout - aborting modal open');
+                          // console.log('🚫 DRIVER DEBUG: Modal was closed during timeout - aborting modal open');
                           return;
                         }
                         
                         // Double-check ignored list in case it changed during timeout
                         if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
-                          console.log('🚫 DRIVER DEBUG: Ride request was ignored during timeout - aborting modal open:', newRideRequest.id);
+                          // console.log('🚫 DRIVER DEBUG: Ride request was ignored during timeout - aborting modal open:', newRideRequest.id);
                           return;
                         }
                         
-                        console.log('🎯 Showing bid submission modal...');
+                        // console.log('🎯 Showing bid submission modal...');
                         setShowBidSubmissionModal(true);
                       } catch (modalError) {
                         console.warn('⚠️ Bid submission modal failed, using fallback:', modalError);
@@ -524,7 +537,7 @@ const HomeScreen = () => {
   useEffect(() => {
     if (isOnline && servicesInitialized && !showBidSubmissionModal && !showRideRequestModal) {
       try {
-        console.log('🔄 Driver is online and on home screen, ensuring ride request listening is active');
+        // console.log('🔄 Driver is online and on home screen, ensuring ride request listening is active');
         if (RideRequestService && typeof RideRequestService.startListeningForRideRequests === 'function') {
           RideRequestService.startListeningForRideRequests();
         }
@@ -533,7 +546,7 @@ const HomeScreen = () => {
       }
     } else if (!isOnline) {
       try {
-        console.log('🛑 Driver is offline, stopping ride request listening');
+        // console.log('🛑 Driver is offline, stopping ride request listening');
         if (RideRequestService && typeof RideRequestService.stopListeningForRideRequests === 'function') {
           RideRequestService.stopListeningForRideRequests();
         }
@@ -560,14 +573,14 @@ const HomeScreen = () => {
 
   // Handle bid submission modal close
   const handleBidSubmissionModalClose = () => {
-    console.log('🚪 DRIVER DEBUG: handleBidSubmissionModalClose called');
-    console.log('🚪 DRIVER DEBUG: Current modal state before close:', showBidSubmissionModal);
+    // console.log('🚪 DRIVER DEBUG: handleBidSubmissionModalClose called');
+    // console.log('🚪 DRIVER DEBUG: Current modal state before close:', showBidSubmissionModal);
     
     // Add current ride request to ignored list to prevent reopening
     if (rideRequest?.id) {
       ignoredRideRequestIds.current.add(rideRequest.id);
-      console.log('🚫 DRIVER DEBUG: Added ride request to ignored list:', rideRequest.id);
-      console.log('🚫 DRIVER DEBUG: Ignored list now contains:', Array.from(ignoredRideRequestIds.current));
+      // console.log('🚫 DRIVER DEBUG: Added ride request to ignored list:', rideRequest.id);
+      // console.log('🚫 DRIVER DEBUG: Ignored list now contains:', Array.from(ignoredRideRequestIds.current));
     }
     
     setShowBidSubmissionModal(false);
@@ -577,15 +590,15 @@ const HomeScreen = () => {
     // Clear the "just closed" flag after 2 seconds
     setTimeout(() => {
       setModalJustClosed(false);
-      console.log('🚪 DRIVER DEBUG: Modal cooldown period ended - can open again');
+      // console.log('🚪 DRIVER DEBUG: Modal cooldown period ended - can open again');
     }, 2000);
     
-    console.log('🚪 DRIVER DEBUG: Modal close requested - should be false now');
+    // console.log('🚪 DRIVER DEBUG: Modal close requested - should be false now');
   };
 
   // Handle successful bid submission
   const handleBidSubmitted = (bidData) => {
-    console.log('🎯 Bid submitted successfully:', bidData);
+    // console.log('🎯 Bid submitted successfully:', bidData);
     Alert.alert(
       'Bid Submitted!',
       `Your bid of $${bidData.bidAmount.toFixed(2)} has been submitted. We'll notify you when the rider responds.`
@@ -594,57 +607,101 @@ const HomeScreen = () => {
 
   // Handle bid acceptance
   const handleBidAccepted = async (acceptanceData) => {
-    console.log('🎉 Bid accepted!', acceptanceData);
+    // console.log('🎉 Bid accepted!', acceptanceData);
     setShowBidSubmissionModal(false);
+    
+    // Fetch the complete ride request data from Firebase to ensure we have all the details
+    let completeRideRequest = rideRequest;
+    try {
+      const { doc, getDoc } = require('firebase/firestore');
+      const { db } = require('@/config/firebase');
+      const rideRequestRef = doc(db, 'rideRequests', acceptanceData.rideRequestId);
+      const rideRequestSnap = await getDoc(rideRequestRef);
+      if (rideRequestSnap.exists()) {
+        completeRideRequest = rideRequestSnap.data();
+        // console.log('🗺️ Fetched complete ride request from Firebase:', completeRideRequest);
+        // console.log('🗺️ Firebase pickup data:', completeRideRequest.pickup);
+        // console.log('🗺️ Firebase dropoff data:', completeRideRequest.dropoff);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to fetch ride request from Firebase, using cached data:', error);
+    }
     
     // Create ride data for navigation using the actual ride request data
     const rideData = {
       rideId: acceptanceData.rideRequestId,
-      customerId: rideRequest?.riderId || 'customer',
-      customerName: rideRequest?.riderInfo?.name || 'Rider',
-      customerPhone: rideRequest?.riderInfo?.phone || '555-1234',
+      customerId: completeRideRequest?.riderId || 'customer',
+      customerName: completeRideRequest?.riderInfo?.name || 'Rider',
+      customerPhone: completeRideRequest?.riderInfo?.phone || '555-1234',
       pickup: {
-        address: rideRequest?.pickup?.address || 'Pickup Location',
+        address: completeRideRequest?.pickup?.address || 'Pickup Location',
         coordinates: {
-          latitude: rideRequest?.pickup?.lat || rideRequest?.pickup?.coordinates?.lat,
-          longitude: rideRequest?.pickup?.lng || rideRequest?.pickup?.coordinates?.lng
+          latitude: completeRideRequest?.pickup?.lat || completeRideRequest?.pickup?.coordinates?.lat || completeRideRequest?.pickup?.coordinates?.latitude || 35.3733,
+          longitude: completeRideRequest?.pickup?.lng || completeRideRequest?.pickup?.coordinates?.lng || completeRideRequest?.pickup?.coordinates?.longitude || -119.0187
         }
       },
       destination: {
-        address: rideRequest?.dropoff?.address || rideRequest?.destination?.address || 'Destination',
+        address: completeRideRequest?.dropoff?.address || completeRideRequest?.destination?.address || 'Destination',
         coordinates: {
-          latitude: rideRequest?.dropoff?.lat || rideRequest?.destination?.lat || rideRequest?.dropoff?.coordinates?.lat || rideRequest?.destination?.coordinates?.lat,
-          longitude: rideRequest?.dropoff?.lng || rideRequest?.destination?.lng || rideRequest?.dropoff?.coordinates?.lng || rideRequest?.destination?.coordinates?.lng
+          latitude: completeRideRequest?.dropoff?.lat || completeRideRequest?.destination?.lat || completeRideRequest?.dropoff?.coordinates?.lat || completeRideRequest?.destination?.coordinates?.lat || completeRideRequest?.dropoff?.coordinates?.latitude || completeRideRequest?.destination?.coordinates?.latitude || 35.3733,
+          longitude: completeRideRequest?.dropoff?.lng || completeRideRequest?.destination?.lng || completeRideRequest?.dropoff?.coordinates?.lng || completeRideRequest?.destination?.coordinates?.lng || completeRideRequest?.dropoff?.coordinates?.longitude || completeRideRequest?.destination?.coordinates?.longitude || -119.0187
         }
       },
-      estimatedDistance: rideRequest?.estimatedDistance || rideRequest?.distanceInMiles || 'Unknown',
-      estimatedDuration: rideRequest?.estimatedDuration || 'Unknown',
-      bidAmount: acceptanceData.bidAmount || rideRequest?.acceptedBid,
+      estimatedDistance: completeRideRequest?.estimatedDistance || completeRideRequest?.distanceInMiles || 'Unknown',
+      estimatedDuration: completeRideRequest?.estimatedDuration || 'Unknown',
+      bidAmount: acceptanceData.bidAmount || completeRideRequest?.acceptedBid,
       state: 'en-route-pickup'
     };
     
-    console.log('🗺️ Navigation ride data:', rideData);
+    // console.log('🗺️ Navigation ride data:', rideData);
+    // console.log('🗺️ Pickup coordinates:', rideData.pickup.coordinates);
+    // console.log('🗺️ Destination coordinates:', rideData.destination.coordinates);
+    // console.log('🗺️ Complete ride request data:', completeRideRequest);
+    // console.log('🗺️ completeRideRequest.pickup:', completeRideRequest?.pickup);
+    // console.log('🗺️ completeRideRequest.dropoff:', completeRideRequest?.dropoff);
+    // console.log('🗺️ completeRideRequest.pickup.lat:', completeRideRequest?.pickup?.lat);
+    // console.log('🗺️ completeRideRequest.pickup.lng:', completeRideRequest?.pickup?.lng);
     setRideRequest(null);
     
+    // Start listening for ride status changes (cancellation, completion)
+    // console.log('🎧 Starting ride status listener for cancellation detection');
+    try {
+      if (driverBidNotificationService && driverBidNotificationService.startListeningForRideStatusChanges) {
+        await driverBidNotificationService.startListeningForRideStatusChanges(
+          acceptanceData.rideRequestId,
+          user?.uid || user?.id,
+          handleRideCancelledDuringBidding,
+          (completionData) => {
+            // console.log('✅ Ride completed:', completionData);
+            // Handle ride completion if needed
+          }
+        );
+        // console.log('✅ Ride status listener started');
+      }
+    } catch (error) {
+      console.error('❌ Error starting ride status listener:', error);
+      // Continue anyway - don't block the user flow
+    }
+    
     // Start active location tracking for rider to track driver
-    console.log('🎯 Starting active location tracking for accepted ride');
+    // console.log('🎯 Starting active location tracking for accepted ride');
     try {
       // Try real-time location service first
       if (realTimeLocationService && realTimeLocationService.startTracking) {
         await realTimeLocationService.startTracking();
-        console.log('✅ Real-time location service started');
+        // console.log('✅ Real-time location service started');
       }
       
       // Try simple location service as backup
       if (simpleLocationService && simpleLocationService.startTracking) {
         await simpleLocationService.startTracking();
-        console.log('✅ Simple location service started');
+        // console.log('✅ Simple location service started');
       }
       
       // Also use the general location tracking as additional backup
       if (startLocationTracking) {
         await startLocationTracking();
-        console.log('✅ General location tracking started');
+        // console.log('✅ General location tracking started');
       }
     } catch (error) {
       console.error('❌ Error starting location tracking:', error);
@@ -663,10 +720,84 @@ const HomeScreen = () => {
   };
 
   // Handle ride cancellation during bidding
-  const handleRideCancelledDuringBidding = (cancellationData) => {
-    console.log('❌ Ride cancelled during bidding:', cancellationData);
-    setShowBidSubmissionModal(false);
-    setRideRequest(null);
+  const handleRideCancelledDuringBidding = async (cancellationData) => {
+    // console.log('❌ HOME SCREEN: Ride cancelled during bidding:', cancellationData);
+    
+    try {
+      // Stop all location tracking services
+      // console.log('🛑 Stopping location tracking services...');
+      try {
+        if (realTimeLocationService && realTimeLocationService.stopTracking) {
+          await realTimeLocationService.stopTracking();
+          // console.log('✅ Real-time location service stopped');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error stopping real-time location service:', error);
+      }
+      
+      try {
+        if (simpleLocationService && simpleLocationService.stopTracking) {
+          await simpleLocationService.stopTracking();
+          // console.log('✅ Simple location service stopped');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error stopping simple location service:', error);
+      }
+      
+      try {
+        if (stopLocationTracking) {
+          await stopLocationTracking();
+          // console.log('✅ General location tracking stopped');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error stopping general location tracking:', error);
+      }
+      
+      // Stop all bid notification listeners
+      if (driverBidNotificationService && driverBidNotificationService.stopAllListeners) {
+        driverBidNotificationService.stopAllListeners();
+        // console.log('✅ All bid notification listeners stopped');
+      }
+      
+      // Clear all state
+      setShowBidSubmissionModal(false);
+      setRideRequest(null);
+      setActiveRideId(null);
+      
+      // Force reset modal state to prevent any lingering display issues
+      setTimeout(() => {
+        setShowBidSubmissionModal(false);
+        // console.log('🔄 Force reset modal state after cancellation');
+      }, 100);
+      
+      // Add cancelled ride to ignored list
+      if (cancellationData?.rideRequestId) {
+        ignoredRideRequestIds.current.add(cancellationData.rideRequestId);
+        // console.log('🚫 Added cancelled ride to ignored list:', cancellationData.rideRequestId);
+      }
+      
+      // Navigate back to HomeScreen if we're on a different screen
+      // console.log('🏠 Navigating back to HomeScreen after ride cancellation');
+      if (navigation) {
+        // Use reset to ensure we're back at the HomeScreen and clear the navigation stack
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+        // console.log('✅ Navigation stack reset to HomeScreen');
+      }
+      
+      // Restart ride request listening for new requests
+      if (RideRequestService && typeof RideRequestService.startListeningForRideRequests === 'function') {
+        RideRequestService.startListeningForRideRequests();
+        // console.log('🔄 Restarted ride request listening for new requests');
+      }
+      
+      // console.log('✅ Ride cancellation cleanup completed');
+      
+    } catch (error) {
+      console.error('❌ Error during ride cancellation cleanup:', error);
+    }
     
     Alert.alert(
       'Ride Cancelled',
@@ -677,7 +808,7 @@ const HomeScreen = () => {
 
   // Handle notification handler callbacks
   const handleNavigateToRide = (rideRequestId, screen) => {
-    console.log('📱 Navigate to ride:', rideRequestId, screen);
+    // console.log('📱 Navigate to ride:', rideRequestId, screen);
     
     // Create ride data if we have rideRequest available
     const rideData = rideRequest ? {
@@ -1465,7 +1596,7 @@ const HomeScreen = () => {
       />
 
       {/* Enhanced Bid Submission Screen */}
-      {console.log('🎯 Rendering DriverBidSubmissionScreen with visible:', showBidSubmissionModal)}
+      {/* console.log('🎯 Rendering DriverBidSubmissionScreen with visible:', showBidSubmissionModal) */}
       <DriverBidSubmissionScreen
         isVisible={showBidSubmissionModal}
         rideRequest={rideRequest}

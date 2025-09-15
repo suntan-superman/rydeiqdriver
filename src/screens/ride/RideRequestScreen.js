@@ -47,11 +47,11 @@ const RideRequestScreen = ({
     customerPhoto: null,
     pickup: {
       address: '123 Main Street, Downtown',
-      coordinates: { lat: 40.7128, lng: -74.0060 }
+      coordinates: { lat: 35.3733, lng: -119.0187 }
     },
     destination: {
-      address: '456 Oak Avenue, Uptown',  
-      coordinates: { lat: 40.7589, lng: -73.9851 }
+      address: '456 Oak Avenue, Uptown',
+      coordinates: { lat: 35.3733, lng: -119.0187 }
     },
     estimatedDistance: '3.2 miles',
     estimatedDuration: '12 minutes',

@@ -37,7 +37,7 @@ const FareCalculationExample = ({ rideRequest, driverVehicle, driverLocation }) 
   const handleFareCalculationComplete = (fareData) => {
     // This data is now also available in Redux store
     // You can dispatch additional actions or updates here
-    console.log('Fare calculation completed:', fareData);
+    // console.log('Fare calculation completed:', fareData);
   };
 
   return (
