@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Alert,
   Image,
   Modal,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,28 +20,32 @@ import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+import { useAuth } from '@/contexts/AuthContext';
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase/config';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const { user } = useAuth();
   
-  // Mock profile data (will connect to Redux driverSlice later)
+  // Real profile data from Firebase
   const [profileData, setProfileData] = useState({
     personalInfo: {
-      firstName: 'John',
-      lastName: 'Driver',
-      email: 'john.driver@example.com',
-      phone: '+1 (555) 123-4567',
-      dateOfBirth: '1985-03-15',
-      address: '123 Main Street, City, State 12345',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      dateOfBirth: '',
+      address: '',
       profilePhoto: null
     },
     vehicleInfo: {
-      make: 'Toyota',
-      model: 'Camry',
-      year: '2020',
-      color: 'Silver',
-      licensePlate: 'ABC-1234',
+      make: '',
+      model: '',
+      year: '',
+      color: '',
+      licensePlate: '',
       vehicleType: 'standard',
       photos: []
     },
@@ -47,21 +53,122 @@ const ProfileScreen = () => {
       driverLicense: null,
       insurance: null,
       registration: null,
-      backgroundCheck: 'verified',
+      backgroundCheck: 'pending',
       vehicleInspection: null
     },
     bankingInfo: {
-      accountHolderName: 'John Driver',
-      routingNumber: '****5678',
-      accountNumber: '****1234',
-      bankName: 'Chase Bank',
-      isVerified: true
+      accountHolderName: '',
+      routingNumber: '',
+      accountNumber: '',
+      bankName: '',
+      isVerified: false
+    },
+    emergencyContact: {
+      name: '',
+      phone: '',
+      relationship: '',
+      email: ''
     }
   });
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
 
   const [activeSection, setActiveSection] = useState(null);
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
+  
+  // Load profile data from Firebase
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        
+        // Load driver data from drivers collection
+        const driverDoc = await getDoc(doc(db, 'drivers', user.id));
+        let driverData = {};
+        if (driverDoc.exists()) {
+          driverData = driverDoc.data();
+        } else {
+          // Initialize driver document with basic data
+          await setDoc(doc(db, 'drivers', user.id), {
+            email: user.email,
+            displayName: user.displayName || 'Driver',
+            phoneNumber: '',
+            address: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        
+        // Load vehicle data from vehicle_info collection
+        const vehicleDoc = await getDoc(doc(db, 'vehicle_info', user.id));
+        let vehicleData = {};
+        if (vehicleDoc.exists()) {
+          vehicleData = vehicleDoc.data();
+        }
+        
+        // Map Firebase data to profile structure using CORRECT priority order
+        const mappedProfileData = {
+          personalInfo: {
+            firstName: driverData.personal_info?.firstName || driverData.firstName || driverData.displayName?.split(' ')[0] || '',
+            lastName: driverData.personal_info?.lastName || driverData.lastName || driverData.displayName?.split(' ').slice(1).join(' ') || '',
+            email: user.email || driverData.personal_info?.email || driverData.email || '',
+            phone: driverData.personal_info?.phoneNumber || driverData.phone || driverData.phoneNumber || '',
+            dateOfBirth: driverData.personal_info?.dateOfBirth || driverData.dateOfBirth || driverData.dob || '',
+            address: driverData.personal_info?.address ? 
+              `${driverData.personal_info.address}, ${driverData.personal_info.city}, ${driverData.personal_info.state} ${driverData.personal_info.zipCode}` :
+              driverData.address || driverData.homeAddress || '',
+            profilePhoto: driverData.documents?.profile_photo?.url || driverData.document_upload?.profile_photo?.url || driverData.profilePhoto || driverData.photoURL || null
+          },
+          vehicleInfo: {
+            make: driverData.vehicle_info?.make || vehicleData.make || driverData.vehicleInfo?.make || driverData.vehicle?.make || '',
+            model: driverData.vehicle_info?.model || vehicleData.model || driverData.vehicleInfo?.model || driverData.vehicle?.model || '',
+            year: driverData.vehicle_info?.year || vehicleData.year || driverData.vehicleInfo?.year || driverData.vehicle?.year || '',
+            color: driverData.vehicle_info?.color || vehicleData.color || driverData.vehicleInfo?.color || driverData.vehicle?.color || '',
+            licensePlate: driverData.vehicle_info?.licensePlate || vehicleData.licensePlate || driverData.vehicleInfo?.licensePlate || driverData.vehicle?.licensePlate || '',
+            vehicleType: driverData.vehicle_info?.vehicleType || vehicleData.vehicleType || driverData.vehicleInfo?.vehicleType || driverData.vehicle?.vehicleType || 'standard',
+            photos: driverData.vehicle_info?.photos || vehicleData.photos || driverData.vehicleInfo?.photos || driverData.vehicle?.photos || []
+          },
+          documents: {
+            driverLicense: driverData.documents?.drivers_license_front?.url || driverData.document_upload?.drivers_license_front?.url || driverData.driverLicense || null,
+            insurance: driverData.documents?.insurance_proof?.url || driverData.document_upload?.insurance_proof?.url || driverData.insurance || null,
+            registration: driverData.documents?.vehicle_registration?.url || driverData.document_upload?.vehicle_registration?.url || driverData.registration || null,
+            backgroundCheck: driverData.backgroundCheck?.currentStep || driverData.documents?.backgroundCheck || 'pending',
+            vehicleInspection: driverData.documents?.vehicleInspection || driverData.vehicleInspection || null
+          },
+          bankingInfo: {
+            accountHolderName: driverData.payout_setup?.accountHolderName || driverData.payoutInfo?.payout_setup?.accountHolderName || driverData.bankingInfo?.accountHolderName || driverData.accountHolderName || '',
+            routingNumber: driverData.payout_setup?.routingNumber || driverData.payoutInfo?.payout_setup?.routingNumber || driverData.bankingInfo?.routingNumber || driverData.routingNumber || '',
+            accountNumber: driverData.payout_setup?.accountNumber || driverData.payoutInfo?.payout_setup?.accountNumber || driverData.bankingInfo?.accountNumber || driverData.accountNumber || '',
+            bankName: driverData.payout_setup?.bankName || driverData.payoutInfo?.payout_setup?.bankName || driverData.bankingInfo?.bankName || driverData.bankName || '',
+            isVerified: driverData.payout_setup?.verificationMethod === 'microdeposit' || driverData.payoutInfo?.payout_setup?.verificationMethod === 'microdeposit' || driverData.bankingInfo?.isVerified || driverData.bankingVerified || false
+          },
+          emergencyContact: {
+            name: driverData.availability?.emergencyContact?.name || driverData.emergencyContact?.name || '',
+            phone: driverData.availability?.emergencyContact?.phone || driverData.emergencyContact?.phone || '',
+            relationship: driverData.availability?.emergencyContact?.relationship || driverData.emergencyContact?.relationship || '',
+            email: driverData.availability?.emergencyContact?.email || driverData.emergencyContact?.email || ''
+          }
+        };
+        
+        setProfileData(mappedProfileData);
+      } catch (error) {
+        console.error('Error loading profile data:', error);
+        Alert.alert('Error', 'Failed to load profile data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadProfileData();
+  }, [user?.id]);
 
   // Vehicle type options
   const VEHICLE_TYPES = [
@@ -76,24 +183,65 @@ const ProfileScreen = () => {
     setEditValue(currentValue || '');
   };
 
-  const handleSaveField = () => {
-    if (editingField) {
-      setProfileData(prev => ({
-        ...prev,
-        [editingField.section]: {
-          ...prev[editingField.section],
-          [editingField.field]: editValue
+  const handleSaveField = async () => {
+    if (editingField && user?.id) {
+      try {
+        setSaving(true);
+        
+        // Update local state
+        setProfileData(prev => ({
+          ...prev,
+          [editingField.section]: {
+            ...prev[editingField.section],
+            [editingField.field]: editValue
+          }
+        }));
+        
+        // Update Firebase using correct nested structure
+        const updateData = {};
+        
+        if (editingField.section === 'personalInfo') {
+          updateData[`personal_info.${editingField.field}`] = editValue;
+          if (editingField.field === 'firstName' || editingField.field === 'lastName') {
+            const firstName = editingField.field === 'firstName' ? editValue : profileData.personalInfo.firstName;
+            const lastName = editingField.field === 'lastName' ? editValue : profileData.personalInfo.lastName;
+            updateData.displayName = `${firstName} ${lastName}`.trim();
+          }
+        } else if (editingField.section === 'vehicleInfo') {
+          updateData[`vehicle_info.${editingField.field}`] = editValue;
+        } else if (editingField.section === 'bankingInfo') {
+          updateData[`payout_setup.${editingField.field}`] = editValue;
+        } else if (editingField.section === 'documents') {
+          updateData[`documents.${editingField.field}`] = editValue;
         }
-      }));
-      setEditingField(null);
-      setEditValue('');
-      playSuccessSound();
+        
+        updateData.updatedAt = new Date().toISOString();
+        await updateDoc(doc(db, 'drivers', user.id), updateData);
+        
+        setEditingField(null);
+        setEditValue('');
+        playSuccessSound();
+      } catch (error) {
+        console.error('Error saving field:', error);
+        playErrorSound();
+        Alert.alert('Error', 'Failed to save changes');
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
   const handleCancelEdit = () => {
     setEditingField(null);
     setEditValue('');
+  };
+
+  const handleEditEmergencyContact = () => {
+    Alert.alert(
+      'Emergency Contact',
+      'Emergency contact management will be available in a future update. For now, you can update this information through the web app.',
+      [{ text: 'OK' }]
+    );
   };
 
   const handlePhotoUpload = async (section, field) => {
@@ -307,6 +455,18 @@ const ProfileScreen = () => {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary[500]} />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
@@ -320,9 +480,16 @@ const ProfileScreen = () => {
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary[900]} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
+        {saving ? (
+          <View style={styles.savingContainer}>
+            <ActivityIndicator size="small" color={COLORS.white} />
+            <Text style={styles.savingText}>Saving...</Text>
+          </View>
+        ) : (
         <TouchableOpacity style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -610,21 +777,37 @@ const ProfileScreen = () => {
           <Card>
             <View style={styles.emergencyContactSection}>
               <View style={styles.emergencyContactInfo}>
-                <Text style={styles.emergencyContactName}>Jane Smith</Text>
-                <Text style={styles.emergencyContactDetails}>Spouse • +1 (555) 987-6543</Text>
-                <Text style={styles.emergencyContactEmail}>jane.smith@example.com</Text>
-                <View style={styles.verificationStatus}>
-                  <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                  <Text style={[styles.verificationStatusText, { color: COLORS.success }]}>
-                    Verified
-                  </Text>
-                </View>
+                {profileData.emergencyContact.name ? (
+                  <>
+                    <Text style={styles.emergencyContactName}>{profileData.emergencyContact.name}</Text>
+                    <Text style={styles.emergencyContactDetails}>
+                      {profileData.emergencyContact.relationship} • {profileData.emergencyContact.phone}
+                    </Text>
+                    {profileData.emergencyContact.email && (
+                      <Text style={styles.emergencyContactEmail}>{profileData.emergencyContact.email}</Text>
+                    )}
+                    <View style={styles.verificationStatus}>
+                      <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                      <Text style={[styles.verificationStatusText, { color: COLORS.success }]}>
+                        Verified
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <View style={styles.emptyEmergencyContact}>
+                    <Ionicons name="person-add-outline" size={24} color={COLORS.secondary[400]} />
+                    <Text style={styles.emptyEmergencyContactText}>No emergency contact added</Text>
+                    <Text style={styles.emptyEmergencyContactSubtext}>Add an emergency contact for safety</Text>
+                  </View>
+                )}
               </View>
               <TouchableOpacity 
                 style={styles.manageButton}
-                onPress={() => navigation.navigate('EmergencyContact')}
+                onPress={() => handleEditEmergencyContact()}
               >
-                <Text style={styles.manageButtonText}>Manage</Text>
+                <Text style={styles.manageButtonText}>
+                  {profileData.emergencyContact.name ? 'Edit' : 'Add'}
+                </Text>
               </TouchableOpacity>
             </View>
           </Card>
@@ -648,12 +831,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: DIMENSIONS.paddingL,
     paddingVertical: DIMENSIONS.paddingM,
+    paddingTop: Platform.OS === 'android' ? DIMENSIONS.paddingL + 20 : DIMENSIONS.paddingM,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
   },
   backButton: {
     padding: DIMENSIONS.paddingS,
+    paddingTop: Platform.OS === 'android' ? DIMENSIONS.paddingS + 10 : DIMENSIONS.paddingS,
+    paddingBottom: Platform.OS === 'android' ? DIMENSIONS.paddingS + 10 : DIMENSIONS.paddingS,
     borderRadius: DIMENSIONS.radiusM,
   },
   headerTitle: {
@@ -986,6 +1172,47 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: TYPOGRAPHY.fontSizes.sm,
     fontWeight: TYPOGRAPHY.fontWeights.medium,
+  },
+  emptyEmergencyContact: {
+    alignItems: 'center',
+    paddingVertical: DIMENSIONS.paddingM,
+  },
+  emptyEmergencyContactText: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.medium,
+    color: COLORS.secondary[600],
+    marginTop: DIMENSIONS.paddingS,
+    marginBottom: 4,
+  },
+  emptyEmergencyContactSubtext: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[500],
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.secondary[50],
+    paddingTop: Platform.OS === 'android' ? 50 : 0,
+  },
+  loadingText: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    color: COLORS.secondary[600],
+    marginTop: DIMENSIONS.paddingM,
+  },
+  savingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: DIMENSIONS.paddingL,
+    paddingVertical: DIMENSIONS.paddingS,
+    backgroundColor: COLORS.primary[500],
+    borderRadius: DIMENSIONS.radiusM,
+  },
+  savingText: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.white,
+    marginLeft: DIMENSIONS.paddingS,
   },
 });
 

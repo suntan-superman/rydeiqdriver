@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -316,6 +317,20 @@ const HomeScreen = () => {
   const [rideRequest, setRideRequest] = useState(null);
   const [showRideRequestModal, setShowRideRequestModal] = useState(false);
   const [showBidSubmissionModal, setShowBidSubmissionModal] = useState(false);
+  
+  // Quick Actions Modal States
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showDriverToolsModal, setShowDriverToolsModal] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [showCommunicationModal, setShowCommunicationModal] = useState(false);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAIPricingModal, setShowAIPricingModal] = useState(false);
+  const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
+  const [showEarningsModal, setShowEarningsModal] = useState(false);
+  const [showTripHistoryModal, setShowTripHistoryModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   
   // Debug logging for modal state
   useEffect(() => {
@@ -1267,19 +1282,19 @@ const HomeScreen = () => {
         {/* Quick Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="star" size={24} color={COLORS.warning} />
+            <Ionicons name="star" size={18} color={COLORS.warning} />
             <Text style={styles.statValue}>{driverRating}</Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
           
           <View style={styles.statCard}>
-            <Ionicons name="trending-up" size={24} color={COLORS.primary[500]} />
+            <Ionicons name="trending-up" size={18} color={COLORS.primary[500]} />
             <Text style={styles.statValue}>97%</Text>
             <Text style={styles.statLabel}>Acceptance</Text>
           </View>
           
           <View style={styles.statCard}>
-            <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+            <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
             <Text style={styles.statValue}>156</Text>
             <Text style={styles.statLabel}>Total Trips</Text>
           </View>
@@ -1328,124 +1343,124 @@ const HomeScreen = () => {
           <View style={styles.actionsGrid}>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('AnalyticsDashboard')}
+              onPress={() => setShowAnalyticsModal(true)}
             >
-              <Ionicons name="analytics" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Analytics</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('DriverToolsDashboard')}
+              onPress={() => setShowDriverToolsModal(true)}
             >
-              <Ionicons name="construct" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="construct" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Driver Tools</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('SustainabilityDashboard')}
             >
-              <Ionicons name="leaf" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="leaf" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Sustainability</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('CommunityDashboard')}
             >
-              <Ionicons name="people" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="people" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Community</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('SafetyDashboard')}
+              onPress={() => setShowSafetyModal(true)}
             >
-              <Ionicons name="shield-checkmark" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="shield-checkmark" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Safety</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('CommunicationDashboard')}
+              onPress={() => setShowCommunicationModal(true)}
             >
-              <Ionicons name="chatbubbles" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="chatbubbles" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Communication</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('VehicleDashboard')}
+              onPress={() => setShowVehicleModal(true)}
             >
-              <Ionicons name="car-sport" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="car-sport" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Vehicle</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('PaymentDashboard')}
+              onPress={() => setShowPaymentModal(true)}
             >
-              <Ionicons name="card" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="card" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Payment</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('DynamicPricingDashboard')}
+              onPress={() => setShowAIPricingModal(true)}
             >
-              <Ionicons name="trending-up" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="trending-up" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>AI Pricing</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('GamificationDashboard')}
             >
-              <Ionicons name="star" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="star" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Gamification</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('AccessibilityDashboard')}
+              onPress={() => setShowAccessibilityModal(true)}
             >
-              <Ionicons name="accessibility" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="accessibility" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Accessibility</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('WellnessDashboard')}
             >
-              <Ionicons name="heart" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="heart" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Wellness</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('Earnings')}
+              onPress={() => setShowEarningsModal(true)}
             >
-              <Ionicons name="wallet" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="wallet" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Earnings</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('TripHistory')}
+              onPress={() => setShowTripHistoryModal(true)}
             >
-              <Ionicons name="car-sport" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="car-sport" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Trip History</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('Settings')}
+              onPress={() => setShowSettingsModal(true)}
             >
-              <Ionicons name="settings" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="settings" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Settings</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation.navigate('Support')}
+              onPress={() => setShowSupportModal(true)}
             >
-              <Ionicons name="help-circle" size={28} color={COLORS.primary[500]} />
+              <Ionicons name="help-circle" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Support</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Demo Section (for testing) */}
-        <View style={styles.demoSection}>
+        {/* Demo Section (for testing) - COMMENTED OUT FOR CLEANER UI */}
+        {/* <View style={styles.demoSection}>
             <TouchableOpacity 
               style={styles.demoButton}
               onPress={triggerDemoRideRequest}
@@ -1527,7 +1542,6 @@ const HomeScreen = () => {
               <Text style={styles.demoButtonText}>Simple Init</Text>
             </TouchableOpacity>
             
-            {/* Test Driver Setup Section */}
             <View style={styles.demoSection}>
               <Text style={styles.demoSectionTitle}>🧪 Test Driver Setup</Text>
               
@@ -1567,11 +1581,21 @@ const HomeScreen = () => {
                 <Text style={styles.demoButtonText}>Cleanup Test Data</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </View> */}
 
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
+        {/* Bottom Spacing for Fixed Footer */}
+        <View style={styles.bottomSpacingForFooter} />
       </ScrollView>
+
+      {/* Fixed Footer */}
+      <View style={styles.fixedFooter}>
+        <View style={styles.testingNotice}>
+          <Text style={styles.testingText}>🚗 AnyRyde</Text>
+          <Text style={styles.testingSubtext}>
+            Driver platform • Earn money • Drive smart
+          </Text>
+        </View>
+      </View>
 
       {/* Ride Request Modal */}
       <RideRequestScreen
@@ -1626,6 +1650,367 @@ const HomeScreen = () => {
         onRideCancelled={handleRideCancelledDuringBidding}
       />
 
+      {/* Quick Actions Modals */}
+      {/* Analytics Modal */}
+      <Modal
+        visible={showAnalyticsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAnalyticsModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowAnalyticsModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Analytics</Text>
+              <TouchableOpacity 
+                onPress={() => setShowAnalyticsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Analytics Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Driver Tools Modal */}
+      <Modal
+        visible={showDriverToolsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDriverToolsModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowDriverToolsModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Driver Tools</Text>
+              <TouchableOpacity 
+                onPress={() => setShowDriverToolsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Driver Tools Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Safety Modal */}
+      <Modal
+        visible={showSafetyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSafetyModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowSafetyModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Safety</Text>
+              <TouchableOpacity 
+                onPress={() => setShowSafetyModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalPlaceholderText}>Safety Dashboard Coming Soon</Text>
+          </View>
+        </View>
+        </View>
+      </Modal>
+
+      {/* Communication Modal */}
+      <Modal
+        visible={showCommunicationModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCommunicationModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowCommunicationModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Communication</Text>
+              <TouchableOpacity 
+                onPress={() => setShowCommunicationModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Communication Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Vehicle Modal */}
+      <Modal
+        visible={showVehicleModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowVehicleModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowVehicleModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Vehicle</Text>
+              <TouchableOpacity 
+                onPress={() => setShowVehicleModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Vehicle Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Modal */}
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowPaymentModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Payment</Text>
+              <TouchableOpacity 
+                onPress={() => setShowPaymentModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Payment Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* AI Pricing Modal */}
+      <Modal
+        visible={showAIPricingModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAIPricingModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowAIPricingModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>AI Pricing</Text>
+              <TouchableOpacity 
+                onPress={() => setShowAIPricingModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>AI Pricing Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Accessibility Modal */}
+      <Modal
+        visible={showAccessibilityModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAccessibilityModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowAccessibilityModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Accessibility</Text>
+              <TouchableOpacity 
+                onPress={() => setShowAccessibilityModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Accessibility Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Earnings Modal */}
+      <Modal
+        visible={showEarningsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEarningsModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowEarningsModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Earnings</Text>
+              <TouchableOpacity 
+                onPress={() => setShowEarningsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Earnings Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Trip History Modal */}
+      <Modal
+        visible={showTripHistoryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTripHistoryModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowTripHistoryModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Trip History</Text>
+              <TouchableOpacity 
+                onPress={() => setShowTripHistoryModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Trip History Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettingsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettingsModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowSettingsModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Settings</Text>
+              <TouchableOpacity 
+                onPress={() => setShowSettingsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Settings Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Support Modal */}
+      <Modal
+        visible={showSupportModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSupportModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouchable}
+            activeOpacity={1}
+            onPress={() => setShowSupportModal(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Support</Text>
+              <TouchableOpacity 
+                onPress={() => setShowSupportModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalPlaceholderText}>Support Dashboard Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Navigation Menu Modal */}
       <NavigationMenu
         visible={showNavigationMenu}
@@ -1654,6 +2039,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 32 : 16,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
@@ -1685,8 +2071,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   statusCard: {
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: 10,
+    marginBottom: 10,
   },
   statusButton: {
     flexDirection: 'row',
@@ -1765,30 +2151,30 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   statCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 6,
+    padding: 6,
     alignItems: 'center',
     flex: 1,
-    marginHorizontal: 4,
-    elevation: 2,
+    marginHorizontal: 3,
+    elevation: 1,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.secondary[900],
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: COLORS.secondary[500],
     fontWeight: '500',
   },
@@ -1852,13 +2238,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   quickActions: {
-    marginBottom: 20,
+    marginBottom: 4,
   },
   quickActionsTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.secondary[900],
-    marginBottom: 16,
+    marginBottom: 4,
   },
   actionsGrid: {
     flexDirection: 'row',
@@ -1867,22 +2253,22 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 8,
+    padding: 8,
     alignItems: 'center',
-    width: (SCREEN_WIDTH - 52) / 2,
-    marginBottom: 12,
-    elevation: 2,
+    width: (SCREEN_WIDTH - 52) / 3,
+    marginBottom: 6,
+    elevation: 1,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   actionText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '500',
     color: COLORS.secondary[900],
-    marginTop: 8,
+    marginTop: 6,
     textAlign: 'center',
   },
   demoSection: {
@@ -1917,6 +2303,9 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  bottomSpacingForFooter: {
+    height: 100, // Extra space to account for fixed footer
   },
   // New styles for Navigation Menu
   menuOverlay: {
@@ -2027,6 +2416,92 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '600',
     fontSize: 13,
+  },
+  testingNotice: {
+    backgroundColor: COLORS.primary[50],
+    borderColor: COLORS.primary[200],
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 0,
+    alignItems: 'center',
+  },
+  testingText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: COLORS.primary[700],
+    marginBottom: 4,
+  },
+  testingSubtext: {
+    fontSize: 12,
+    color: COLORS.primary[600],
+    textAlign: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalBackdropTouchable: {
+    flex: 1,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '75%',
+    maxHeight: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#374151',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalPlaceholderText: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  fixedFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    paddingBottom: 20,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
   },
 });
 
