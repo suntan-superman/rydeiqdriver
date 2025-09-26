@@ -753,17 +753,17 @@ const DriverBidSubmissionScreen = ({
   */
 
   // Add debug logging for visibility state
-  useEffect(() => {
-    console.log('🎯 DriverBidSubmissionScreen visibility changed:', {
-      isVisible,
-      rideRequestId: rideRequest?.id,
-      isListeningForAcceptance,
-      bidStatus
-    });
-  }, [isVisible, rideRequest?.id, isListeningForAcceptance, bidStatus]);
+  // useEffect(() => {
+  //   console.log('🎯 DriverBidSubmissionScreen visibility changed:', {
+  //     isVisible,
+  //     rideRequestId: rideRequest?.id,
+  //     isListeningForAcceptance,
+  //     bidStatus
+  //   });
+  // }, [isVisible, rideRequest?.id, isListeningForAcceptance, bidStatus]);
 
   if (!isVisible) {
-    console.log('🚫 DriverBidSubmissionScreen not visible, returning null');
+    // console.log('🚫 DriverBidSubmissionScreen not visible, returning null');
     return null;
   }
 

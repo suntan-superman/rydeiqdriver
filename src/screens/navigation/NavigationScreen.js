@@ -59,12 +59,12 @@ const NavigationScreen = ({ route }) => {
   });
 
   // Debug logging for ride data
-  useEffect(() => {
-    console.log('🗺️ NavigationScreen received rideData:', rideData);
-    console.log('🗺️ NavigationScreen ride object:', ride);
-    console.log('🗺️ NavigationScreen pickup coordinates:', ride.pickup.coordinates);
-    console.log('🗺️ NavigationScreen destination coordinates:', ride.destination.coordinates);
-  }, [rideData, ride]);
+  // useEffect(() => {
+  //   console.log('🗺️ NavigationScreen received rideData:', rideData);
+  //   console.log('🗺️ NavigationScreen ride object:', ride);
+  //   console.log('🗺️ NavigationScreen pickup coordinates:', ride.pickup.coordinates);
+  //   console.log('🗺️ NavigationScreen destination coordinates:', ride.destination.coordinates);
+  // }, [rideData, ride]);
   const [showDirections, setShowDirections] = useState(true);
   const [duration, setDuration] = useState(0);
   const [distance, setDistance] = useState(0);

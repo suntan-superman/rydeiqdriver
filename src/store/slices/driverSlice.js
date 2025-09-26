@@ -120,7 +120,7 @@ export const updateDriverProfile = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         ...profileData,
         updatedAt: firebaseFirestore.FieldValue.serverTimestamp()
@@ -141,7 +141,7 @@ export const updateDriverStatus = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       const updateData = {
         currentStatus: status,
         lastStatusUpdate: firebaseFirestore.FieldValue.serverTimestamp()
@@ -169,7 +169,7 @@ export const goOnline = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         currentStatus: DRIVER_STATUS.ONLINE,
         isOnline: true,
@@ -193,7 +193,7 @@ export const goOffline = createAsyncThunk(
   'driver/goOffline',
   async ({ driverId }, { rejectWithValue }) => {
     try {
-      const driverRef = getFirebaseFirestore().collection('drivers').doc(driverId);
+      const driverRef = getFirebaseFirestore().collection('driverApplications').doc(driverId);
       await driverRef.update({
         currentStatus: DRIVER_STATUS.OFFLINE,
         isOnline: false,
@@ -214,7 +214,7 @@ export const updateLocation = createAsyncThunk(
   'driver/updateLocation',
   async ({ driverId, location }, { rejectWithValue }) => {
     try {
-      const driverRef = getFirebaseFirestore().collection('drivers').doc(driverId);
+      const driverRef = getFirebaseFirestore().collection('driverApplications').doc(driverId);
       await driverRef.update({
         location: new getFirebaseFirestore().GeoPoint(location.latitude, location.longitude),
         heading: location.heading || null,
@@ -233,7 +233,7 @@ export const takeBreak = createAsyncThunk(
   'driver/takeBreak',
   async ({ driverId }, { rejectWithValue }) => {
     try {
-      const driverRef = getFirebaseFirestore().collection('drivers').doc(driverId);
+      const driverRef = getFirebaseFirestore().collection('driverApplications').doc(driverId);
       const breakStartTime = new Date();
       
       await driverRef.update({
@@ -257,7 +257,7 @@ export const endBreak = createAsyncThunk(
   'driver/endBreak',
   async ({ driverId }, { rejectWithValue }) => {
     try {
-      const driverRef = getFirebaseFirestore().collection('drivers').doc(driverId);
+      const driverRef = getFirebaseFirestore().collection('driverApplications').doc(driverId);
       await driverRef.update({
         currentStatus: DRIVER_STATUS.ONLINE,
         inBreak: false,
@@ -280,7 +280,7 @@ export const updatePreferences = createAsyncThunk(
   'driver/updatePreferences',
   async ({ driverId, preferences }, { rejectWithValue }) => {
     try {
-      const driverRef = getFirebaseFirestore().collection('drivers').doc(driverId);
+      const driverRef = getFirebaseFirestore().collection('driverApplications').doc(driverId);
       await driverRef.update({
         preferences,
         updatedAt: getFirebaseFirestore().FieldValue.serverTimestamp()
@@ -297,7 +297,7 @@ export const loadDriverProfile = createAsyncThunk(
   'driver/loadProfile',
   async ({ driverId }, { rejectWithValue }) => {
     try {
-      const driverDoc = await getFirebaseFirestore().collection('drivers').doc(driverId).get();
+      const driverDoc = await getFirebaseFirestore().collection('driverApplications').doc(driverId).get();
       
       if (!driverDoc.exists) {
         return rejectWithValue('Driver profile not found');

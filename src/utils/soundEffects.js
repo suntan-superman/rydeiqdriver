@@ -67,7 +67,7 @@ export async function playSound(type) {
     }
     
     // Fallback to system sound or silent (for now)
-    console.log(`Sound effect '${type}' triggered (no custom file available)`);
+    // console.log(`Sound effect '${type}' triggered (no custom file available)`);
     
   } catch (error) {
     // Fail silently - don't break the app if sounds fail

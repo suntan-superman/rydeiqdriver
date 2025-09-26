@@ -154,7 +154,7 @@ export const updateNotificationSettings = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         notificationSettings: settings
       });

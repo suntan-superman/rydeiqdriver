@@ -19,7 +19,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
  */
 export const acceptDriverBidForTesting = async (rideRequestId, selectedBid) => {
   try {
-    console.log('🎯 RIDER APP TEST: Accepting driver bid:', { rideRequestId, selectedBid });
+    // console.log('🎯 RIDER APP TEST: Accepting driver bid:', { rideRequestId, selectedBid });
 
     const rideRequestRef = doc(db, 'rideRequests', rideRequestId);
     const rideRequestDoc = await getDoc(rideRequestRef);
@@ -55,11 +55,11 @@ export const acceptDriverBidForTesting = async (rideRequestId, selectedBid) => {
       finalPrice: selectedBid.bidAmount
     });
 
-    console.log('✅ RIDER APP TEST: Driver bid accepted successfully!', {
-      rideRequestId,
-      driverId: selectedBid.driverId,
-      bidAmount: selectedBid.bidAmount
-    });
+    // console.log('✅ RIDER APP TEST: Driver bid accepted successfully!', {
+    //   rideRequestId,
+    //   driverId: selectedBid.driverId,
+    //   bidAmount: selectedBid.bidAmount
+    // });
 
     return { 
       success: true, 

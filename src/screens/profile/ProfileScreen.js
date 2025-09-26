@@ -49,6 +49,11 @@ const ProfileScreen = () => {
       vehicleType: 'standard',
       photos: []
     },
+    specialtyVehicleInfo: {
+      specialtyVehicleType: '',
+      serviceCapabilities: [],
+      certificationFiles: {}
+    },
     documents: {
       driverLicense: null,
       insurance: null,
@@ -91,13 +96,13 @@ const ProfileScreen = () => {
         setLoading(true);
         
         // Load driver data from drivers collection
-        const driverDoc = await getDoc(doc(db, 'drivers', user.id));
+        const driverDoc = await getDoc(doc(db, 'driverApplications', user.id));
         let driverData = {};
         if (driverDoc.exists()) {
           driverData = driverDoc.data();
         } else {
           // Initialize driver document with basic data
-          await setDoc(doc(db, 'drivers', user.id), {
+          await setDoc(doc(db, 'driverApplications', user.id), {
             email: user.email,
             displayName: user.displayName || 'Driver',
             phoneNumber: '',
@@ -135,6 +140,11 @@ const ProfileScreen = () => {
             licensePlate: driverData.vehicle_info?.licensePlate || vehicleData.licensePlate || driverData.vehicleInfo?.licensePlate || driverData.vehicle?.licensePlate || '',
             vehicleType: driverData.vehicle_info?.vehicleType || vehicleData.vehicleType || driverData.vehicleInfo?.vehicleType || driverData.vehicle?.vehicleType || 'standard',
             photos: driverData.vehicle_info?.photos || vehicleData.photos || driverData.vehicleInfo?.photos || driverData.vehicle?.photos || []
+          },
+          specialtyVehicleInfo: {
+            specialtyVehicleType: driverData.specialtyVehicleInfo?.specialtyVehicleType || driverData.vehicle_info?.specialtyVehicleType || '',
+            serviceCapabilities: driverData.specialtyVehicleInfo?.serviceCapabilities || driverData.vehicle_info?.serviceCapabilities || [],
+            certificationFiles: driverData.specialtyVehicleInfo?.certificationFiles || driverData.vehicle_info?.certificationFiles || {}
           },
           documents: {
             driverLicense: driverData.documents?.drivers_license_front?.url || driverData.document_upload?.drivers_license_front?.url || driverData.driverLicense || null,
@@ -209,6 +219,8 @@ const ProfileScreen = () => {
           }
         } else if (editingField.section === 'vehicleInfo') {
           updateData[`vehicle_info.${editingField.field}`] = editValue;
+        } else if (editingField.section === 'specialtyVehicleInfo') {
+          updateData[`specialtyVehicleInfo.${editingField.field}`] = editValue;
         } else if (editingField.section === 'bankingInfo') {
           updateData[`payout_setup.${editingField.field}`] = editValue;
         } else if (editingField.section === 'documents') {
@@ -216,7 +228,7 @@ const ProfileScreen = () => {
         }
         
         updateData.updatedAt = new Date().toISOString();
-        await updateDoc(doc(db, 'drivers', user.id), updateData);
+        await updateDoc(doc(db, 'driverApplications', user.id), updateData);
         
         setEditingField(null);
         setEditValue('');
@@ -242,6 +254,26 @@ const ProfileScreen = () => {
       'Emergency contact management will be available in a future update. For now, you can update this information through the web app.',
       [{ text: 'OK' }]
     );
+  };
+
+  // Save specialty vehicle information to Firebase
+  const saveSpecialtyVehicleInfo = async (specialtyVehicleInfo) => {
+    if (!user?.id) return;
+    
+    try {
+      setSaving(true);
+      await updateDoc(doc(db, 'driverApplications', user.id), {
+        specialtyVehicleInfo: specialtyVehicleInfo,
+        updatedAt: new Date().toISOString()
+      });
+      playSuccessSound();
+    } catch (error) {
+      console.error('Error saving specialty vehicle info:', error);
+      playErrorSound();
+      Alert.alert('Error', 'Failed to save specialty vehicle information');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePhotoUpload = async (section, field) => {
@@ -665,6 +697,96 @@ const ProfileScreen = () => {
                   <Text style={styles.addPhotoText}>Add Photo</Text>
                 </TouchableOpacity>
               </ScrollView>
+            </View>
+
+            {/* Specialty Vehicle Information */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Specialty Vehicle Type</Text>
+              <View style={styles.specialtyVehicleGrid}>
+                {SPECIALTY_VEHICLE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.specialtyVehicleOption,
+                      profileData.specialtyVehicleInfo.specialtyVehicleType === type.value && styles.specialtyVehicleSelected
+                    ]}
+                    onPress={async () => {
+                      const newSpecialtyVehicleInfo = {
+                        ...profileData.specialtyVehicleInfo,
+                        specialtyVehicleType: type.value
+                      };
+                      setProfileData(prev => ({
+                        ...prev,
+                        specialtyVehicleInfo: newSpecialtyVehicleInfo
+                      }));
+                      await saveSpecialtyVehicleInfo(newSpecialtyVehicleInfo);
+                    }}
+                  >
+                    <Text style={[
+                      styles.specialtyVehicleLabel,
+                      profileData.specialtyVehicleInfo.specialtyVehicleType === type.value && styles.specialtyVehicleLabelSelected
+                    ]}>
+                      {type.label}
+                    </Text>
+                    <Text style={[
+                      styles.specialtyVehicleDescription,
+                      profileData.specialtyVehicleInfo.specialtyVehicleType === type.value && styles.specialtyVehicleDescriptionSelected
+                    ]}>
+                      {type.description}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Service Capabilities */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Service Capabilities</Text>
+              <Text style={styles.fieldSubtext}>Select all capabilities you can provide</Text>
+              <View style={styles.serviceCapabilitiesGrid}>
+                {SERVICE_CAPABILITIES.map((capability) => (
+                  <TouchableOpacity
+                    key={capability.value}
+                    style={[
+                      styles.serviceCapabilityOption,
+                      profileData.specialtyVehicleInfo.serviceCapabilities.includes(capability.value) && styles.serviceCapabilitySelected
+                    ]}
+                    onPress={async () => {
+                      const currentCapabilities = profileData.specialtyVehicleInfo.serviceCapabilities;
+                      const newCapabilities = currentCapabilities.includes(capability.value)
+                        ? currentCapabilities.filter(c => c !== capability.value)
+                        : [...currentCapabilities, capability.value];
+                      
+                      const newSpecialtyVehicleInfo = {
+                        ...profileData.specialtyVehicleInfo,
+                        serviceCapabilities: newCapabilities
+                      };
+                      
+                      setProfileData(prev => ({
+                        ...prev,
+                        specialtyVehicleInfo: newSpecialtyVehicleInfo
+                      }));
+                      await saveSpecialtyVehicleInfo(newSpecialtyVehicleInfo);
+                    }}
+                  >
+                    <Text style={[
+                      styles.serviceCapabilityLabel,
+                      profileData.specialtyVehicleInfo.serviceCapabilities.includes(capability.value) && styles.serviceCapabilityLabelSelected
+                    ]}>
+                      {capability.label}
+                    </Text>
+                    <Text style={[
+                      styles.serviceCapabilityDescription,
+                      profileData.specialtyVehicleInfo.serviceCapabilities.includes(capability.value) && styles.serviceCapabilityDescriptionSelected
+                    ]}>
+                      {capability.description}
+                    </Text>
+                    {capability.requiresApproval && (
+                      <Text style={styles.approvalRequiredText}>⚠️ Requires approval</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </Card>
         )}
@@ -1214,6 +1336,150 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     marginLeft: DIMENSIONS.paddingS,
   },
+  // Specialty Vehicle Styles
+  specialtyVehicleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: DIMENSIONS.paddingS,
+  },
+  specialtyVehicleOption: {
+    flex: 1,
+    minWidth: '45%',
+    padding: DIMENSIONS.paddingM,
+    borderWidth: 2,
+    borderColor: COLORS.secondary[200],
+    borderRadius: DIMENSIONS.radiusM,
+    backgroundColor: COLORS.white,
+  },
+  specialtyVehicleSelected: {
+    borderColor: COLORS.primary[500],
+    backgroundColor: COLORS.primary[50],
+  },
+  specialtyVehicleLabel: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  specialtyVehicleLabelSelected: {
+    color: COLORS.primary[700],
+  },
+  specialtyVehicleDescription: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[600],
+  },
+  specialtyVehicleDescriptionSelected: {
+    color: COLORS.primary[600],
+  },
+  // Service Capabilities Styles
+  fieldSubtext: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[600],
+    marginBottom: DIMENSIONS.paddingM,
+  },
+  serviceCapabilitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: DIMENSIONS.paddingS,
+  },
+  serviceCapabilityOption: {
+    flex: 1,
+    minWidth: '45%',
+    padding: DIMENSIONS.paddingM,
+    borderWidth: 1,
+    borderColor: COLORS.secondary[200],
+    borderRadius: DIMENSIONS.radiusM,
+    backgroundColor: COLORS.white,
+  },
+  serviceCapabilitySelected: {
+    borderColor: COLORS.primary[500],
+    backgroundColor: COLORS.primary[50],
+  },
+  serviceCapabilityLabel: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    fontWeight: TYPOGRAPHY.fontWeights.medium,
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  serviceCapabilityLabelSelected: {
+    color: COLORS.primary[700],
+  },
+  serviceCapabilityDescription: {
+    fontSize: TYPOGRAPHY.fontSizes.xs,
+    color: COLORS.secondary[600],
+    marginBottom: 4,
+  },
+  serviceCapabilityDescriptionSelected: {
+    color: COLORS.primary[600],
+  },
+  approvalRequiredText: {
+    fontSize: TYPOGRAPHY.fontSizes.xs,
+    color: COLORS.warning,
+    fontWeight: TYPOGRAPHY.fontWeights.medium,
+  },
 });
+
+// Specialty Vehicle Types for AnyRyde
+const SPECIALTY_VEHICLE_TYPES = [
+  { value: 'standard', label: '🚘 Standard Car', description: '1–4 passengers' },
+  { value: 'large', label: '🚐 Large Vehicle', description: '5+ passengers / Van / SUV' },
+  { value: 'tow_truck', label: '🚛 Tow Truck', description: 'For vehicle transport and towing' },
+  { value: 'wheelchair_accessible', label: '♿ Wheelchair-Accessible', description: 'ADA compliant vehicle' },
+  { value: 'taxi_metered', label: '🚖 Taxi-Style Metered', description: 'For licensed taxi providers' }
+];
+
+// Service Capabilities for AnyRyde
+const SERVICE_CAPABILITIES = [
+  { 
+    value: 'video_enabled', 
+    label: '🎥 Video-Enabled Ride', 
+    description: 'Dashcam installed for ride recording',
+    requiresApproval: false
+  },
+  { 
+    value: 'paired_driver', 
+    label: '👥 Paired Driver Available', 
+    description: 'Ride-along driver option',
+    requiresApproval: false
+  },
+  { 
+    value: 'medical_transport', 
+    label: '🏥 Medical Transport Certified', 
+    description: 'Certified for medical transportation',
+    requiresApproval: true
+  },
+  { 
+    value: 'pet_friendly', 
+    label: '🐶 Pet-Friendly Vehicle', 
+    description: 'Suitable for pets and service animals',
+    requiresApproval: false
+  },
+  { 
+    value: 'car_seat_infant', 
+    label: '👶 Infant Car Seat Available', 
+    description: 'Rear-facing infant car seat',
+    requiresApproval: false
+  },
+  { 
+    value: 'car_seat_toddler', 
+    label: '👶 Toddler Car Seat Available', 
+    description: 'Forward-facing toddler car seat',
+    requiresApproval: false
+  },
+  { 
+    value: 'car_seat_booster', 
+    label: '👶 Booster Seat Available', 
+    description: 'Booster seat for older children',
+    requiresApproval: false
+  }
+];
+
+// Legacy vehicle types for backward compatibility
+const VEHICLE_TYPES = [
+  { value: 'sedan', label: 'Sedan', icon: 'car-outline' },
+  { value: 'suv', label: 'SUV', icon: 'car-sport-outline' },
+  { value: 'van', label: 'Van', icon: 'bus-outline' },
+  { value: 'truck', label: 'Truck', icon: 'car-outline' }
+];
 
 export default ProfileScreen; 

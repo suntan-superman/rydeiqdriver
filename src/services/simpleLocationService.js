@@ -15,7 +15,7 @@ class SimpleLocationService {
   async initialize(driverId) {
     try {
       this.currentDriverId = driverId;
-      console.log('📍 Simple location service initialized');
+      // console.log('📍 Simple location service initialized');
       
       // Set initial Bakersfield location
       await this.updateLocation();
@@ -46,7 +46,7 @@ class SimpleLocationService {
         }
       }, 60000); // Every 60 seconds
 
-      console.log('📍 Simple location tracking started (Bakersfield)');
+      // console.log('📍 Simple location tracking started (Bakersfield)');
       return { success: true };
     } catch (error) {
       console.warn('⚠️ Error starting simple location tracking:', error);
@@ -60,7 +60,7 @@ class SimpleLocationService {
         clearInterval(this.locationInterval);
         this.locationInterval = null;
       }
-      console.log('🛑 Simple location tracking stopped');
+      // console.log('🛑 Simple location tracking stopped');
       return { success: true };
     } catch (error) {
       console.warn('⚠️ Error stopping location tracking:', error);
@@ -74,7 +74,7 @@ class SimpleLocationService {
         return;
       }
 
-      const driverRef = doc(db, 'drivers', this.currentDriverId);
+      const driverRef = doc(db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         location: new GeoPoint(
           this.bakersFieldLocation.latitude,
@@ -86,7 +86,7 @@ class SimpleLocationService {
         isOnline: true
       });
 
-      console.log('📍 Simple location updated: Bakersfield');
+      // console.log('📍 Simple location updated: Bakersfield');
     } catch (error) {
       console.warn('⚠️ Error updating location:', error);
     }
@@ -95,7 +95,7 @@ class SimpleLocationService {
   setEmulatorLocation(latitude, longitude) {
     if (latitude && longitude && !isNaN(latitude) && !isNaN(longitude)) {
       this.bakersFieldLocation = { latitude, longitude };
-      console.log(`🖥️ Location set to: ${latitude}, ${longitude}`);
+      // console.log(`🖥️ Location set to: ${latitude}, ${longitude}`);
     }
   }
 

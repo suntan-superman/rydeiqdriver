@@ -26,12 +26,12 @@ class DriverStatusService {
   // Initialize service with current driver
   async initialize(driverId, userData = null) {
     this.currentDriverId = driverId;
-    await this.createDriverDocument();
+    await this.initializeDriverDocument();
     
     // Initialize simple location service
     try {
       await SimpleLocationService.initialize(driverId);
-      console.log('✅ Simple location service initialized');
+      // console.log('✅ Simple location service initialized');
     } catch (error) {
       console.warn('⚠️ Could not initialize location service:', error);
     }
@@ -54,7 +54,7 @@ class DriverStatusService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         email: userData.email || '',
         displayName: userData.displayName || 'Driver',
@@ -65,31 +65,51 @@ class DriverStatusService {
     }
   }
 
-  // Create or update driver document
-  async createDriverDocument() {
+  // Initialize driver document for mobile app (don't overwrite existing web app data)
+  async initializeDriverDocument() {
     if (!this.currentDriverId) {
       console.error('Driver ID not set. Call initialize() first.');
       return;
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       
-      await setDoc(driverRef, {
-        id: this.currentDriverId,
-        email: '', // Will be updated when user data is available
-        displayName: 'Driver',
-        status: 'offline',
-        isOnline: false,
-        lastStatusUpdate: serverTimestamp(),
-        lastLocationUpdate: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // Driver document created/updated
+      // Check if document exists first
+      const driverDoc = await getDoc(driverRef);
+      
+      if (driverDoc.exists()) {
+        console.log('✅ Driver document already exists, using existing data');
+        // Document exists, just update mobile-specific fields
+        await updateDoc(driverRef, {
+          mobileAppStatus: {
+            accountCreated: true,
+            accountCreatedAt: serverTimestamp(),
+            lastMobileLogin: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        console.log('⚠️ Driver document not found, creating basic mobile app document');
+        // Document doesn't exist, create a basic one for mobile app
+        await setDoc(driverRef, {
+          userId: this.currentDriverId,
+          email: '',
+          status: 'offline',
+          isOnline: false,
+          mobileAppStatus: {
+            accountCreated: true,
+            accountCreatedAt: serverTimestamp(),
+            lastMobileLogin: serverTimestamp()
+          },
+          lastStatusUpdate: serverTimestamp(),
+          lastLocationUpdate: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
     } catch (error) {
-      console.error('❌ Error creating driver document:', error);
+      console.error('❌ Error initializing driver document:', error);
     }
   }
 
@@ -100,7 +120,7 @@ class DriverStatusService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         status: status,
         isOnline: status === 'available',
@@ -123,7 +143,7 @@ class DriverStatusService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         location: new GeoPoint(location.latitude, location.longitude),
         lastLocationUpdate: serverTimestamp(),
@@ -143,7 +163,7 @@ class DriverStatusService {
       const result = await SimpleLocationService.startTracking();
       
       if (result && result.success) {
-        console.log('📍 Simple location tracking started');
+        // console.log('📍 Simple location tracking started');
         return { success: true, usingSimpleService: true };
       } else {
         console.warn('⚠️ Simple location service failed, using basic fallback');
@@ -170,7 +190,7 @@ class DriverStatusService {
       }
     }, intervalMs);
 
-    console.log('📍 Basic location tracking started');
+    // console.log('📍 Basic location tracking started');
     return { success: true, usingRealTimeService: false };
   }
 
@@ -189,7 +209,7 @@ class DriverStatusService {
       this.locationUpdateInterval = null;
     }
 
-    console.log('🛑 Location tracking stopped');
+    // console.log('🛑 Location tracking stopped');
   }
 
   // Listen for driver status changes
@@ -198,9 +218,11 @@ class DriverStatusService {
       throw new Error('Driver ID not set. Call initialize() first.');
     }
 
-    const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+    console.log('🔍 Listening for driver status for driverId:', this.currentDriverId);
+    const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
     
     const unsubscribe = onSnapshot(driverRef, (doc) => {
+      console.log('📊 Driver status snapshot received:', doc.exists() ? 'exists' : 'not found');
       if (doc.exists()) {
         const driverData = doc.data();
         callback({
@@ -209,7 +231,17 @@ class DriverStatusService {
           isOnline: driverData.isOnline || false,
           status: driverData.status || 'offline'
         });
+      } else {
+        console.warn('⚠️ Driver document not found in driverApplications collection');
+        // Call callback with default offline status
+        callback({
+          id: this.currentDriverId,
+          isOnline: false,
+          status: 'offline'
+        });
       }
+    }, (error) => {
+      console.error('❌ Error listening to driver status:', error);
     });
 
     this.statusListeners.set('driverStatus', unsubscribe);
@@ -223,7 +255,7 @@ class DriverStatusService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       const driverDoc = await getDoc(driverRef);
       
       if (driverDoc.exists()) {

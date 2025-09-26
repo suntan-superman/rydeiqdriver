@@ -109,7 +109,7 @@ export class AuthService {
       await sendEmailVerification(user);
       
       // Save additional driver data to Firestore
-      await setDoc(doc(db, 'drivers', user.uid), {
+      await setDoc(doc(db, 'driverApplications', user.uid), {
         email: user.email,
         displayName: userData.name || '',
         phoneNumber: userData.phoneNumber || '',
@@ -189,7 +189,7 @@ export class AuthService {
       const user = userCredential.user;
       
       // Get additional driver data from Firestore
-      const driverDoc = await getDoc(doc(db, 'drivers', user.uid));
+      const driverDoc = await getDoc(doc(db, 'driverApplications', user.uid));
       const driverData = driverDoc.exists() ? (driverDoc.data() || {}) : {};
       
       return {
@@ -269,7 +269,7 @@ export class AuthService {
         throw new Error('Firestore is not initialized');
       }
       
-      const driverDoc = await getDoc(doc(db, 'drivers', userId));
+      const driverDoc = await getDoc(doc(db, 'driverApplications', userId));
       if (driverDoc.exists()) {
         const data = driverDoc.data();
         return {

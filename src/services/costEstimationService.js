@@ -47,7 +47,7 @@ class CostEstimationService {
    * Get location from Firestore with proper error handling
    */
   async getLocationFromFirestore(userId) {
-    const driverRef = doc(db, 'drivers', userId);
+    const driverRef = doc(db, 'driverApplications', userId);
     const driverDoc = await getDoc(driverRef);
     
     if (!driverDoc.exists()) {

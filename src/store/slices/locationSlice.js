@@ -136,7 +136,7 @@ export const updateLocationInFirestore = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         location: new firebaseFirestore.GeoPoint(location.latitude, location.longitude),
         heading: location.heading || null,

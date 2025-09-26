@@ -56,7 +56,7 @@ class TestDriverSetup {
     try {
       console.log('🚗 Creating test driver profile...');
       
-      const driverRef = doc(db, 'drivers', this.testDriverId);
+      const driverRef = doc(db, 'driverApplications', this.testDriverId);
       await setDoc(driverRef, this.testDriverData);
       
       console.log('✅ Test driver profile created successfully');
@@ -86,7 +86,7 @@ class TestDriverSetup {
   // Get test driver profile
   async getTestDriver() {
     try {
-      const driverRef = doc(db, 'drivers', this.testDriverId);
+      const driverRef = doc(db, 'driverApplications', this.testDriverId);
       const driverDoc = await getDoc(driverRef);
       
       if (driverDoc.exists()) {
@@ -105,7 +105,7 @@ class TestDriverSetup {
     try {
       console.log(`📱 Updating test driver status to: ${status} (online: ${isOnline})`);
       
-      const driverRef = doc(db, 'drivers', this.testDriverId);
+      const driverRef = doc(db, 'driverApplications', this.testDriverId);
       await setDoc(driverRef, {
         status: status,
         isOnline: isOnline,
@@ -126,7 +126,7 @@ class TestDriverSetup {
     try {
       console.log(`📍 Updating test driver location to: ${latitude}, ${longitude}`);
       
-      const driverRef = doc(db, 'drivers', this.testDriverId);
+      const driverRef = doc(db, 'driverApplications', this.testDriverId);
       await setDoc(driverRef, {
         location: new GeoPoint(latitude, longitude),
         lastLocationUpdate: serverTimestamp(),

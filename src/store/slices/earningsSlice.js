@@ -55,7 +55,7 @@ export const loadEarnings = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       const driverDoc = await driverRef.get();
       
       if (!driverDoc.exists) {
@@ -103,7 +103,7 @@ export const addEarning = createAsyncThunk(
       await earningRef.set(earningData);
       
       // Update driver's total earnings
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         'earnings.total': firebaseFirestore.FieldValue.increment(parseFloat(amount)),
         'earnings.available': firebaseFirestore.FieldValue.increment(parseFloat(amount)),
@@ -143,7 +143,7 @@ export const requestPayout = createAsyncThunk(
       await payoutRef.set(payoutData);
       
       // Update driver's available balance
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         'earnings.available': firebaseFirestore.FieldValue.increment(-parseFloat(amount)),
         'earnings.pending': firebaseFirestore.FieldValue.increment(parseFloat(amount))
@@ -221,7 +221,7 @@ export const updateGoals = createAsyncThunk(
         return rejectWithValue('Firebase firestore not available');
       }
       
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       await driverRef.update({
         'earnings.goals': goals
       });

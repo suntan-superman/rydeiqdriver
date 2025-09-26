@@ -98,7 +98,7 @@ class DriverBidNotificationService {
    */
   restartRideRequestListening() {
     if (this.rideRequestService) {
-      console.log('🔄 Restarting ride request listening after bid resolution');
+      // console.log('🔄 Restarting ride request listening after bid resolution');
       this.rideRequestService.startListeningForRideRequests();
     } else {
       console.warn('⚠️ RideRequestService reference not set, cannot restart listening');
@@ -111,7 +111,7 @@ class DriverBidNotificationService {
    */
   initialize(driverId) {
     this.currentDriverId = driverId;
-    console.log('🎧 Driver bid notification service initialized for:', driverId);
+    // console.log('🎧 Driver bid notification service initialized for:', driverId);
   }
 
   /**
@@ -166,7 +166,7 @@ class DriverBidNotificationService {
       // Store the listener for cleanup
       this.activeListeners.set(rideRequestId, unsubscribe);
       
-      console.log(`🎧 Started listening for bid acceptance on ride ${rideRequestId}`);
+      // console.log(`🎧 Started listening for bid acceptance on ride ${rideRequestId}`);
       return unsubscribe;
 
     } catch (error) {
@@ -186,19 +186,19 @@ class DriverBidNotificationService {
   handleRideRequestUpdate(rideRequestId, rideData, driverId, bidAmount, callbacks) {
     const { onBidAccepted, onRideCancelled, onBiddingExpired } = callbacks;
 
-    console.log('🔄 Driver notification update:', {
-      rideRequestId,
-      status: rideData.status,
-      driverId,
-      acceptedDriverId: rideData.acceptedDriver?.driverId,
-      acceptedDriver: rideData.acceptedDriver
-    });
+    // console.log('🔄 Driver notification update:', {
+    //   rideRequestId,
+    //   status: rideData.status,
+    //   driverId,
+    //   acceptedDriverId: rideData.acceptedDriver?.driverId,
+    //   acceptedDriver: rideData.acceptedDriver
+    // });
 
     switch (rideData.status) {
       case 'accepted':
         // Check if this driver's bid was accepted
         if (rideData.acceptedDriver?.driverId === driverId) {
-          console.log('🎉 This driver\'s bid was accepted!');
+          // console.log('🎉 This driver\'s bid was accepted!');
           this.handleBidAcceptance(rideRequestId, rideData, bidAmount, onBidAccepted);
         } else {
           // Another driver's bid was accepted
@@ -219,7 +219,7 @@ class DriverBidNotificationService {
       case 'open_for_bids':
       case 'pending':
         // Still waiting for acceptance - no action needed
-        console.log(`⏳ Ride ${rideRequestId} still pending...`);
+        // console.log(`⏳ Ride ${rideRequestId} still pending...`);
         break;
 
       default:
@@ -236,7 +236,7 @@ class DriverBidNotificationService {
    */
   async handleBidAcceptance(rideRequestId, rideData, bidAmount, callback) {
     try {
-      console.log('🎉 BID ACCEPTED!', { rideRequestId, bidAmount });
+      // console.log('🎉 BID ACCEPTED!', { rideRequestId, bidAmount });
 
       // Play success sound and haptic feedback
       await this.playBidAcceptedFeedback();
@@ -311,30 +311,58 @@ class DriverBidNotificationService {
    */
   async handleRideCancellation(rideRequestId, callback) {
     try {
-      console.log('❌ Ride cancelled:', rideRequestId);
+      // console.log('❌ Ride cancelled:', rideRequestId);
 
-      // Play cancellation sound
-      await playRideCancelledSound();
+      // Play cancellation sound with error handling
+      try {
+        if (playRideCancelledSound) {
+          await playRideCancelledSound();
+        }
+      } catch (error) {
+        console.warn('⚠️ Error playing ride cancelled sound:', error);
+      }
 
-      // Warning haptic feedback
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      // Warning haptic feedback with error handling
+      try {
+        if (Haptics && Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+      } catch (error) {
+        console.warn('⚠️ Error with haptic feedback:', error);
+      }
 
-      // Show system notification
-      await this.showRideCancelledNotification();
+      // Show system notification with error handling
+      try {
+        await this.showRideCancelledNotification();
+      } catch (error) {
+        console.warn('⚠️ Error showing ride cancelled notification:', error);
+      }
 
       // Call the callback if provided
       if (callback) {
-        callback({
-          rideRequestId,
-          reason: 'ride_cancelled'
-        });
+        try {
+          callback({
+            rideRequestId,
+            reason: 'ride_cancelled'
+          });
+        } catch (error) {
+          console.error('❌ Error in ride cancellation callback:', error);
+        }
       }
 
       // Clean up this listener
-      this.stopListening(rideRequestId);
+      try {
+        this.stopListening(rideRequestId);
+      } catch (error) {
+        console.warn('⚠️ Error stopping listener:', error);
+      }
       
       // Restart listening for new ride requests since the ride was cancelled
-      this.restartRideRequestListening();
+      try {
+        this.restartRideRequestListening();
+      } catch (error) {
+        console.warn('⚠️ Error restarting ride request listening:', error);
+      }
 
     } catch (error) {
       console.error('❌ Error handling ride cancellation:', error);
@@ -348,7 +376,7 @@ class DriverBidNotificationService {
    */
   async handleRideCompletion(rideRequestId, rideData) {
     try {
-      console.log('✅ Ride completed:', rideRequestId);
+      // console.log('✅ Ride completed:', rideRequestId);
 
       // Play completion sound
       await playRideCompletedSound();
@@ -497,7 +525,7 @@ class DriverBidNotificationService {
       listener(); // Call unsubscribe function
       this.activeListeners.delete(rideRequestId);
       this.bidAcceptanceCallbacks.delete(rideRequestId);
-      console.log(`🔇 Stopped listening for ride ${rideRequestId}`);
+      // console.log(`🔇 Stopped listening for ride ${rideRequestId}`);
     }
   }
 
@@ -544,7 +572,7 @@ class DriverBidNotificationService {
    */
   async startListeningForRideStatusChanges(rideRequestId, driverId, onRideCancelled = null, onRideCompleted = null) {
     try {
-      console.log('🎧 Starting ride status listener for:', rideRequestId);
+      // console.log('🎧 Starting ride status listener for:', rideRequestId);
       
       // Check if Firebase is available
       if (!this.db || !doc || !onSnapshot) {
@@ -566,19 +594,27 @@ class DriverBidNotificationService {
           
           switch (rideData.status) {
             case 'cancelled':
-              console.log('🚨 RIDE CANCELLATION DETECTED in status listener:', rideRequestId);
+              // console.log('🚨 RIDE CANCELLATION DETECTED in status listener:', rideRequestId);
               if (onRideCancelled) {
-                onRideCancelled({
-                  rideRequestId,
-                  reason: 'ride_cancelled',
-                  cancelledBy: rideData.cancelledBy
-                });
+                try {
+                  onRideCancelled({
+                    rideRequestId,
+                    reason: 'ride_cancelled',
+                    cancelledBy: rideData.cancelledBy
+                  });
+                } catch (error) {
+                  console.error('❌ Error in ride cancellation callback from status listener:', error);
+                }
               }
-              this.stopListening(`${rideRequestId}_status`);
+              try {
+                this.stopListening(`${rideRequestId}_status`);
+              } catch (error) {
+                console.warn('⚠️ Error stopping status listener:', error);
+              }
               break;
               
             case 'completed':
-              console.log('✅ RIDE COMPLETION DETECTED in status listener:', rideRequestId);
+              // console.log('✅ RIDE COMPLETION DETECTED in status listener:', rideRequestId);
               if (onRideCompleted) {
                 onRideCompleted({
                   rideRequestId,
@@ -592,15 +628,23 @@ class DriverBidNotificationService {
               console.log(`📊 Ride ${rideRequestId} status: ${rideData.status}`);
           }
         } else {
-          console.log('🚨 Ride document deleted - treating as cancellation');
+          // console.log('🚨 Ride document deleted - treating as cancellation');
           if (onRideCancelled) {
-            onRideCancelled({
-              rideRequestId,
-              reason: 'ride_cancelled',
-              cancelledBy: 'unknown'
-            });
+            try {
+              onRideCancelled({
+                rideRequestId,
+                reason: 'ride_cancelled',
+                cancelledBy: 'unknown'
+              });
+            } catch (error) {
+              console.error('❌ Error in ride cancellation callback from document deletion:', error);
+            }
           }
-          this.stopListening(`${rideRequestId}_status`);
+          try {
+            this.stopListening(`${rideRequestId}_status`);
+          } catch (error) {
+            console.warn('⚠️ Error stopping status listener after document deletion:', error);
+          }
         }
       }, (error) => {
         console.error('❌ Error in ride status listener:', error);
@@ -608,7 +652,7 @@ class DriverBidNotificationService {
 
       // Store the listener for cleanup
       this.activeListeners.set(`${rideRequestId}_status`, unsubscribe);
-      console.log(`🎧 Started ride status listener for ${rideRequestId}`);
+      // console.log(`🎧 Started ride status listener for ${rideRequestId}`);
       return unsubscribe;
 
     } catch (error) {

@@ -37,7 +37,7 @@ class RealTimeLocationService {
         return { success: true, usingEmulatorLocation: true };
       }
 
-      console.log('✅ RealTimeLocationService initialized for driver:', driverId);
+      // console.log('✅ RealTimeLocationService initialized for driver:', driverId);
       return { success: true, locationPermissions: locationResult };
     } catch (error) {
       console.error('❌ Error initializing RealTimeLocationService:', error);
@@ -48,7 +48,7 @@ class RealTimeLocationService {
   // Start continuous location tracking
   async startTracking() {
     if (this.isTracking) {
-      console.log('📍 Location tracking already active');
+      // console.log('📍 Location tracking already active');
       return { success: true, alreadyTracking: true };
     }
 
@@ -57,7 +57,7 @@ class RealTimeLocationService {
     }
 
     try {
-      console.log('📍 Starting location tracking for driver:', this.currentDriverId);
+      // console.log('📍 Starting location tracking for driver:', this.currentDriverId);
       
       // Check if we're in emulator environment
       const isEmulator = await this.isRunningInEmulator();
@@ -80,7 +80,7 @@ class RealTimeLocationService {
 
   // Start emulator-specific location tracking
   async startEmulatorLocationTracking() {
-    console.log('🖥️ Starting emulator location tracking (Bakersfield, CA)');
+    // console.log('🖥️ Starting emulator location tracking (Bakersfield, CA)');
     
     // Set initial location
     await this.updateDriverLocationInFirebase(
@@ -122,7 +122,7 @@ class RealTimeLocationService {
 
   // Start GPS location tracking for real devices
   async startGPSLocationTracking() {
-    console.log('📱 Starting GPS location tracking');
+    // console.log('📱 Starting GPS location tracking');
     
     // Get initial location
     const initialLocation = await getCurrentLocation();
@@ -221,7 +221,7 @@ class RealTimeLocationService {
         throw new Error(`Coordinates out of range: ${latitude}, ${longitude}`);
       }
 
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       const updateData = {
         location: new GeoPoint(latitude, longitude),
         lastLocationUpdate: new Date(),
@@ -234,9 +234,9 @@ class RealTimeLocationService {
       
       this.lastKnownLocation = { latitude, longitude };
       
-      if (__DEV__) {
-        console.log(`📍 Driver location updated: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} (${isEmulator ? 'emulator' : 'GPS'})`);
-      }
+      // if (__DEV__) {
+      //   console.log(`📍 Driver location updated: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} (${isEmulator ? 'emulator' : 'GPS'})`);
+      // }
 
       return { success: true };
     } catch (error) {
@@ -248,7 +248,7 @@ class RealTimeLocationService {
   // Stop location tracking
   async stopTracking() {
     try {
-      console.log('🛑 Stopping location tracking');
+      // console.log('🛑 Stopping location tracking');
       
       if (this.locationSubscription) {
         if (typeof this.locationSubscription === 'object' && this.locationSubscription.remove) {
@@ -265,7 +265,7 @@ class RealTimeLocationService {
       
       // Update driver status to offline
       if (this.currentDriverId) {
-        const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+        const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
         await updateDoc(driverRef, {
           isOnline: false,
           status: 'offline',
@@ -293,7 +293,7 @@ class RealTimeLocationService {
   // Force update location now
   async forceLocationUpdate() {
     try {
-      console.log('🔄 Forcing location update');
+      // console.log('🔄 Forcing location update');
       
       const isEmulator = await this.isRunningInEmulator();
       
@@ -322,7 +322,7 @@ class RealTimeLocationService {
   // Set custom emulator location (for testing different cities)
   setEmulatorLocation(latitude, longitude) {
     this.emulatorLocation = { latitude, longitude };
-    console.log(`🖥️ Emulator location set to: ${latitude}, ${longitude}`);
+    // console.log(`🖥️ Emulator location set to: ${latitude}, ${longitude}`);
   }
 
   // Utility methods

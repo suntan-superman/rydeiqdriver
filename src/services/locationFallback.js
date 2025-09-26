@@ -16,7 +16,7 @@ class LocationFallback {
 
   async initialize(driverId) {
     this.currentDriverId = driverId;
-    console.log('📍 Location fallback initialized for:', driverId);
+    // console.log('📍 Location fallback initialized for:', driverId);
     return { success: true };
   }
 
@@ -45,7 +45,7 @@ class LocationFallback {
       }, 60000);
 
       this.isTracking = true;
-      console.log('📍 Fallback location tracking started (Bakersfield)');
+      // console.log('📍 Fallback location tracking started (Bakersfield)');
       return { success: true };
     } catch (error) {
       console.error('❌ Error starting fallback location tracking:', error);
@@ -59,7 +59,7 @@ class LocationFallback {
       this.locationInterval = null;
     }
     this.isTracking = false;
-    console.log('🛑 Fallback location tracking stopped');
+    // console.log('🛑 Fallback location tracking stopped');
     return { success: true };
   }
 
@@ -68,7 +68,7 @@ class LocationFallback {
       throw new Error('Driver ID not set');
     }
 
-    const driverRef = doc(db, 'drivers', this.currentDriverId);
+    const driverRef = doc(db, 'driverApplications', this.currentDriverId);
     await updateDoc(driverRef, {
       location: new GeoPoint(latitude, longitude),
       lastLocationUpdate: new Date(),
@@ -77,12 +77,12 @@ class LocationFallback {
       isOnline: true
     });
 
-    console.log(`📍 Fallback location updated: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+    // console.log(`📍 Fallback location updated: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
   }
 
   setEmulatorLocation(latitude, longitude) {
     this.emulatorLocation = { latitude, longitude };
-    console.log(`🖥️ Fallback emulator location set to: ${latitude}, ${longitude}`);
+    // console.log(`🖥️ Fallback emulator location set to: ${latitude}, ${longitude}`);
   }
 
   async forceLocationUpdate() {

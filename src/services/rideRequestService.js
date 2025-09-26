@@ -50,8 +50,7 @@ class RideRequestService {
       return;
     }
 
-
-
+    console.log('🚗 Starting ride request listener for driver:', this.currentDriverId);
     const rideRequestsRef = collection(this.db, 'rideRequests');
     
     // UPDATED QUERY - Listen for broadcast requests where this driver is in availableDrivers array
@@ -143,7 +142,7 @@ class RideRequestService {
               const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
               
               if (timeDiff <= tenMinutes) {
-                console.log('🔄 Processing recent ride request:', rideRequest.id, 'Age:', Math.round(timeDiff / 1000), 'seconds');
+                // console.log('🔄 Processing recent ride request:', rideRequest.id, 'Age:', Math.round(timeDiff / 1000), 'seconds');
                 this.handleNewRideRequest(rideRequest);
               } else {
                 console.log('⏰ Ignoring old ride request:', rideRequest.id, 'Age:', Math.round(timeDiff / 60000), 'minutes');
@@ -162,8 +161,66 @@ class RideRequestService {
     this.rideRequestListeners.set('rideRequests', unsubscribe);
   }
 
+  // Check if driver can fulfill ride request based on specialty vehicle capabilities
+  async canDriverFulfillRequest(rideRequest, driverId) {
+    try {
+      // Get driver's specialty vehicle information
+      const driverDoc = await getDoc(doc(this.db, 'driverApplications', driverId));
+      if (!driverDoc.exists()) {
+        return false;
+      }
+      
+      const driverData = driverDoc.data();
+      const specialtyVehicleInfo = driverData.specialtyVehicleInfo || {};
+      const driverSpecialtyType = specialtyVehicleInfo.specialtyVehicleType;
+      const driverServiceCapabilities = specialtyVehicleInfo.serviceCapabilities || [];
+      
+      // Check if driver has required specialty vehicle type
+      const requiredVehicleType = rideRequest.requiredVehicleType;
+      if (requiredVehicleType && driverSpecialtyType !== requiredVehicleType) {
+        console.log(`🚫 Driver ${driverId} cannot fulfill request: vehicle type mismatch (${driverSpecialtyType} vs ${requiredVehicleType})`);
+        return false;
+      }
+      
+      // Check if driver has required service capabilities
+      const requiredCapabilities = rideRequest.requiredCapabilities || [];
+      const missingCapabilities = requiredCapabilities.filter(capability => 
+        !driverServiceCapabilities.includes(capability)
+      );
+      
+      if (missingCapabilities.length > 0) {
+        console.log(`🚫 Driver ${driverId} cannot fulfill request: missing capabilities (${missingCapabilities.join(', ')})`);
+        return false;
+      }
+      
+      // Check if driver has any of the optional preferences
+      const optionalPreferences = rideRequest.optionalPreferences || [];
+      const hasOptionalCapabilities = optionalPreferences.some(preference => 
+        driverServiceCapabilities.includes(preference)
+      );
+      
+      // If there are optional preferences, driver should have at least one
+      if (optionalPreferences.length > 0 && !hasOptionalCapabilities) {
+        console.log(`🚫 Driver ${driverId} cannot fulfill request: no optional preferences met`);
+        return false;
+      }
+      
+      console.log(`✅ Driver ${driverId} can fulfill request`);
+      return true;
+    } catch (error) {
+      console.error('Error checking driver capabilities:', error);
+      return false;
+    }
+  }
+
   // Handle new ride request from rider
-  handleNewRideRequest(rideRequest) {
+  async handleNewRideRequest(rideRequest) {
+    // Check if driver can fulfill this request
+    const canFulfill = await this.canDriverFulfillRequest(rideRequest, this.currentDriverId);
+    if (!canFulfill) {
+      console.log(`🚫 Driver cannot fulfill ride request ${rideRequest.id}`);
+      return;
+    }
     
     // Transform data for UI compatibility
     const transformedRequest = {
@@ -183,8 +240,9 @@ class RideRequestService {
       estimatedDistance: `${rideRequest.estimatedDistance?.toFixed(1) || '0'} miles`,
       estimatedDuration: rideRequest.estimatedDuration || '12 minutes',
       companyBid: rideRequest.estimatedPrice || 0,
-      rideType: 'standard',
-      specialRequests: [],
+      rideType: rideRequest.requiredVehicleType || 'standard',
+      specialRequests: rideRequest.requiredCapabilities || [],
+      optionalPreferences: rideRequest.optionalPreferences || [],
       distanceInMiles: rideRequest.distanceInMiles || 0
     };
     
@@ -297,7 +355,7 @@ class RideRequestService {
         finalPrice: selectedBid.bidAmount
       });
 
-      console.log('✅ Driver bid accepted:', { rideRequestId, driverId: selectedBid.driverId, bidAmount: selectedBid.bidAmount });
+      // console.log('✅ Driver bid accepted:', { rideRequestId, driverId: selectedBid.driverId, bidAmount: selectedBid.bidAmount });
       return { success: true, rideRequestId, selectedBid };
     } catch (error) {
       console.error('❌ Error accepting driver bid:', error);
@@ -321,18 +379,28 @@ class RideRequestService {
 
       const rideRequest = rideRequestDoc.data();
       
-      // Get driver info from stored profile or use defaults for Steve Roy  
+      // Get driver's specialty vehicle information
+      const driverDoc = await getDoc(doc(this.db, 'driverApplications', this.currentDriverId));
+      let driverData = {};
+      if (driverDoc.exists()) {
+        driverData = driverDoc.data();
+      }
+      
       const vehicleInfo = {
-        make: 'Jeep', // From existing driver: vehicleInfo.vehicle_info.make
-        model: 'Wrangler', // From existing driver: vehicleInfo.vehicle_info.model
-        color: 'Black' // From existing driver: vehicleInfo.vehicle_info.color
+        make: driverData.vehicle_info?.make || driverData.vehicleInfo?.make || 'Jeep',
+        model: driverData.vehicle_info?.model || driverData.vehicleInfo?.model || 'Wrangler',
+        color: driverData.vehicle_info?.color || driverData.vehicleInfo?.color || 'Black'
       };
 
+      const specialtyVehicleInfo = driverData.specialtyVehicleInfo || {};
+      
       const driverInfo = {
-        name: 'Steve Roy', // From existing driver: displayName
+        name: driverData.displayName || 'Driver',
         rating: 4.8, // Default rating (can be calculated from reviews later)
         reviewCount: 150, // Changed from totalRides to reviewCount to match rider expectations
-        vehicleInfo: vehicleInfo // Move vehicleInfo inside driverInfo to match rider structure
+        vehicleInfo: vehicleInfo, // Move vehicleInfo inside driverInfo to match rider structure
+        specialtyVehicleType: specialtyVehicleInfo.specialtyVehicleType,
+        serviceCapabilities: specialtyVehicleInfo.serviceCapabilities || []
       };
 
       // Validate bid amount with proper limits
@@ -345,7 +413,10 @@ class RideRequestService {
         submittedAt: new Date(),
         driverInfo: driverInfo,
         estimatedArrival: 5, // TODO: Calculate based on driver location
-        distanceFromPickup: 0.5 // Add missing field that rider expects
+        distanceFromPickup: 0.5, // Add missing field that rider expects
+        specialtyVehicleType: specialtyVehicleInfo.specialtyVehicleType,
+        serviceCapabilities: specialtyVehicleInfo.serviceCapabilities || [],
+        canFulfillRequirements: true // Driver has already been validated
       };
 
       // For broadcast requests, append to driverBids array (consistent with rider app)
@@ -363,7 +434,7 @@ class RideRequestService {
         });
       }
 
-      console.log('💰 Custom bid submitted:', validatedBidAmount);
+      // console.log('💰 Custom bid submitted:', validatedBidAmount);
       
       // Stop listening for new ride requests once bid is submitted
       this.stopListeningForRideRequests();
@@ -409,15 +480,15 @@ class RideRequestService {
     // Round to 2 decimal places
     validatedBid = Math.round(validatedBid * 100) / 100;
     
-    if (__DEV__) {
-      console.log('💰 Bid validation:', {
-        originalBid: bidAmount,
-        distance: distance,
-        minimumFare: MINIMUM_FARE,
-        maxAllowedBid: maxAllowedBid.toFixed(2),
-        validatedBid: validatedBid
-      });
-    }
+    // if (__DEV__) {
+    //   console.log('💰 Bid validation:', {
+    //     originalBid: bidAmount,
+    //     distance: distance,
+    //     minimumFare: MINIMUM_FARE,
+    //     maxAllowedBid: maxAllowedBid.toFixed(2),
+    //     validatedBid: validatedBid
+    //   });
+    // }
     
     return validatedBid;
   }
@@ -528,7 +599,7 @@ class RideRequestService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         status: status,
         isOnline: status === 'available',
@@ -549,7 +620,7 @@ class RideRequestService {
     }
 
     try {
-      const driverRef = doc(this.db, 'drivers', this.currentDriverId);
+      const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
       await updateDoc(driverRef, {
         location: new GeoPoint(location.latitude, location.longitude),
         lastLocationUpdate: new Date()
@@ -565,20 +636,20 @@ class RideRequestService {
   // Mark a ride request as declined by this driver
   declineRideRequest(rideRequestId) {
     this.declinedRideRequests.add(rideRequestId);
-    console.log('🚫 Marked ride request as declined:', rideRequestId);
-    console.log('📝 Total declined requests:', this.declinedRideRequests.size);
+    // console.log('🚫 Marked ride request as declined:', rideRequestId);
+    // console.log('📝 Total declined requests:', this.declinedRideRequests.size);
   }
 
   // Clear all declined requests (useful for new session or periodic cleanup)
   clearDeclinedRequests() {
     const count = this.declinedRideRequests.size;
     this.declinedRideRequests.clear();
-    console.log('🧹 Cleared', count, 'declined ride requests');
+    // console.log('🧹 Cleared', count, 'declined ride requests');
   }
 
   // Force clear all listeners and restart fresh (useful for getting out of loops)
   forceRestartListening() {
-    console.log('🔄 Force restarting all ride request listeners...');
+    // console.log('🔄 Force restarting all ride request listeners...');
     
     // Stop all existing listeners
     this.stopListeningForRideRequests();
@@ -590,7 +661,7 @@ class RideRequestService {
     setTimeout(() => {
       // Start listening again with fresh state
       this.startListeningForRideRequests();
-      console.log('✅ Force restart completed - fresh listening state');
+      // console.log('✅ Force restart completed - fresh listening state');
     }, 1000);
   }
 
@@ -601,6 +672,28 @@ class RideRequestService {
     const estimatedArrival = new Date();
     estimatedArrival.setMinutes(estimatedArrival.getMinutes() + estimatedMinutes);
     return estimatedArrival;
+  }
+
+  // Get driver's specialty vehicle capabilities
+  async getDriverSpecialtyCapabilities(driverId) {
+    try {
+      const driverDoc = await getDoc(doc(this.db, 'driverApplications', driverId));
+      if (!driverDoc.exists()) {
+        return null;
+      }
+      
+      const driverData = driverDoc.data();
+      const specialtyVehicleInfo = driverData.specialtyVehicleInfo || {};
+      
+      return {
+        specialtyVehicleType: specialtyVehicleInfo.specialtyVehicleType,
+        serviceCapabilities: specialtyVehicleInfo.serviceCapabilities || [],
+        certificationFiles: specialtyVehicleInfo.certificationFiles || {}
+      };
+    } catch (error) {
+      console.error('Error getting driver specialty capabilities:', error);
+      return null;
+    }
   }
 
   // Set callback for new ride requests

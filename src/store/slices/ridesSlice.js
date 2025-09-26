@@ -60,7 +60,7 @@ export const acceptRide = createAsyncThunk(
       }
       
       const rideRef = firebaseFirestore.collection('rideRequests').doc(rideId);
-      const driverRef = firebaseFirestore.collection('drivers').doc(driverId);
+      const driverRef = firebaseFirestore.collection('driverApplications').doc(driverId);
       
       // Update ride status
       await rideRef.update({

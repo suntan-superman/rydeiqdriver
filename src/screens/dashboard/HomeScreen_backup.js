@@ -18,8 +18,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
 // Safe service imports with error handling
 let RideRequestService;
@@ -365,8 +363,7 @@ const HomeScreen = () => {
   }, []);
 
   // Determine approval status - check both approval status and onboarding completion
-  // TEMPORARY: Override for testing - set to true to bypass approval check
-  const isApproved = true; // user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
+  const isApproved = user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
 
   // Initialize services when component mounts
   useEffect(() => {
@@ -631,15 +628,15 @@ const HomeScreen = () => {
     // Fetch the complete ride request data from Firebase to ensure we have all the details
     let completeRideRequest = rideRequest;
     try {
-      if (db && doc && getDoc) {
-        const rideRequestRef = doc(db, 'rideRequests', acceptanceData.rideRequestId);
-        const rideRequestSnap = await getDoc(rideRequestRef);
-        if (rideRequestSnap.exists()) {
-          completeRideRequest = rideRequestSnap.data();
-          // console.log('🗺️ Fetched complete ride request from Firebase:', completeRideRequest);
-          // console.log('🗺️ Firebase pickup data:', completeRideRequest.pickup);
-          // console.log('🗺️ Firebase dropoff data:', completeRideRequest.dropoff);
-        }
+      const { doc, getDoc } = require('firebase/firestore');
+      const { db } = require('@/config/firebase');
+      const rideRequestRef = doc(db, 'rideRequests', acceptanceData.rideRequestId);
+      const rideRequestSnap = await getDoc(rideRequestRef);
+      if (rideRequestSnap.exists()) {
+        completeRideRequest = rideRequestSnap.data();
+        // console.log('🗺️ Fetched complete ride request from Firebase:', completeRideRequest);
+        // console.log('🗺️ Firebase pickup data:', completeRideRequest.pickup);
+        // console.log('🗺️ Firebase dropoff data:', completeRideRequest.dropoff);
       }
     } catch (error) {
       console.warn('⚠️ Failed to fetch ride request from Firebase, using cached data:', error);
