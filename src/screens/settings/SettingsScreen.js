@@ -44,7 +44,16 @@ const SettingsScreen = () => {
     autoAcceptEnabled: false,
     preferredRideTypes: ['standard', 'premium'],
     instantPayouts: true,
-    emergencyContact: null
+    emergencyContact: null,
+    // Multi-stop preferences
+    multiStop: {
+      autoAcceptEnabled: false,
+      autoAcceptAmount: 5.00,
+      autoAcceptPercent: 15,
+      stopFee: 3.00,
+      waitPerMinute: 0.40,
+      graceMinutes: 5
+    }
   });
 
   // Language options
@@ -65,6 +74,14 @@ const SettingsScreen = () => {
 
   const handleDriverSettingChange = (setting, value) => {
     setDriverSettings(prev => ({ ...prev, [setting]: value }));
+    // TODO: Dispatch to driverSlice when implemented
+  };
+
+  const handleMultiStopSettingChange = (setting, value) => {
+    setDriverSettings(prev => ({
+      ...prev,
+      multiStop: { ...prev.multiStop, [setting]: value }
+    }));
     // TODO: Dispatch to driverSlice when implemented
   };
 
@@ -345,6 +362,118 @@ const SettingsScreen = () => {
           />
         </Card>
 
+        {/* Multi-Stop Rides Section */}
+        <SectionHeader title="Multi-Stop Rides" icon="location-outline" />
+        <Card>
+          <SettingItem
+            icon="flash-outline"
+            title="Auto-Accept Small Changes"
+            subtitle="Automatically accept stop additions under threshold"
+            value={driverSettings.multiStop.autoAcceptEnabled}
+            onToggle={(value) => handleMultiStopSettingChange('autoAcceptEnabled', value)}
+          />
+          
+          {driverSettings.multiStop.autoAcceptEnabled && (
+            <>
+              <SettingItem
+                icon="cash-outline"
+                title="Auto-Accept Amount"
+                subtitle={`Auto-accept changes up to $${driverSettings.multiStop.autoAcceptAmount.toFixed(2)}`}
+                onPress={() => Alert.alert(
+                  'Auto-Accept Amount',
+                  'Set the maximum dollar amount to auto-accept',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: '$3.00', onPress: () => handleMultiStopSettingChange('autoAcceptAmount', 3.00) },
+                    { text: '$5.00', onPress: () => handleMultiStopSettingChange('autoAcceptAmount', 5.00) },
+                    { text: '$7.00', onPress: () => handleMultiStopSettingChange('autoAcceptAmount', 7.00) },
+                    { text: '$10.00', onPress: () => handleMultiStopSettingChange('autoAcceptAmount', 10.00) },
+                  ]
+                )}
+                showArrow
+              />
+              <SettingItem
+                icon="stats-chart-outline"
+                title="Auto-Accept Percentage"
+                subtitle={`Auto-accept changes up to ${driverSettings.multiStop.autoAcceptPercent}% of fare`}
+                onPress={() => Alert.alert(
+                  'Auto-Accept Percentage',
+                  'Set the maximum percentage change to auto-accept',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: '10%', onPress: () => handleMultiStopSettingChange('autoAcceptPercent', 10) },
+                    { text: '15%', onPress: () => handleMultiStopSettingChange('autoAcceptPercent', 15) },
+                    { text: '20%', onPress: () => handleMultiStopSettingChange('autoAcceptPercent', 20) },
+                    { text: '25%', onPress: () => handleMultiStopSettingChange('autoAcceptPercent', 25) },
+                  ]
+                )}
+                showArrow
+              />
+            </>
+          )}
+          
+          <SettingItem
+            icon="pricetag-outline"
+            title="Stop Fee"
+            subtitle={`$${driverSettings.multiStop.stopFee.toFixed(2)} per additional stop`}
+            onPress={() => Alert.alert(
+              'Stop Fee',
+              'Set your flat fee per additional stop',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: '$2.00', onPress: () => handleMultiStopSettingChange('stopFee', 2.00) },
+                { text: '$3.00', onPress: () => handleMultiStopSettingChange('stopFee', 3.00) },
+                { text: '$4.00', onPress: () => handleMultiStopSettingChange('stopFee', 4.00) },
+                { text: '$5.00', onPress: () => handleMultiStopSettingChange('stopFee', 5.00) },
+              ]
+            )}
+            showArrow
+          />
+          
+          <SettingItem
+            icon="time-outline"
+            title="Wait Time Rate"
+            subtitle={`$${driverSettings.multiStop.waitPerMinute.toFixed(2)}/min after ${driverSettings.multiStop.graceMinutes} min grace`}
+            onPress={() => Alert.alert(
+              'Wait Time Rate',
+              'Set your rate per minute after grace period',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: '$0.30/min', onPress: () => handleMultiStopSettingChange('waitPerMinute', 0.30) },
+                { text: '$0.40/min', onPress: () => handleMultiStopSettingChange('waitPerMinute', 0.40) },
+                { text: '$0.50/min', onPress: () => handleMultiStopSettingChange('waitPerMinute', 0.50) },
+                { text: '$0.60/min', onPress: () => handleMultiStopSettingChange('waitPerMinute', 0.60) },
+              ]
+            )}
+            showArrow
+          />
+          
+          <SettingItem
+            icon="hourglass-outline"
+            title="Grace Period"
+            subtitle={`First ${driverSettings.multiStop.graceMinutes} min free at each stop`}
+            onPress={() => Alert.alert(
+              'Grace Period',
+              'Set free wait time at each stop',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: '3 minutes', onPress: () => handleMultiStopSettingChange('graceMinutes', 3) },
+                { text: '5 minutes', onPress: () => handleMultiStopSettingChange('graceMinutes', 5) },
+                { text: '7 minutes', onPress: () => handleMultiStopSettingChange('graceMinutes', 7) },
+                { text: '10 minutes', onPress: () => handleMultiStopSettingChange('graceMinutes', 10) },
+              ]
+            )}
+            showArrow
+          />
+
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={16} color="#3b82f6" />
+            <Text style={styles.infoText}>
+              These settings apply to all multi-stop rides you accept
+            </Text>
+          </View>
+        </Card>
+
         {/* Safety & Security Section */}
         <SectionHeader title="Safety & Security" icon="shield-checkmark-outline" />
         <Card>
@@ -549,6 +678,21 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeights.semibold,
     color: COLORS.error,
     marginLeft: DIMENSIONS.paddingS,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eff6ff',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#3b82f6',
+    lineHeight: 18,
   },
   bottomPadding: {
     height: DIMENSIONS.paddingXL,

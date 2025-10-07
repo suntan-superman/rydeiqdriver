@@ -10,12 +10,16 @@ import {
   Dimensions,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
 import { COLORS } from '@/constants';
+import MultiStopNavigation from '../../components/MultiStopNavigation';
+import WaitTimerWidget from '../../components/WaitTimerWidget';
+import DeltaApprovalModal from '../../components/DeltaApprovalModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -94,6 +98,15 @@ const ActiveRideScreen = ({ route }) => {
 
   const [ride, setRide] = useState({ ...defaultRide, ...rideData });
   const [timer, setTimer] = useState(0);
+  
+  // Multi-stop state
+  const [currentStopIndex, setCurrentStopIndex] = useState(0);
+  const [stopArrivalTimes, setStopArrivalTimes] = useState({});
+  const isMultiStop = ride?.isMultiStop && ride?.stops && ride.stops.length > 0;
+  
+  // Delta approval state
+  const [showDeltaApproval, setShowDeltaApproval] = useState(false);
+  const [pendingDelta, setPendingDelta] = useState(null);
 
   // Timer for tracking ride duration
   useEffect(() => {
@@ -175,6 +188,130 @@ const ActiveRideScreen = ({ route }) => {
         }
       ]
     );
+  };
+
+  // Multi-Stop Handlers
+  const handleStopArrival = (stopId, stopIndex) => {
+    console.log('🛑 Arrived at stop:', stopId);
+    setStopArrivalTimes(prev => ({
+      ...prev,
+      [stopId]: Date.now()
+    }));
+  };
+
+  const handleStopComplete = (stopId, stopIndex, waitTime) => {
+    console.log('✅ Stop completed:', stopId, 'Wait time:', waitTime);
+    
+    // Move to next stop or complete ride
+    if (stopIndex < ride.stops.length - 1) {
+      setCurrentStopIndex(stopIndex + 1);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      // Last stop completed - end ride
+      handleCompleteTrip();
+    }
+  };
+
+  const handleNavigateToStop = (stop, stopIndex) => {
+    if (!stop?.coordinates) return;
+    
+    const lat = stop.coordinates.lat;
+    const lng = stop.coordinates.lng;
+    const scheme = Platform.select({
+      ios: `maps:0,0?q=${lat},${lng}`,
+      android: `geo:0,0?q=${lat},${lng}`
+    });
+    
+    Linking.openURL(scheme).catch(() => {
+      Alert.alert('Error', 'Unable to open navigation app');
+    });
+  };
+
+  // Delta Approval Handlers
+  const handleDeltaApprove = (amount) => {
+    console.log('✅ Delta approved:', amount);
+    
+    // Update ride fare
+    setRide(prev => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        estimatedFare: (prev.pricing?.estimatedFare || prev.bidAmount) + amount
+      }
+    }));
+
+    setShowDeltaApproval(false);
+    setPendingDelta(null);
+    
+    playSuccessSound();
+    Alert.alert(
+      'Change Approved',
+      `Fare ${amount >= 0 ? 'increased' : 'decreased'} by $${Math.abs(amount).toFixed(2)}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDeltaDecline = () => {
+    console.log('❌ Delta declined');
+    
+    setShowDeltaApproval(false);
+    setPendingDelta(null);
+    
+    playErrorSound();
+    Alert.alert(
+      'Change Declined',
+      'Rider will be notified. Original route maintained.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleRequestNewBid = () => {
+    console.log('🔄 Requesting new bid');
+    
+    setShowDeltaApproval(false);
+    setPendingDelta(null);
+    
+    Alert.alert(
+      'New Bid Requested',
+      'Rider will be asked to submit a new ride request with the updated route.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Simulate receiving delta request (for testing)
+  const simulateDeltaRequest = (type = 'add_stop') => {
+    const mockDelta = type === 'add_stop' ? {
+      kind: 'add_stop',
+      stopAddress: '999 Test Street, Demo City',
+      calc: {
+        dMiles: 1.9,
+        dMins: 7,
+        dWaitMins: 5
+      },
+      suggested: 4.60,
+      deltaFare: 4.60,
+      percentChange: 12,
+      driverAutoAccept: true,
+      riderAutoAccept: false,
+      isLargeChange: false,
+    } : {
+      kind: 'remove_stop',
+      stopAddress: '456 Oak Avenue, Uptown',
+      calc: {
+        dMiles: -1.5,
+        dMins: -5,
+        removedStopFee: -3.00
+      },
+      suggested: -6.75,
+      deltaFare: -6.75,
+      percentChange: 18,
+      driverAutoAccept: false,
+      riderAutoAccept: true,
+      isLargeChange: false,
+    };
+
+    setPendingDelta(mockDelta);
+    setShowDeltaApproval(true);
   };
 
   // Get current state configuration
@@ -393,30 +530,86 @@ const ActiveRideScreen = ({ route }) => {
             
             <View style={styles.routeLine} />
             
+            {/* Multi-Stop Display */}
+            {isMultiStop && ride.stops.map((stop, index) => (
+              <React.Fragment key={stop.id || index}>
+                <View style={styles.locationRow}>
+                  <View style={[styles.locationDot, styles.stopDot]}>
+                    <Text style={styles.stopDotNumber}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.locationInfo}>
+                    <Text style={styles.locationLabel}>Stop {index + 1}</Text>
+                    <Text style={styles.locationAddress}>{stop.address}</Text>
+                  </View>
+                </View>
+                <View style={styles.routeLine} />
+              </React.Fragment>
+            ))}
+            
             <View style={styles.locationRow}>
               <View style={[styles.locationDot, styles.destinationDot]} />
               <View style={styles.locationInfo}>
-                <Text style={styles.locationLabel}>Destination</Text>
-                <Text style={styles.locationAddress}>{ride.destination.address}</Text>
+                <Text style={styles.locationLabel}>
+                  {isMultiStop ? 'Final Destination' : 'Destination'}
+                </Text>
+                <Text style={styles.locationAddress}>
+                  {isMultiStop 
+                    ? ride.finalDestination?.address || ride.destination?.address
+                    : ride.destination.address
+                  }
+                </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.tripStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{ride.estimatedDistance}</Text>
+              <Text style={styles.statValue}>
+                {ride.routeOptimization?.totalDistance || ride.estimatedDistance}
+              </Text>
               <Text style={styles.statLabel}>Distance</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{ride.estimatedDuration}</Text>
+              <Text style={styles.statValue}>
+                {ride.routeOptimization?.totalDuration || ride.estimatedDuration}
+              </Text>
               <Text style={styles.statLabel}>Duration</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>${ride.bidAmount.toFixed(2)}</Text>
+              <Text style={styles.statValue}>
+                ${(ride.pricing?.estimatedFare || ride.bidAmount)?.toFixed(2)}
+              </Text>
               <Text style={styles.statLabel}>Fare</Text>
             </View>
           </View>
         </View>
+
+        {/* Multi-Stop Navigation - Show during active trip */}
+        {isMultiStop && (ride.state === 'trip-active' || ride.state === 'customer-onboard') && (
+          <>
+            <MultiStopNavigation
+              ride={ride}
+              currentStopIndex={currentStopIndex}
+              onStopComplete={handleStopComplete}
+              onArrived={handleStopArrival}
+              onNavigateToStop={handleNavigateToStop}
+            />
+
+            {/* Wait Timer - Show when arrived at stop */}
+            {stopArrivalTimes[ride.stops[currentStopIndex]?.id] && (
+              <WaitTimerWidget
+                stopId={ride.stops[currentStopIndex].id}
+                startTime={stopArrivalTimes[ride.stops[currentStopIndex].id]}
+                graceMinutes={5}
+                chargePerMinute={0.40}
+                onWaitTimeUpdate={(elapsed, stopId) => {
+                  // Could update backend with wait time here
+                  console.log('Wait time update:', elapsed, 'seconds at stop', stopId);
+                }}
+              />
+            )}
+          </>
+        )}
 
         {/* Action Buttons */}
         <View style={styles.actionsCard}>
@@ -424,9 +617,40 @@ const ActiveRideScreen = ({ route }) => {
           {renderActionButtons()}
         </View>
 
+        {/* Test Delta Buttons (for development/testing) */}
+        {isMultiStop && __DEV__ && (
+          <View style={styles.testCard}>
+            <Text style={styles.cardTitle}>Test Delta Approvals</Text>
+            <View style={styles.testButtons}>
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => simulateDeltaRequest('add_stop')}
+              >
+                <Text style={styles.testButtonText}>Test Add Stop</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => simulateDeltaRequest('remove_stop')}
+              >
+                <Text style={styles.testButtonText}>Test Remove Stop</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Delta Approval Modal */}
+      <DeltaApprovalModal
+        visible={showDeltaApproval}
+        onClose={() => setShowDeltaApproval(false)}
+        delta={pendingDelta}
+        onApprove={handleDeltaApprove}
+        onDecline={handleDeltaDecline}
+        onRequestNewBid={handleRequestNewBid}
+      />
     </SafeAreaView>
   );
 };
@@ -568,6 +792,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginRight: 16,
   },
+  stopDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopDotNumber: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   destinationDot: {
     backgroundColor: COLORS.error,
   },
@@ -652,6 +889,31 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  testCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#fbbf24',
+  },
+  testButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  testButton: {
+    flex: 1,
+    backgroundColor: '#f59e0b',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

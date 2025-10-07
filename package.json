@@ -71,7 +71,8 @@
     "@react-native/eslint-config": "^0.81.1",
     "eslint": "^8.57.0",
     "eslint-config-expo": "~9.2.0",
-    "eslint-plugin-react-native": "^5.0.0"
+    "eslint-plugin-react-native": "^5.0.0",
+    "firebase-admin": "^13.5.0"
   },
   "engines": {
     "node": ">=20.19.4"

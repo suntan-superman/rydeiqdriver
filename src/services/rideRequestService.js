@@ -53,11 +53,15 @@ class RideRequestService {
     console.log('🚗 Starting ride request listener for driver:', this.currentDriverId);
     const rideRequestsRef = collection(this.db, 'rideRequests');
     
-    // UPDATED QUERY - Listen for broadcast requests where this driver is in availableDrivers array
+    // Calculate timestamp for last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    
+    // UPDATED QUERY - Listen for recent broadcast requests where this driver is in availableDrivers array
     const q = query(
       rideRequestsRef,
       where('availableDrivers', 'array-contains', this.currentDriverId),
       where('status', 'in', ['open_for_bids', 'pending']),
+      where('timestamp', '>=', tenMinutesAgo),
       orderBy('timestamp', 'desc')
     );
 
@@ -72,6 +76,14 @@ class RideRequestService {
         }
       });
     }, (error) => {
+      // Silently handle permission errors (user logged out)
+      if (error.code === 'permission-denied' || 
+          error.message?.includes('Missing or insufficient permissions')) {
+        // User logged out - silently stop listening
+        this.stopListeningForRideRequests();
+        return;
+      }
+      
       // Handle index errors gracefully
       if (error.code === 'failed-precondition') {
         console.warn('⚠️ Firebase index required. Using simplified query.');
@@ -102,10 +114,14 @@ class RideRequestService {
 
     const rideRequestsRef = collection(this.db, 'rideRequests');
     
-    // Simplified query - listen for broadcast requests
+    // Calculate timestamp for last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    
+    // Query with timestamp filter to only get recent requests
     const q = query(
       rideRequestsRef,
-      where('availableDrivers', 'array-contains', this.currentDriverId)
+      where('availableDrivers', 'array-contains', this.currentDriverId),
+      where('timestamp', '>=', tenMinutesAgo)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -114,7 +130,7 @@ class RideRequestService {
           const rideRequest = change.doc.data();
           // Add the document ID to the ride request data
           rideRequest.id = change.doc.id;
-          // Handle both broadcast and direct requests (client-side filtering)
+          // Handle both broadcast and direct requests
           if (rideRequest.status === 'pending' || rideRequest.status === 'open_for_bids') {
             // Check if driver has already declined this request
             if (this.declinedRideRequests.has(rideRequest.id)) {
@@ -122,35 +138,9 @@ class RideRequestService {
               return;
             }
             
-            // Check if the ride request is not expired (within last 10 minutes)
-            const now = new Date();
-            let rideRequestTime;
-            
-            try {
-              if (rideRequest.timestamp && rideRequest.timestamp.toDate) {
-                // Firestore Timestamp
-                rideRequestTime = rideRequest.timestamp.toDate();
-              } else if (rideRequest.timestamp) {
-                // Regular Date or timestamp
-                rideRequestTime = new Date(rideRequest.timestamp);
-              } else {
-                // No timestamp, treat as current (for safety)
-                rideRequestTime = now;
-              }
-              
-              const timeDiff = now - rideRequestTime;
-              const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
-              
-              if (timeDiff <= tenMinutes) {
-                // console.log('🔄 Processing recent ride request:', rideRequest.id, 'Age:', Math.round(timeDiff / 1000), 'seconds');
-                this.handleNewRideRequest(rideRequest);
-              } else {
-                console.log('⏰ Ignoring old ride request:', rideRequest.id, 'Age:', Math.round(timeDiff / 60000), 'minutes');
-              }
-            } catch (timeError) {
-              console.warn('⚠️ Error processing ride request timestamp, allowing it through:', timeError);
-              this.handleNewRideRequest(rideRequest);
-            }
+            // Process the ride request (timestamp filtering is now done server-side)
+            console.log('🔄 Processing recent ride request:', rideRequest.id);
+            this.handleNewRideRequest(rideRequest);
           }
         }
       });
@@ -707,6 +697,8 @@ class RideRequestService {
       unsubscribe();
     });
     this.rideRequestListeners.clear();
+    this.currentDriverId = null; // Reset driver ID on cleanup
+    this.clearDeclinedRequests(); // Clear declined requests
   }
 }
 

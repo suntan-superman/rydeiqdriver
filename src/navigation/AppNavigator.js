@@ -76,7 +76,7 @@ try { EmergencyContactScreen = require('@/screens/profile/EmergencyContactScreen
 let RydeAnimation, AnalyticsDashboard, DriverToolsDashboard, SustainabilityDashboard;
 let CommunityDashboard, SafetyDashboard, CommunicationDashboard, VehicleDashboard;
 let PaymentDashboard, DynamicPricingDashboard, GamificationDashboard;
-let AccessibilityDashboard, WellnessDashboard;
+let AccessibilityDashboard, WellnessDashboard, ScheduledRideDashboard;
 
 try {
   RydeAnimation = require('@/screens/startup/RydeAnimation').default;
@@ -129,6 +129,10 @@ try {
 try {
   WellnessDashboard = require('@/screens/dashboard/WellnessDashboard').default;
 } catch (e) { WellnessDashboard = FallbackScreen; }
+
+try {
+  ScheduledRideDashboard = require('@/screens/dashboard/ScheduledRideDashboard').default;
+} catch (e) { ScheduledRideDashboard = FallbackScreen; }
 
 const Stack = createNativeStackNavigator();
 
@@ -294,6 +298,14 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="WellnessDashboard" 
         component={WellnessDashboard}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="ScheduledRideDashboard" 
+        component={ScheduledRideDashboard}
         options={{
           headerShown: false,
           gestureEnabled: true,

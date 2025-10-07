@@ -560,6 +560,11 @@ const DriverBidSubmissionScreen = ({
   const handleRideCancelledCallback = (cancellationData) => {
     // console.log('❌ Ride cancelled! Closing bid screen and restarting listening');
     
+    // Immediately close the modal
+    if (onClose) {
+      onClose();
+    }
+    
     // Force reset all state immediately
     setIsListeningForAcceptance(false);
     setBidStatus('idle');

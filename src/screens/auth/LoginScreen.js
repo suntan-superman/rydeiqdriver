@@ -188,14 +188,6 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.taglineText}>Drive. Earn. Succeed.</Text>
         </View>
 
-        {/* Auto-fill Notice */}
-        {email && password && (
-          <View style={styles.autoFillNotice}>
-            <MaterialIcons name="check-circle" size={16} color={COLORS.primary[600]} />
-            <Text style={styles.autoFillText}>Credentials auto-filled</Text>
-          </View>
-        )}
-
         {/* Form */}
         <View style={styles.formContainer}>
           {/* Email Input */}
@@ -340,10 +332,13 @@ const LoginScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Spacer to push footer to bottom */}
+        <View style={styles.spacer} />
+
         {/* Footer */}
         <View style={styles.footerContainer}>
           {/* Debug: Clear Credentials Button */}
-          {__DEV__ && (
+          {/* {__DEV__ && (
             <TouchableOpacity 
               style={styles.debugButton}
               onPress={handleClearCredentials}
@@ -351,7 +346,7 @@ const LoginScreen = ({ navigation }) => {
             >
               <Text style={styles.debugButtonText}>🧹 Clear Saved Credentials</Text>
             </TouchableOpacity>
-          )}
+          )} */}
           
           <Text style={styles.termsText}>
             By signing in, you agree to our{' '}
@@ -425,26 +420,8 @@ const styles = StyleSheet.create({
     color: COLORS.gray700,
     textAlign: 'center',
   },
-  autoFillNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary[50],
-    borderColor: COLORS.primary[200],
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 24,
-  },
-  autoFillText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.primary[700],
-    marginLeft: 8,
-  },
   formContainer: {
-    marginBottom: 32,
+    marginBottom: 16,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -481,7 +458,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 2,
   },
   forgotPasswordLink: {
     paddingVertical: 8,
@@ -493,15 +470,15 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 6,
   },
   loginButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary[500],
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.gray900,
@@ -514,7 +491,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
-    marginBottom: 20,
+    marginBottom: 6,
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -543,7 +520,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 20,
     paddingHorizontal: 16,
-    marginBottom: 32,
+    marginBottom: 16,
+  },
+  spacer: {
+    flex: 1,
+    minHeight: 20,
   },
   featureItem: {
     flexDirection: 'row',
@@ -558,6 +539,8 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   debugButton: {
     backgroundColor: COLORS.gray200,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,19 @@ import {
   Modal,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
+import { profilePictureService } from '@/services/profilePictureService';
+import ScheduledRideRequests from '@/components/ScheduledRideRequests';
+import MyScheduledRides from '@/components/MyScheduledRides';
 // Safe service imports with error handling
 let RideRequestService;
 let RideRequestModal;
@@ -197,8 +201,10 @@ try {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Navigation Menu Component
-const NavigationMenu = ({ visible, onClose, navigation, user }) => {
+const NavigationMenu = ({ visible, onClose, navigation, user, profilePicture, imageLoadError }) => {
   const { signOut } = useAuth();
+  
+  // Profile picture props received
 
   const menuItems = [
     { id: 'earnings', title: 'Earnings', icon: 'wallet', screen: 'Earnings' },
@@ -256,16 +262,24 @@ const NavigationMenu = ({ visible, onClose, navigation, user }) => {
           {/* Menu Header */}
           <View style={styles.menuHeader}>
             <View style={styles.menuHeaderLeft}>
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={24} color={COLORS.white} />
-              </View>
+              {profilePicture && !imageLoadError ? (
+                <Image 
+                  source={{ uri: profilePicture }} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="car" size={24} color={COLORS.white} />
+                </View>
+              )}
               <View style={styles.menuHeaderText}>
                 <Text style={styles.menuUserName}>{user?.displayName || 'Driver'}</Text>
                 <Text style={styles.menuUserEmail}>{user?.email || 'driver@anyryde.com'}</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.closeMenuButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={COLORS.secondary[500]} />
+              <Ionicons name="close" size={24} color="#374151" />
             </TouchableOpacity>
           </View>
 
@@ -313,6 +327,10 @@ const HomeScreen = () => {
   const [driverRating, setDriverRating] = useState(4.8);
   const [activeRideId, setActiveRideId] = useState(null);
   
+  // Profile picture state
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  
   // Ride request modal state
   const [showRideRequest, setShowRideRequest] = useState(false);
   const [showNavigationMenu, setShowNavigationMenu] = useState(false);
@@ -345,6 +363,19 @@ const HomeScreen = () => {
   const [servicesInitialized, setServicesInitialized] = useState(false);
   const [showLocationTestPanel, setShowLocationTestPanel] = useState(false);
   
+  // Scheduled rides status state
+  const [scheduledRideStatus, setScheduledRideStatus] = useState({
+    hasUpcomingRides: false,
+    hasPendingRequests: false,
+    pendingCount: 0,
+    upcomingCount: 0,
+    status: 'none' // 'none', 'upcoming', 'pending'
+  });
+  
+  // Scheduled rides modal states
+  const [showScheduledRidesModal, setShowScheduledRidesModal] = useState(false);
+  const [showMyScheduledRidesModal, setShowMyScheduledRidesModal] = useState(false);
+  
   // Track when modal was explicitly closed to prevent immediate reopening
   const [modalJustClosed, setModalJustClosed] = useState(false);
   
@@ -364,18 +395,217 @@ const HomeScreen = () => {
     return () => clearInterval(clearIgnoredRequests);
   }, []);
 
+    // Load profile picture when user changes
+    useEffect(() => {
+      const loadProfilePicture = async () => {
+        const userId = user?.uid || user?.id;
+        if (userId) {
+          try {
+            setImageLoadError(false); // Reset error state
+            const pictureUrl = await profilePictureService.getDriverProfilePicture(userId, 'male');
+            if (pictureUrl) {
+              setProfilePicture(pictureUrl);
+            } else {
+              setProfilePicture(null);
+            }
+          } catch (error) {
+            setProfilePicture(null);
+            setImageLoadError(true);
+          }
+        } else {
+          setProfilePicture(null);
+        }
+      };
+
+      loadProfilePicture();
+    }, [user?.id]);
+
   // Determine approval status - check both approval status and onboarding completion
   // TEMPORARY: Override for testing - set to true to bypass approval check
   const isApproved = true; // user?.approvalStatus?.status === 'approved' && user?.onboardingStatus?.completed === true;
 
+  // Check scheduled ride status
+  const checkScheduledRideStatus = useCallback(async () => {
+    const driverId = user?.uid || user?.id;
+    
+    if (!driverId) return;
+
+    try {
+      // Load driver profile to check capabilities
+      const driverRef = doc(db, 'driverApplications', driverId);
+      const driverSnap = await getDoc(driverRef);
+      const driverData = driverSnap.exists() ? driverSnap.data() : null;
+      
+      const hasMedicalCertifications = driverData?.medicalCertifications && 
+        Object.keys(driverData.medicalCertifications).length > 0;
+      
+      // Check for pending notifications (ride requests waiting for response)
+      const notificationsQuery = query(
+        collection(db, 'notifications'),
+        where('userId', '==', driverId),
+        where('type', 'in', ['scheduled_ride_request', 'medical_ride_request']),
+        where('status', '==', 'pending')
+      );
+
+      const notificationsSnapshot = await getDocs(notificationsQuery);
+      
+      // Filter notifications based on driver capabilities
+      let filteredNotifications = notificationsSnapshot.docs;
+      
+      if (!hasMedicalCertifications) {
+        // Filter out medical ride requests if driver lacks certifications
+        filteredNotifications = notificationsSnapshot.docs.filter(doc => {
+          const notifType = doc.data().type;
+          return notifType !== 'medical_ride_request';
+        });
+      }
+      
+      const hasPendingRequests = filteredNotifications.length > 0;
+      const pendingCount = filteredNotifications.length;
+
+      // Check for upcoming confirmed rides (rides assigned to this driver)
+      const now = new Date();
+
+      // Check medical rides - all future rides, not just next 24 hours
+      const medicalRidesQuery = query(
+        collection(db, 'medicalRideSchedule'),
+        where('assignedDriverId', '==', driverId),
+        where('status', 'in', ['assigned', 'confirmed']),
+        where('pickupDateTime', '>=', now)
+      );
+
+      const medicalRidesSnapshot = await getDocs(medicalRidesQuery);
+      const hasMedicalUpcoming = !medicalRidesSnapshot.empty;
+      const medicalUpcomingCount = medicalRidesSnapshot.size;
+
+      // Check regular scheduled rides - all future rides
+      const scheduledRidesQuery = query(
+        collection(db, 'scheduledRides'),
+        where('assignedDriverId', '==', driverId),
+        where('status', 'in', ['assigned', 'confirmed']),
+        where('scheduledDateTime', '>=', now)
+      );
+
+      const scheduledRidesSnapshot = await getDocs(scheduledRidesQuery);
+      const hasRegularUpcoming = !scheduledRidesSnapshot.empty;
+      const regularUpcomingCount = scheduledRidesSnapshot.size;
+
+      // console.log(`📊 Scheduled ride counts - Medical: ${medicalUpcomingCount}, Regular: ${regularUpcomingCount}, Total: ${medicalUpcomingCount + regularUpcomingCount}`);
+
+      const hasUpcomingRides = hasMedicalUpcoming || hasRegularUpcoming;
+      const upcomingCount = medicalUpcomingCount + regularUpcomingCount;
+
+      // Determine status priority: pending requests > upcoming rides > none
+      let status = 'none';
+      if (hasPendingRequests) {
+        status = 'pending';
+      } else if (hasUpcomingRides) {
+        status = 'upcoming';
+      }
+
+      setScheduledRideStatus({
+        hasUpcomingRides,
+        hasPendingRequests,
+        pendingCount,
+        upcomingCount,
+        status
+      });
+
+    } catch (error) {
+      // Silently handle permission errors during logout
+      if (!driverId || error.code === 'permission-denied') {
+        setScheduledRideStatus({
+          hasUpcomingRides: false,
+          hasPendingRequests: false,
+          status: 'none',
+          pendingCount: 0,
+          upcomingCount: 0
+        });
+        return;
+      }
+      console.error('Error checking scheduled ride status:', error);
+      // Set default status on error
+      setScheduledRideStatus({
+        hasUpcomingRides: false,
+        hasPendingRequests: false,
+        pendingCount: 0,
+        upcomingCount: 0,
+        status: 'none'
+      });
+    }
+  }, [user]);
+
+  // Check scheduled ride status when component mounts and user changes
+  useEffect(() => {
+    const driverId = user?.uid || user?.id;
+    
+    if (driverId) {
+      checkScheduledRideStatus();
+      
+      // Set up interval to check status every 30 seconds
+      const interval = setInterval(checkScheduledRideStatus, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [user?.uid, user?.id, checkScheduledRideStatus]);
+
+  // Get scheduled ride button configuration based on status
+  const getScheduledRideButtonConfig = () => {
+    switch (scheduledRideStatus.status) {
+      case 'pending':
+        return {
+          backgroundColor: '#F59E0B', // Yellow/amber
+          text: 'Scheduled Rides',
+          subtext: `${scheduledRideStatus.pendingCount} pending request${scheduledRideStatus.pendingCount !== 1 ? 's' : ''}`,
+          icon: 'notifications',
+          textColor: COLORS.white,
+          badge: scheduledRideStatus.pendingCount
+        };
+      case 'upcoming':
+        return {
+          backgroundColor: '#10B981', // Green
+          text: 'Scheduled Rides',
+          subtext: `${scheduledRideStatus.upcomingCount} upcoming ride${scheduledRideStatus.upcomingCount !== 1 ? 's' : ''}`,
+          icon: 'calendar',
+          textColor: COLORS.white,
+          badge: scheduledRideStatus.upcomingCount
+        };
+      default:
+        return {
+          backgroundColor: '#6B7280', // Gray
+          text: 'Scheduled Rides',
+          subtext: 'No scheduled rides',
+          icon: 'calendar-outline',
+          textColor: COLORS.white,
+          badge: 0
+        };
+    }
+  };
+
+  const scheduledRideConfig = getScheduledRideButtonConfig();
+
   // Initialize services when component mounts
   useEffect(() => {
     const initializeServices = async () => {
-      if (user && user.id) {
+      const userId = user?.uid || user?.id;
+      if (!user || !userId) {
+        // User logged out - cleanup services
+        console.log('👋 User logged out, stopping all services');
+        try {
+          if (RideRequestService && typeof RideRequestService.stopListeningForRideRequests === 'function') {
+            RideRequestService.stopListeningForRideRequests();
+          }
+        } catch (error) {
+          console.warn('⚠️ Error stopping ride request service:', error);
+        }
+        return;
+      }
+      
+      if (user && userId) {
         try {
           // Initialize services with error handling
           try {
-            RideRequestService.initialize(user.id);
+            RideRequestService.initialize(userId);
             
             // Force restart listening to break out of any existing loops
             if (typeof RideRequestService.forceRestartListening === 'function') {
@@ -388,7 +618,7 @@ const HomeScreen = () => {
 
           try {
             if (DriverStatusService && typeof DriverStatusService.initialize === 'function') {
-              await DriverStatusService.initialize(user.id, {
+              await DriverStatusService.initialize(userId, {
                 email: user?.email || '',
                 displayName: user?.displayName || 'Driver'
               });
@@ -399,7 +629,7 @@ const HomeScreen = () => {
 
           try {
             if (driverBidNotificationService && typeof driverBidNotificationService.initialize === 'function') {
-              driverBidNotificationService.initialize(user.id);
+              driverBidNotificationService.initialize(userId);
             }
           } catch (error) {
             console.warn('⚠️ driverBidNotificationService initialization failed:', error);
@@ -408,8 +638,8 @@ const HomeScreen = () => {
           // Initialize real-time location service
           try {
             if (realTimeLocationService && typeof realTimeLocationService.initialize === 'function') {
-              await realTimeLocationService.initialize(user.id);
-              // console.log('✅ Real-time location service initialized for driver:', user.id);
+              await realTimeLocationService.initialize(userId);
+              // console.log('✅ Real-time location service initialized for driver:', userId);
             }
           } catch (error) {
             console.warn('⚠️ realTimeLocationService initialization failed:', error);
@@ -553,9 +783,11 @@ const HomeScreen = () => {
 
   // Restart ride request listening when driver is online and back on home screen
   useEffect(() => {
+    console.log(`🔄 Ride listener check - Online: ${isOnline}, Initialized: ${servicesInitialized}, BidModal: ${showBidSubmissionModal}, RequestModal: ${showRideRequestModal}`);
+    
     if (isOnline && servicesInitialized && !showBidSubmissionModal && !showRideRequestModal) {
       try {
-        // console.log('🔄 Driver is online and on home screen, ensuring ride request listening is active');
+        console.log('✅ Conditions met - starting ride request listener');
         if (RideRequestService && typeof RideRequestService.startListeningForRideRequests === 'function') {
           RideRequestService.startListeningForRideRequests();
         }
@@ -564,15 +796,22 @@ const HomeScreen = () => {
       }
     } else if (!isOnline) {
       try {
-        // console.log('🛑 Driver is offline, stopping ride request listening');
+        console.log('🛑 Driver is offline, stopping ride request listening');
         if (RideRequestService && typeof RideRequestService.stopListeningForRideRequests === 'function') {
           RideRequestService.stopListeningForRideRequests();
         }
       } catch (error) {
         console.warn('⚠️ Failed to stop ride request listening:', error);
       }
+    } else {
+      console.log(`⏸️ Not starting listener - conditions not met`);
     }
   }, [isOnline, servicesInitialized, showBidSubmissionModal, showRideRequestModal]);
+
+  // Debug: Log isOnline status
+  useEffect(() => {
+    console.log(`🔍 Driver isOnline status: ${isOnline}, Services initialized: ${servicesInitialized}`);
+  }, [isOnline, servicesInitialized]);
 
   // Location tracking functions
   const startLocationUpdates = async () => {
@@ -1261,23 +1500,116 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Scheduled Rides Status Card */}
+        <View style={styles.statusCard}>
+          <TouchableOpacity
+            style={[
+              styles.statusButton, 
+              { backgroundColor: scheduledRideConfig.backgroundColor },
+              scheduledRideStatus.pendingCount === 0 && styles.disabledButton
+            ]}
+            onPress={() => {
+              // If there are pending requests, show modal for quick access
+              // Otherwise navigate to full dashboard
+              if (scheduledRideStatus.hasPendingRequests) {
+                setShowScheduledRidesModal(true);
+              } else {
+                navigation.navigate('ScheduledRideDashboard');
+              }
+            }}
+            disabled={scheduledRideStatus.pendingCount === 0}
+          >
+            <View style={styles.statusIconContainer}>
+              <Ionicons 
+                name={scheduledRideConfig.icon} 
+                size={24} 
+                color={scheduledRideConfig.textColor} 
+                style={styles.statusIcon}
+              />
+              {scheduledRideConfig.badge > 0 && (
+                <View style={styles.scheduledRideBadge}>
+                  <Text style={styles.scheduledRideBadgeText}>
+                    {scheduledRideConfig.badge}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.statusTextContainer}>
+              <Text style={[styles.statusText, { color: scheduledRideConfig.textColor }]}>
+                {scheduledRideConfig.text}
+              </Text>
+              <Text style={[styles.statusSubtext, { color: scheduledRideConfig.textColor }]}>
+                {scheduledRideConfig.subtext}
+              </Text>
+            </View>
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={scheduledRideConfig.textColor} 
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* My Scheduled Rides Status Card */}
+        <View style={styles.statusCard}>
+          <TouchableOpacity
+            style={[
+              styles.statusButton, 
+              { backgroundColor: COLORS.primary[100] },
+              scheduledRideStatus.upcomingCount === 0 && styles.disabledButton
+            ]}
+            onPress={() => setShowMyScheduledRidesModal(true)}
+            disabled={scheduledRideStatus.upcomingCount === 0}
+          >
+            <View style={styles.statusIconContainer}>
+              <Ionicons 
+                name="calendar-sharp" 
+                size={24} 
+                color={COLORS.primary[700]} 
+                style={styles.statusIcon}
+              />
+              {scheduledRideStatus.upcomingCount > 0 && (
+                <View style={[styles.scheduledRideBadge, { backgroundColor: COLORS.primary[500] }]}>
+                  <Text style={styles.scheduledRideBadgeText}>
+                    {scheduledRideStatus.upcomingCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.statusTextContainer}>
+              <Text style={[styles.statusText, { color: COLORS.primary[700] }]}>
+                My Schedule
+              </Text>
+              <Text style={[styles.statusSubtext, { color: COLORS.primary[700] }]}>
+                {scheduledRideStatus.upcomingCount > 0 
+                  ? `${scheduledRideStatus.upcomingCount} accepted ride${scheduledRideStatus.upcomingCount !== 1 ? 's' : ''}`
+                  : 'No upcoming rides'}
+              </Text>
+            </View>
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={COLORS.primary[700]} 
+            />
+          </TouchableOpacity>
+        </View>
+
         {/* Earnings Today Card */}
         <View style={styles.earningsCard}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Today's Earnings</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.earningsAmount}>${currentEarnings.toFixed(2)}</Text>
-          <View style={styles.earningsDetails}>
-            <View style={styles.earningsItem}>
-              <Ionicons name="car" size={16} color={COLORS.secondary[500]} />
-              <Text style={styles.earningsItemText}>{ridesCompleted} rides</Text>
+            <View style={styles.earningsHeaderContent}>
+              <Text style={styles.cardTitle}>Today</Text>
+              <Text style={styles.earningsAmount}>${currentEarnings.toFixed(2)}</Text>
             </View>
-            <View style={styles.earningsItem}>
-              <Ionicons name="time" size={16} color={COLORS.secondary[500]} />
-              <Text style={styles.earningsItemText}>8h 30m online</Text>
+            <View style={styles.earningsDetails}>
+              <View style={styles.earningsItem}>
+                <Ionicons name="car" size={14} color={COLORS.secondary[500]} />
+                <Text style={styles.earningsItemText}>{ridesCompleted}</Text>
+              </View>
+              <View style={styles.earningsItem}>
+                <Ionicons name="time" size={14} color={COLORS.secondary[500]} />
+                <Text style={styles.earningsItemText}>8h 30m</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -2020,6 +2352,8 @@ const HomeScreen = () => {
         onClose={() => setShowNavigationMenu(false)}
         navigation={navigation}
         user={user}
+        profilePicture={profilePicture}
+        imageLoadError={imageLoadError}
       />
 
       {/* Location Test Panel */}
@@ -2027,6 +2361,98 @@ const HomeScreen = () => {
         visible={showLocationTestPanel}
         onClose={() => setShowLocationTestPanel(false)}
       />
+      
+      {/* Scheduled Rides Bottom Modal */}
+      <Modal
+        visible={showScheduledRidesModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowScheduledRidesModal(false)}
+      >
+        <View style={styles.bottomModalOverlay}>
+          <TouchableOpacity 
+            style={styles.bottomModalBackdrop} 
+            activeOpacity={1}
+            onPress={() => setShowScheduledRidesModal(false)}
+          />
+          <View style={styles.bottomModalContainer}>
+            <View style={styles.bottomModalHandle} />
+            <View style={styles.bottomModalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="calendar" size={24} color={COLORS.primary[500]} />
+                <Text style={styles.modalTitle}>Scheduled Rides</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowScheduledRidesModal(false)}
+              >
+                <Ionicons name="close" size={24} color={COLORS.secondary[600]} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScheduledRideRequests
+              driverId={user?.uid || user?.id}
+              isOnline={isOnline}
+              onRideAccepted={(request) => {
+                // console.log('Ride accepted:', request);
+                checkScheduledRideStatus(); // Refresh status
+                Alert.alert(
+                  'Ride Accepted!',
+                  'The scheduled ride has been added to your calendar.',
+                  [
+                    { text: 'OK' },
+                    {
+                      text: 'View Schedule',
+                      onPress: () => {
+                        setShowScheduledRidesModal(false);
+                        // Open My Schedule modal instead of navigating to dashboard
+                        setTimeout(() => setShowMyScheduledRidesModal(true), 300);
+                      }
+                    }
+                  ]
+                );
+              }}
+              onRideDeclined={(request) => {
+                console.log('Ride declined:', request);
+                checkScheduledRideStatus(); // Refresh status
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* My Scheduled Rides Bottom Modal */}
+      <Modal
+        visible={showMyScheduledRidesModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowMyScheduledRidesModal(false)}
+      >
+        <View style={styles.bottomModalOverlay}>
+          <TouchableOpacity 
+            style={styles.bottomModalBackdrop} 
+            activeOpacity={1}
+            onPress={() => setShowMyScheduledRidesModal(false)}
+          />
+          <View style={styles.bottomModalContainer}>
+            <View style={styles.bottomModalHandle} />
+            <View style={styles.bottomModalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="calendar-sharp" size={24} color={COLORS.primary[500]} />
+                <Text style={styles.modalTitle}>My Scheduled Rides</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowMyScheduledRidesModal(false)}
+              >
+                <Ionicons name="close" size={24} color={COLORS.secondary[600]} />
+              </TouchableOpacity>
+            </View>
+            
+            <MyScheduledRides driverId={user?.uid || user?.id} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -2074,13 +2500,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   statusCard: {
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 3,
+    marginBottom: 3,
   },
   statusButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 16,
     elevation: 4,
     shadowColor: COLORS.black,
@@ -2088,8 +2515,49 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  statusIcon: {
+  disabledButton: {
+    opacity: 0.5,
+  },
+  statusIconContainer: {
+    position: 'relative',
     marginRight: 16,
+  },
+  statusIcon: {
+    // No margin needed, handled by container
+  },
+  scheduledRideBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  scheduledRideBadgeText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  scheduledRideQuickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+  },
+  scheduledRideQuickActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary[500],
+    marginLeft: 4,
   },
   statusTextContainer: {
     flex: 1,
@@ -2107,9 +2575,9 @@ const styles = StyleSheet.create({
   },
   earningsCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
     elevation: 2,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
@@ -2120,12 +2588,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  earningsHeaderContent: {
+    flexDirection: 'column',
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.secondary[900],
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.secondary[600],
+    marginBottom: 2,
   },
   viewAllText: {
     fontSize: 14,
@@ -2133,23 +2604,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   earningsAmount: {
-    fontSize: 36,
+    fontSize: 24,
     fontWeight: '700',
     color: COLORS.success,
-    marginBottom: 12,
   },
   earningsDetails: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'center',
   },
   earningsItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   earningsItemText: {
-    fontSize: 14,
-    color: COLORS.secondary[500],
-    marginLeft: 6,
+    fontSize: 12,
+    color: COLORS.secondary[600],
+    fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
@@ -2325,7 +2797,8 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   menuContainer: {
-    width: SCREEN_WIDTH * 0.8,
+    width: SCREEN_WIDTH * 0.85, // Slightly wider
+    maxWidth: 350, // Maximum width to prevent it from being too wide on tablets
     backgroundColor: COLORS.white,
     borderRadius: 16,
     overflow: 'hidden',
@@ -2339,22 +2812,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 16, // Reduce horizontal padding
+    paddingVertical: 20, // Keep vertical padding
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
   },
   menuHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1, // Allow it to take available space
+    marginRight: 12, // Add some margin from the close button
   },
   avatarPlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.primary[500],
+    backgroundColor: '#3B82F6', // Blue color as fallback
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    backgroundColor: '#f3f4f6', // Light gray background
+    borderWidth: 1,
+    borderColor: '#e5e7eb', // Light border for better definition
   },
   menuHeaderText: {
     flex: 1,
@@ -2371,6 +2856,10 @@ const styles = StyleSheet.create({
   },
   closeMenuButton: {
     padding: 8,
+    marginRight: -16, // Shift left more
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6', // Light background for better visibility
+    alignSelf: 'flex-start', // Ensure it stays within bounds
   },
   menuContent: {
     padding: 20,
@@ -2450,6 +2939,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalContainer: {
+    flex: 1,
     backgroundColor: 'white',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -2461,6 +2951,43 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 16,
   },
+  bottomModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomModalBackdrop: {
+    flex: 1,
+  },
+  bottomModalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  bottomModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.gray300,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  bottomModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2469,6 +2996,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   modalTitle: {
     fontSize: 20,

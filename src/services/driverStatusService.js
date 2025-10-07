@@ -218,11 +218,11 @@ class DriverStatusService {
       throw new Error('Driver ID not set. Call initialize() first.');
     }
 
-    console.log('🔍 Listening for driver status for driverId:', this.currentDriverId);
+    // console.log('🔍 Listening for driver status for driverId:', this.currentDriverId);
     const driverRef = doc(this.db, 'driverApplications', this.currentDriverId);
     
     const unsubscribe = onSnapshot(driverRef, (doc) => {
-      console.log('📊 Driver status snapshot received:', doc.exists() ? 'exists' : 'not found');
+      // console.log('📊 Driver status snapshot received:', doc.exists() ? 'exists' : 'not found');
       if (doc.exists()) {
         const driverData = doc.data();
         callback({

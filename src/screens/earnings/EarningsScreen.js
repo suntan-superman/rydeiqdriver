@@ -51,9 +51,9 @@ const EarningsScreen = () => {
   const hourlyRate = (currentData.total / currentData.hours).toFixed(2);
 
   const periods = [
-    { key: 'today', label: 'today' },
-    { key: 'week', label: 'week' },
-    { key: 'month', label: 'month' }
+    { key: 'today', label: 'Today' },
+    { key: 'week', label: 'Week' },
+    { key: 'month', label: 'Month' }
   ];
 
   const recentTrips = [
@@ -145,7 +145,7 @@ const EarningsScreen = () => {
 
         {/* Total Earnings Card */}
         <View style={styles.totalEarningsCard}>
-          <Text style={styles.totalEarningsLabel}>{t('totalEarnings')}</Text>
+          <Text style={styles.totalEarningsLabel}>Total Earnings</Text>
           <Text style={styles.totalEarningsAmount}>${currentData.total.toFixed(2)}</Text>
           <Text style={styles.totalEarningsSubtext}>
             {currentData.trips} {t('trips')} • ${hourlyRate}/{t('hourlyRate')}
@@ -155,30 +155,30 @@ const EarningsScreen = () => {
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <StatCard
-            title={t('tripEarnings')}
+            title={t('Trip Earnings')}
             value={`$${(currentData.total - currentData.tips).toFixed(2)}`}
-            subtitle={`${currentData.trips} ${t('trips')}`}
+            subtitle={`${currentData.trips} ${t('Trips')}`}
             icon="car"
             color={COLORS.primary[500]}
           />
           <StatCard
-            title={t('tips')}
+            title={t('Tips')}
             value={`$${currentData.tips.toFixed(2)}`}
-            subtitle={t('customerTips')}
+            subtitle={t('Customer Tips')}
             icon="heart"
             color={COLORS.success}
           />
           <StatCard
-            title={t('hoursOnline')}
+            title={t('Hours Online')}
             value={`${currentData.hours}h`}
-            subtitle={t('activeTime')}
+            subtitle={t('Active Time')}
             icon="time"
             color={COLORS.warning}
           />
           <StatCard
-            title={t('hourlyRate')}
+            title={t('Hourly Rate')}
             value={`$${hourlyRate}`}
-            subtitle={t('perHour')}
+            subtitle={t('per Hour')}
             icon="trending-up"
             color={COLORS.primary[600]}
           />
@@ -186,7 +186,7 @@ const EarningsScreen = () => {
 
         {/* Payout Options */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>{t('payoutOptions')}</Text>
+          <Text style={styles.sectionTitle}>{t('Payout Options')}</Text>
           <View style={styles.payoutCard}>
             <View style={styles.payoutOptions}>
               <TouchableOpacity style={styles.payoutOption}>
@@ -217,9 +217,9 @@ const EarningsScreen = () => {
         {/* Recent Trips */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('recentTrips')}</Text>
+            <Text style={styles.sectionTitle}>{t('Recent Trips')}</Text>
             <TouchableOpacity>
-              <Text style={styles.viewAllText}>{t('viewAll')}</Text>
+              <Text style={styles.viewAllText}>{t('View All')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.tripsCard}>
@@ -231,16 +231,16 @@ const EarningsScreen = () => {
 
         {/* Earnings Goals */}
         <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>{t('dailyGoal')}</Text>
+          <Text style={styles.sectionTitle}>{t('Daily Goal')}</Text>
           <View style={styles.goalCard}>
             <View style={styles.goalProgress}>
               <View style={styles.goalProgressBar}>
                 <View style={[styles.goalProgressFill, { width: '75%' }]} />
               </View>
-              <Text style={styles.goalProgressText}>{t('dailyGoalProgress')}</Text>
+              <Text style={styles.goalProgressText}>{t('Daily Goal Progress')}</Text>
             </View>
             <TouchableOpacity style={styles.goalButton}>
-              <Text style={styles.goalButtonText}>{t('updateGoal')}</Text>
+              <Text style={styles.goalButtonText}>{t('Update Goal')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -261,36 +261,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: DIMENSIONS.paddingL,
-    paddingVertical: DIMENSIONS.paddingM,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 60 : 50,
+    paddingBottom: 16,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
   },
   backButton: {
-    padding: DIMENSIONS.paddingS,
-    borderRadius: DIMENSIONS.radiusM,
+    padding: 8,
+    borderRadius: 8,
+    marginRight: 8,
   },
   headerTitle: {
-    fontSize: TYPOGRAPHY.fontSizes.xl,
-    fontWeight: TYPOGRAPHY.fontWeights.bold,
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
     color: COLORS.secondary[900],
+    textAlign: 'center',
   },
   filterButton: {
-    padding: DIMENSIONS.paddingS,
-    borderRadius: DIMENSIONS.radiusM,
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 8,
   },
   content: {
     flex: 1,
-    paddingHorizontal: DIMENSIONS.paddingM,
+    paddingHorizontal: 16,
   },
   periodSelector: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    borderRadius: DIMENSIONS.radiusL,
-    padding: DIMENSIONS.paddingXS,
-    marginTop: DIMENSIONS.paddingM,
-    marginBottom: DIMENSIONS.paddingL,
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 16,
+    marginBottom: 16,
   },
   periodButton: {
     flex: 1,
@@ -311,25 +316,27 @@ const styles = StyleSheet.create({
   },
   totalEarningsCard: {
     backgroundColor: COLORS.primary[500],
-    borderRadius: DIMENSIONS.radiusL,
-    padding: DIMENSIONS.paddingXL,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    marginBottom: DIMENSIONS.paddingL,
+    marginBottom: 8,
   },
   totalEarningsLabel: {
-    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontSize: 16,
+    fontWeight: '500',
     color: COLORS.white,
     opacity: 0.9,
-    marginBottom: DIMENSIONS.paddingS,
+    marginBottom: 2,
   },
   totalEarningsAmount: {
-    fontSize: TYPOGRAPHY.fontSizes['4xl'],
-    fontWeight: TYPOGRAPHY.fontWeights.bold,
+    fontSize: 24,
+    fontWeight: '700',
     color: COLORS.white,
-    marginBottom: DIMENSIONS.paddingS,
+    marginBottom: 4,
   },
   totalEarningsSubtext: {
-    fontSize: TYPOGRAPHY.fontSizes.sm,
+    fontSize: 13,
     color: COLORS.white,
     opacity: 0.8,
   },
@@ -339,12 +346,12 @@ const styles = StyleSheet.create({
     marginBottom: DIMENSIONS.paddingL,
   },
   statCard: {
-    width: (SCREEN_WIDTH - DIMENSIONS.paddingM * 3) / 2,
+    width: (SCREEN_WIDTH - DIMENSIONS.paddingM * 3) / 1,
     backgroundColor: COLORS.white,
-    borderRadius: DIMENSIONS.radiusL,
-    padding: DIMENSIONS.paddingL,
-    marginRight: DIMENSIONS.paddingM,
-    marginBottom: DIMENSIONS.paddingM,
+    borderRadius: DIMENSIONS.radiusL / 2,
+    padding: DIMENSIONS.paddingL / 2,
+    marginRight: DIMENSIONS.paddingM / 2,
+    marginBottom: DIMENSIONS.paddingM / 2,
     flexDirection: 'row',
     alignItems: 'center',
   },

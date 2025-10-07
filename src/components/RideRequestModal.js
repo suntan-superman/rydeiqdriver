@@ -349,33 +349,167 @@ const RideRequestModal = ({
 
           {/* Ride Details */}
           <View style={styles.rideDetails}>
-            <View style={styles.detailRow}>
-              <Ionicons name="location" size={16} color={COLORS.primary} />
-              <Text style={styles.detailText}>
+            {/* Multi-Stop Badge */}
+            {rideRequest.isMultiStop && rideRequest.stops && rideRequest.stops.length > 0 && (
+              <View style={styles.multiStopBadge}>
+                <Ionicons name="location" size={16} color={COLORS.primary} />
+                <Text style={styles.multiStopBadgeText}>
+                  Multi-Stop Ride ({rideRequest.stops.length} {rideRequest.stops.length === 1 ? 'stop' : 'stops'})
+                </Text>
+              </View>
+            )}
+            
+            {/* Route Display with Visual Connectors */}
+            <View style={styles.routeContainer}>
+              {/* Pickup */}
+              <View style={styles.routePoint}>
+                <View style={[styles.routeDot, styles.routeDotPickup]}>
+                  <Ionicons name="radio-button-on" size={12} color="white" />
+                </View>
+                <View style={styles.routeInfo}>
+                  <Text style={styles.routeLabel}>Pickup</Text>
+                  <Text style={styles.routeAddress} numberOfLines={2}>
                 {rideRequest.pickup?.address || 'Pickup location'}
               </Text>
+                </View>
             </View>
             
-            <View style={styles.detailRow}>
-              <Ionicons name="location-outline" size={16} color={COLORS.secondary} />
-              <Text style={styles.detailText}>
-                {rideRequest.destination?.address || 'Destination'}
+              {/* Stops */}
+            {rideRequest.isMultiStop && rideRequest.stops && rideRequest.stops.map((stop, index) => (
+                <View key={stop.id || index}>
+                  <View style={styles.routeConnector} />
+                  <View style={styles.routePoint}>
+                    <View style={[styles.routeDot, styles.routeDotStop]}>
+                      <Text style={styles.routeDotNumber}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.routeInfo}>
+                      <Text style={styles.routeLabel}>Stop {index + 1}</Text>
+                      <Text style={styles.routeAddress} numberOfLines={2}>
+                        {stop.address}
+                      </Text>
+                      {stop.specialInstructions && (
+                        <View style={styles.instructionsContainer}>
+                          <Ionicons name="information-circle" size={12} color="#3b82f6" />
+                          <Text style={styles.instructionsText} numberOfLines={2}>
+                            {stop.specialInstructions}
+                </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+              </View>
+            ))}
+            
+              {/* Final Destination */}
+              <View style={styles.routeConnector} />
+              <View style={styles.routePoint}>
+                <View style={[styles.routeDot, styles.routeDotDestination]}>
+                  <Ionicons name="flag" size={12} color="white" />
+                </View>
+                <View style={styles.routeInfo}>
+                  <Text style={styles.routeLabel}>
+                    {rideRequest.isMultiStop ? 'Final Destination' : 'Destination'}
+                  </Text>
+                  <Text style={styles.routeAddress} numberOfLines={2}>
+                    {rideRequest.isMultiStop 
+                      ? rideRequest.finalDestination?.address || rideRequest.stops?.[rideRequest.stops.length - 1]?.address
+                      : rideRequest.destination?.address || 'Destination'
+                    }
               </Text>
+                </View>
+              </View>
             </View>
             
-            <View style={styles.detailRow}>
+            {/* Distance & Duration */}
+            <View style={styles.tripInfoRow}>
+              <View style={styles.tripInfoItem}>
+                <Ionicons name="speedometer" size={16} color={COLORS.primary} />
+                <Text style={styles.tripInfoText}>
+                  {rideRequest.routeOptimization?.totalDistance || rideRequest.estimatedDistance || 'N/A'} mi
+                </Text>
+              </View>
+              <View style={styles.tripInfoItem}>
               <Ionicons name="time" size={16} color={COLORS.primary} />
-              <Text style={styles.detailText}>
-                {rideRequest.estimatedDistance || 'Distance'} • {rideRequest.estimatedDuration || 'Duration'}
+                <Text style={styles.tripInfoText}>
+                  {rideRequest.routeOptimization?.totalDuration || rideRequest.estimatedDuration || 'N/A'} min
               </Text>
+              </View>
             </View>
             
-            <View style={styles.detailRow}>
-              <Ionicons name="wallet" size={16} color={COLORS.success} />
-              <Text style={styles.detailText}>
+            {/* Pricing Section */}
+            {rideRequest.isMultiStop && rideRequest.pricing ? (
+              <View style={styles.pricingSection}>
+                <Text style={styles.pricingSectionTitle}>Multi-Stop Pricing</Text>
+                
+                {/* Estimated Total */}
+                <View style={styles.pricingTotalRow}>
+                  <Text style={styles.pricingTotalLabel}>Estimated Total</Text>
+                  <Text style={styles.pricingTotalValue}>
+                    ${rideRequest.pricing.estimatedFare?.toFixed(2) || getSafePrice(rideRequest)}
+                  </Text>
+                </View>
+
+                {/* Breakdown */}
+                {rideRequest.pricing.breakdown && (
+                  <View style={styles.pricingBreakdown}>
+                    <View style={styles.pricingDetailRow}>
+                      <Text style={styles.pricingDetailLabel}>Base Fare</Text>
+                      <Text style={styles.pricingDetailValue}>
+                        ${rideRequest.pricing.breakdown.baseFare?.toFixed(2) || '5.00'}
+                      </Text>
+                    </View>
+                    <View style={styles.pricingDetailRow}>
+                      <Text style={styles.pricingDetailLabel}>
+                        Distance ({rideRequest.routeOptimization?.totalDistance || 'N/A'} mi)
+                      </Text>
+                      <Text style={styles.pricingDetailValue}>
+                        ${rideRequest.pricing.breakdown.distanceFare?.toFixed(2) || '0.00'}
+                      </Text>
+                    </View>
+                    <View style={styles.pricingDetailRow}>
+                      <Text style={styles.pricingDetailLabel}>
+                        Time ({rideRequest.routeOptimization?.totalDuration || 'N/A'} min)
+                      </Text>
+                      <Text style={styles.pricingDetailValue}>
+                        ${rideRequest.pricing.breakdown.timeFare?.toFixed(2) || '0.00'}
+                      </Text>
+                    </View>
+                    <View style={styles.pricingDetailRow}>
+                      <Text style={styles.pricingDetailLabel}>
+                        Stop Fees ({rideRequest.stops?.length || 0} × $3.00)
+                      </Text>
+                      <Text style={styles.pricingDetailValue}>
+                        ${rideRequest.pricing.breakdown.stopFees?.toFixed(2) || '0.00'}
+                      </Text>
+                    </View>
+                    <View style={styles.pricingDetailRow}>
+                      <Text style={styles.pricingDetailLabel}>Service Fee (15%)</Text>
+                      <Text style={styles.pricingDetailValue}>
+                        ${rideRequest.pricing.breakdown.serviceFee?.toFixed(2) || '0.00'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Wait Time Info */}
+                <View style={styles.waitTimeInfo}>
+                  <Ionicons name="information-circle" size={14} color="#3b82f6" />
+                  <Text style={styles.waitTimeInfoText}>
+                    First 5 min at each stop free • $0.40/min after
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              /* Regular Single-Destination Pricing */
+              <View style={styles.pricingSection}>
+                <View style={styles.pricingTotalRow}>
+                  <Text style={styles.pricingTotalLabel}>Estimated Fare</Text>
+                  <Text style={styles.pricingTotalValue}>
                 ${getSafePrice(rideRequest)}
               </Text>
             </View>
+              </View>
+            )}
             
             {/* Cost Analysis Summary */}
             {costAnalysis && (
@@ -636,16 +770,178 @@ const styles = StyleSheet.create({
   rideDetails: {
     marginBottom: 20,
   },
-  detailRow: {
+  multiStopBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
   },
-  detailText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginLeft: 8,
+  multiStopBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginLeft: 6,
+  },
+  routeContainer: {
+    marginVertical: 12,
+  },
+  routePoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  routeDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  routeDotPickup: {
+    backgroundColor: '#10b981',
+  },
+  routeDotStop: {
+    backgroundColor: '#f59e0b',
+  },
+  routeDotDestination: {
+    backgroundColor: '#ef4444',
+  },
+  routeDotNumber: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  routeConnector: {
+    width: 2,
+    height: 16,
+    backgroundColor: '#d1d5db',
+    marginLeft: 11,
+    marginBottom: 4,
+  },
+  routeInfo: {
     flex: 1,
+  },
+  routeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    marginBottom: 3,
+    letterSpacing: 0.5,
+  },
+  routeAddress: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    lineHeight: 20,
+  },
+  instructionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 6,
+  },
+  instructionsText: {
+    flex: 1,
+    marginLeft: 4,
+    fontSize: 12,
+    color: '#3b82f6',
+    fontStyle: 'italic',
+  },
+  tripInfoRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 12,
+    gap: 16,
+  },
+  tripInfoItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tripInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  pricingSection: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+  },
+  pricingSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  pricingTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  pricingTotalLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  pricingTotalValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  pricingBreakdown: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  pricingDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pricingDetailLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  pricingDetailValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  waitTimeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  waitTimeInfoText: {
+    marginLeft: 6,
+    fontSize: 11,
+    color: '#3b82f6',
+    fontWeight: '500',
   },
   actionButtons: {
     flexDirection: 'row',
