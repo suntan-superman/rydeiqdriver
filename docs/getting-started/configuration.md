@@ -282,7 +282,7 @@ Place in project root:
       "oauth_client": [...],
       "api_key": [
         {
-          "current_key": "AIzaSyB9rIUiKOdcrEI3H8-OZ6STioLImUTfJ9o"
+          "current_key": "my key foes here"
         }
       ],
       "services": {...}

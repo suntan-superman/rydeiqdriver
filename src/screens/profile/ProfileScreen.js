@@ -22,7 +22,9 @@ import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { db, auth } from '@/services/firebase/config';
+import { profilePictureService } from '@/services/profilePictureService';
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -71,8 +73,7 @@ const ProfileScreen = () => {
     emergencyContact: {
       name: '',
       phone: '',
-      relationship: '',
-      email: ''
+      relationship: ''
     }
   });
   
@@ -83,6 +84,17 @@ const ProfileScreen = () => {
   const [activeSection, setActiveSection] = useState(null);
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [bankingUnlocked, setBankingUnlocked] = useState(false);
+  const [pendingBankingEdit, setPendingBankingEdit] = useState(null);
+  const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
+  const [emergencyContactData, setEmergencyContactData] = useState({
+    name: '',
+    phone: '',
+    relationship: ''
+  });
   
   // Load profile data from Firebase
   useEffect(() => {
@@ -163,8 +175,7 @@ const ProfileScreen = () => {
           emergencyContact: {
             name: driverData.availability?.emergencyContact?.name || driverData.emergencyContact?.name || '',
             phone: driverData.availability?.emergencyContact?.phone || driverData.emergencyContact?.phone || '',
-            relationship: driverData.availability?.emergencyContact?.relationship || driverData.emergencyContact?.relationship || '',
-            email: driverData.availability?.emergencyContact?.email || driverData.emergencyContact?.email || ''
+            relationship: driverData.availability?.emergencyContact?.relationship || driverData.emergencyContact?.relationship || ''
           }
         };
         
@@ -189,8 +200,92 @@ const ProfileScreen = () => {
   ];
 
   const handleEditField = (section, field, currentValue) => {
+    // If trying to edit banking info and not unlocked, show password modal
+    if (section === 'bankingInfo' && !bankingUnlocked) {
+      setPendingBankingEdit({ section, field, currentValue });
+      setShowPasswordModal(true);
+      return;
+    }
+    
     setEditingField({ section, field });
     setEditValue(currentValue || '');
+  };
+
+  const handleVerifyPassword = async () => {
+    if (!user || !passwordInput) {
+      Alert.alert('Error', 'Please enter your password');
+      return;
+    }
+
+    try {
+      setVerifyingPassword(true);
+      
+      // Ensure Firebase Auth is initialized
+      if (!auth) {
+        throw new Error('Firebase Authentication is not initialized');
+      }
+      
+      // Get the current Firebase Auth user
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        throw new Error('No authenticated user found. Please sign in again.');
+      }
+      
+      // Re-authenticate user with their password
+      const credential = EmailAuthProvider.credential(currentUser.email, passwordInput);
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Password verified successfully
+      setBankingUnlocked(true);
+      setShowPasswordModal(false);
+      setPasswordInput('');
+      
+      // If there was a pending edit, proceed with it
+      if (pendingBankingEdit) {
+        setEditingField({ 
+          section: pendingBankingEdit.section, 
+          field: pendingBankingEdit.field 
+        });
+        setEditValue(pendingBankingEdit.currentValue || '');
+        setPendingBankingEdit(null);
+      }
+      
+      playSuccessSound();
+      Alert.alert('Success', 'Banking information unlocked. You can now edit your banking details.');
+      
+      // Auto-lock after 5 minutes of inactivity
+      setTimeout(() => {
+        setBankingUnlocked(false);
+      }, 5 * 60 * 1000);
+      
+    } catch (error) {
+      console.error('Password verification error:', error);
+      playErrorSound();
+      
+      // Provide more specific error messages
+      let errorMessage = 'Incorrect password. Please try again.';
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (error.code === 'auth/user-mismatch') {
+        errorMessage = 'Authentication error. Please sign out and sign in again.';
+      } else if (error.message && !error.code) {
+        // For non-Firebase errors (like our custom errors)
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Verification Failed', errorMessage);
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
+  const handleCancelPasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordInput('');
+    setPendingBankingEdit(null);
   };
 
   const handleSaveField = async () => {
@@ -249,11 +344,64 @@ const ProfileScreen = () => {
   };
 
   const handleEditEmergencyContact = () => {
-    Alert.alert(
-      'Emergency Contact',
-      'Emergency contact management will be available in a future update. For now, you can update this information through the web app.',
-      [{ text: 'OK' }]
-    );
+    // Pre-fill with existing data if available
+    setEmergencyContactData({
+      name: profileData.emergencyContact.name || '',
+      phone: profileData.emergencyContact.phone || '',
+      relationship: profileData.emergencyContact.relationship || ''
+    });
+    setShowEmergencyContactModal(true);
+  };
+
+  const handleSaveEmergencyContact = async () => {
+    // Validate emergency contact data
+    if (!emergencyContactData.name.trim()) {
+      Alert.alert('Validation Error', 'Please enter contact name');
+      return;
+    }
+    if (!emergencyContactData.phone.trim()) {
+      Alert.alert('Validation Error', 'Please enter contact phone number');
+      return;
+    }
+    if (!emergencyContactData.relationship.trim()) {
+      Alert.alert('Validation Error', 'Please enter relationship');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      // Save to Firebase under availability.emergencyContact
+      await updateDoc(doc(db, 'driverApplications', user.id), {
+        'availability.emergencyContact': emergencyContactData,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state
+      setProfileData(prev => ({
+        ...prev,
+        emergencyContact: emergencyContactData
+      }));
+
+      setShowEmergencyContactModal(false);
+      playSuccessSound();
+      Alert.alert('Success', 'Emergency contact saved successfully!');
+    } catch (error) {
+      console.error('Error saving emergency contact:', error);
+      playErrorSound();
+      Alert.alert('Error', 'Failed to save emergency contact');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEmergencyContact = () => {
+    setShowEmergencyContactModal(false);
+    setEmergencyContactData({
+      name: '',
+      phone: '',
+      relationship: ''
+    });
   };
 
   // Save specialty vehicle information to Firebase
@@ -303,14 +451,44 @@ const ProfileScreen = () => {
             }
           }));
         } else {
-          // Set single photo
-          setProfileData(prev => ({
-            ...prev,
-            [section]: {
-              ...prev[section],
-              [field]: result.assets[0].uri
+          // Handle profile photo upload to Firebase Storage
+          if (section === 'personalInfo' && field === 'profilePhoto') {
+            try {
+              setSaving(true);
+              const uploadResult = await profilePictureService.uploadProfilePicture(user.id, result.assets[0].uri);
+              
+              if (uploadResult.success) {
+                // Update local state with the Firebase Storage URL
+                setProfileData(prev => ({
+                  ...prev,
+                  [section]: {
+                    ...prev[section],
+                    [field]: uploadResult.photoURL
+                  }
+                }));
+                
+                playSuccessSound();
+                Alert.alert('Success', 'Profile photo uploaded successfully!');
+              } else {
+                throw new Error(uploadResult.error);
+              }
+            } catch (uploadError) {
+              console.error('Profile photo upload error:', uploadError);
+              playErrorSound();
+              Alert.alert('Upload Failed', uploadError.message || 'Failed to upload profile photo');
+            } finally {
+              setSaving(false);
             }
-          }));
+          } else {
+            // Set single photo (for other photos)
+            setProfileData(prev => ({
+              ...prev,
+              [section]: {
+                ...prev[section],
+                [field]: result.assets[0].uri
+              }
+            }));
+          }
         }
       }
     } catch (error) {
@@ -383,12 +561,23 @@ const ProfileScreen = () => {
     }
   };
 
-  const ProfileField = ({ label, value, section, field, placeholder, keyboardType = 'default', editable = true }) => {
+  const ProfileField = ({ label, value, section, field, placeholder, keyboardType = 'default', editable = true, secure = false }) => {
     const isEditing = editingField?.section === section && editingField?.field === field;
+    
+    // For secure banking fields, always mask the value in display mode
+    // Only show full value when actively editing
+    const displayValue = secure && !isEditing && value 
+      ? '••••' + value.slice(-4)
+      : value;
     
     return (
       <View style={styles.fieldContainer}>
-        <Text style={styles.fieldLabel}>{label}</Text>
+        <Text style={styles.fieldLabel}>
+          {label}
+          {secure && !bankingUnlocked && (
+            <Text style={styles.secureIndicator}> 🔒</Text>
+          )}
+        </Text>
         {isEditing ? (
           <View style={styles.editContainer}>
             <TextInput
@@ -415,9 +604,9 @@ const ProfileScreen = () => {
             disabled={!editable}
           >
             <Text style={[styles.fieldValue, !value && styles.fieldValueEmpty]}>
-              {value || placeholder}
+              {displayValue || placeholder}
             </Text>
-            {editable && <Ionicons name="pencil" size={16} color={COLORS.secondary[500]} />}
+            {editable && <Ionicons name={secure && !bankingUnlocked ? "lock-closed" : "pencil"} size={16} color={COLORS.secondary[500]} />}
           </TouchableOpacity>
         )}
       </View>
@@ -842,6 +1031,22 @@ const ProfileScreen = () => {
         />
         {activeSection === 'banking' && (
           <Card>
+            {!bankingUnlocked && (
+              <View style={styles.securityNotice}>
+                <Ionicons name="shield-checkmark" size={20} color={COLORS.primary[500]} />
+                <Text style={styles.securityNoticeText}>
+                  Banking information is protected. Click any field to verify your password and unlock.
+                </Text>
+              </View>
+            )}
+            {bankingUnlocked && (
+              <View style={styles.unlockedNotice}>
+                <Ionicons name="lock-open" size={20} color={COLORS.success} />
+                <Text style={styles.unlockedNoticeText}>
+                  Banking information unlocked for editing. Auto-locks in 5 minutes.
+                </Text>
+              </View>
+            )}
             <ProfileField
               label="Account Holder Name"
               value={profileData.bankingInfo.accountHolderName}
@@ -863,6 +1068,7 @@ const ProfileScreen = () => {
               field="routingNumber"
               placeholder="9-digit routing number"
               keyboardType="numeric"
+              secure={true}
             />
             <ProfileField
               label="Account Number"
@@ -871,6 +1077,7 @@ const ProfileScreen = () => {
               field="accountNumber"
               placeholder="Account number"
               keyboardType="numeric"
+              secure={true}
             />
             <View style={styles.bankingVerification}>
               <Ionicons 
@@ -905,9 +1112,6 @@ const ProfileScreen = () => {
                     <Text style={styles.emergencyContactDetails}>
                       {profileData.emergencyContact.relationship} • {profileData.emergencyContact.phone}
                     </Text>
-                    {profileData.emergencyContact.email && (
-                      <Text style={styles.emergencyContactEmail}>{profileData.emergencyContact.email}</Text>
-                    )}
                     <View style={styles.verificationStatus}>
                       <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
                       <Text style={[styles.verificationStatusText, { color: COLORS.success }]}>
@@ -938,6 +1142,137 @@ const ProfileScreen = () => {
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Password Verification Modal */}
+      <Modal
+        visible={showPasswordModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelPasswordModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="shield-checkmark" size={32} color={COLORS.primary[500]} />
+              <Text style={styles.modalTitle}>Verify Your Password</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter your password to unlock and edit banking information
+              </Text>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.passwordInput}
+                value={passwordInput}
+                onChangeText={setPasswordInput}
+                placeholder="Enter your password"
+                secureTextEntry={true}
+                autoFocus={true}
+                editable={!verifyingPassword}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton} 
+                onPress={handleCancelPasswordModal}
+                disabled={verifyingPassword}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalVerifyButton} 
+                onPress={handleVerifyPassword}
+                disabled={verifyingPassword || !passwordInput}
+              >
+                {verifyingPassword ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.modalVerifyButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Emergency Contact Modal */}
+      <Modal
+        visible={showEmergencyContactModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCancelEmergencyContact}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 450 }]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="call-outline" size={32} color={COLORS.primary[500]} />
+              <Text style={styles.modalTitle}>Emergency Contact</Text>
+              <Text style={styles.modalSubtitle}>
+                Add or update your emergency contact information
+              </Text>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Contact Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={emergencyContactData.name}
+                  onChangeText={(text) => setEmergencyContactData(prev => ({ ...prev, name: text }))}
+                  placeholder="Full name"
+                  editable={!saving}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Phone Number *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={emergencyContactData.phone}
+                  onChangeText={(text) => setEmergencyContactData(prev => ({ ...prev, phone: text }))}
+                  placeholder="(555) 123-4567"
+                  keyboardType="phone-pad"
+                  editable={!saving}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Relationship *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={emergencyContactData.relationship}
+                  onChangeText={(text) => setEmergencyContactData(prev => ({ ...prev, relationship: text }))}
+                  placeholder="e.g., Spouse, Parent, Sibling"
+                  editable={!saving}
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton} 
+                onPress={handleCancelEmergencyContact}
+                disabled={saving}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalVerifyButton} 
+                onPress={handleSaveEmergencyContact}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.modalVerifyButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1416,6 +1751,135 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSizes.xs,
     color: COLORS.warning,
     fontWeight: TYPOGRAPHY.fontWeights.medium,
+  },
+  secureIndicator: {
+    fontSize: TYPOGRAPHY.fontSizes.xs,
+    marginLeft: 4,
+  },
+  securityNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[50],
+    padding: DIMENSIONS.paddingM,
+    borderRadius: DIMENSIONS.radiusM,
+    marginHorizontal: DIMENSIONS.paddingL,
+    marginBottom: DIMENSIONS.paddingM,
+  },
+  securityNoticeText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.primary[700],
+    marginLeft: DIMENSIONS.paddingS,
+  },
+  unlockedNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.success + '20',
+    padding: DIMENSIONS.paddingM,
+    borderRadius: DIMENSIONS.radiusM,
+    marginHorizontal: DIMENSIONS.paddingL,
+    marginBottom: DIMENSIONS.paddingM,
+  },
+  unlockedNoticeText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.success,
+    marginLeft: DIMENSIONS.paddingS,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: DIMENSIONS.paddingL,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: DIMENSIONS.radiusL,
+    width: '100%',
+    maxWidth: 400,
+    padding: DIMENSIONS.paddingXL,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: DIMENSIONS.paddingXL,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.fontSizes.xl,
+    fontWeight: TYPOGRAPHY.fontWeights.bold,
+    color: COLORS.secondary[900],
+    marginTop: DIMENSIONS.paddingM,
+    marginBottom: DIMENSIONS.paddingS,
+  },
+  modalSubtitle: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    color: COLORS.secondary[600],
+    textAlign: 'center',
+  },
+  modalBody: {
+    marginBottom: DIMENSIONS.paddingXL,
+  },
+  inputLabel: {
+    fontSize: TYPOGRAPHY.fontSizes.sm,
+    fontWeight: TYPOGRAPHY.fontWeights.medium,
+    color: COLORS.secondary[700],
+    marginBottom: DIMENSIONS.paddingS,
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderColor: COLORS.secondary[300],
+    borderRadius: DIMENSIONS.radiusM,
+    paddingHorizontal: DIMENSIONS.paddingL,
+    paddingVertical: DIMENSIONS.paddingM,
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    color: COLORS.secondary[900],
+  },
+  formGroup: {
+    marginBottom: DIMENSIONS.paddingL,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: COLORS.secondary[300],
+    borderRadius: DIMENSIONS.radiusM,
+    paddingHorizontal: DIMENSIONS.paddingL,
+    paddingVertical: DIMENSIONS.paddingM,
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    color: COLORS.secondary[900],
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: DIMENSIONS.paddingM,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: DIMENSIONS.paddingM,
+    borderRadius: DIMENSIONS.radiusM,
+    borderWidth: 1,
+    borderColor: COLORS.secondary[300],
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.secondary[700],
+  },
+  modalVerifyButton: {
+    flex: 1,
+    paddingVertical: DIMENSIONS.paddingM,
+    borderRadius: DIMENSIONS.radiusM,
+    backgroundColor: COLORS.primary[500],
+    alignItems: 'center',
+  },
+  modalVerifyButtonText: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.white,
   },
 });
 

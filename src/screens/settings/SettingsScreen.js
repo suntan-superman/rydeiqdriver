@@ -226,22 +226,8 @@ const SettingsScreen = () => {
           <SettingItem
             icon="person-outline"
             title="Profile Information"
-            subtitle="Update your personal details"
+            subtitle="Update your personal details, vehicle, banking, and documents"
             onPress={() => navigation.navigate('Profile')}
-            showArrow
-          />
-          <SettingItem
-            icon="car-outline"
-            title="Vehicle Information"
-            subtitle="Manage your vehicle details"
-            onPress={() => Alert.alert('Coming Soon', 'Vehicle management will be available in the next update')}
-            showArrow
-          />
-          <SettingItem
-            icon="card-outline"
-            title="Banking & Payouts"
-            subtitle="Manage payment methods"
-            onPress={() => navigation.navigate('Banking')}
             showArrow
           />
         </Card>

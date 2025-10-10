@@ -58,7 +58,7 @@ try {
 // Import other required screens safely
 let SignUpScreen, ForgotPasswordScreen, OnboardingScreen, ActiveRideScreen;
 let NavigationScreen, SettingsScreen, ProfileScreen, EarningsScreen;
-let TripHistoryScreen, SupportScreen, EmergencyContactScreen;
+let TripHistoryScreen, SupportScreen, EmergencyContactScreen, BankingScreen;
 
 try { SignUpScreen = require('@/screens/auth/SignUpScreen').default || FallbackScreen; } catch (e) { SignUpScreen = FallbackScreen; }
 try { ForgotPasswordScreen = require('@/screens/auth/ForgotPasswordScreen').default || FallbackScreen; } catch (e) { ForgotPasswordScreen = FallbackScreen; }
@@ -71,6 +71,7 @@ try { EarningsScreen = require('@/screens/earnings/EarningsScreen').default || F
 try { TripHistoryScreen = require('@/screens/trips/TripHistoryScreen').default || FallbackScreen; } catch (e) { TripHistoryScreen = FallbackScreen; }
 try { SupportScreen = require('@/screens/support/SupportScreen').default || FallbackScreen; } catch (e) { SupportScreen = FallbackScreen; }
 try { EmergencyContactScreen = require('@/screens/profile/EmergencyContactScreen').default || FallbackScreen; } catch (e) { EmergencyContactScreen = FallbackScreen; }
+try { BankingScreen = require('@/screens/settings/BankingScreen').default || FallbackScreen; } catch (e) { BankingScreen = FallbackScreen; }
 
 // Optional imports with fallbacks (these may not exist)
 let RydeAnimation, AnalyticsDashboard, DriverToolsDashboard, SustainabilityDashboard;
@@ -381,6 +382,16 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="EmergencyContact" 
         component={EmergencyContactScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+
+      {/* Banking Screen */}
+      <Stack.Screen 
+        name="Banking" 
+        component={BankingScreen}
         options={{
           headerShown: false,
           gestureEnabled: true,

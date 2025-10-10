@@ -1060,6 +1060,52 @@ const DriverBidSubmissionScreen = ({
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Decline Button */}
+          <View style={{ padding: 15 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: COLORS.error,
+                paddingVertical: 14,
+                paddingHorizontal: 20,
+                borderRadius: 8,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: COLORS.error,
+              }}
+              onPress={() => {
+                Alert.alert(
+                  'Decline Ride',
+                  'Are you sure you want to decline this ride request?',
+                  [
+                    {
+                      text: 'Cancel',
+                      style: 'cancel'
+                    },
+                    {
+                      text: 'Decline',
+                      style: 'destructive',
+                      onPress: () => {
+                        // Use handleClose which already marks as declined and calls onClose
+                        handleClose();
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="close-circle" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text style={{
+                color: 'white',
+                fontSize: 16,
+                fontWeight: '600'
+              }}>
+                Decline Ride Request
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
         </View>
       </KeyboardAvoidingView>

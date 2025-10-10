@@ -43,6 +43,37 @@ class RideRequestService {
     return this.currentDriverId !== null;
   }
 
+  // Helper: Check if driver's vehicle type can fulfill the requested vehicle type
+  canVehicleTypeFulfillRequest(driverVehicleType, requestedVehicleType) {
+    // If no driver vehicle type specified, assume standard
+    const driverType = driverVehicleType || 'standard';
+    const requestType = requestedVehicleType || 'standard';
+    
+    // Exact match always works
+    if (driverType === requestType) {
+      return true;
+    }
+    
+    // Large vehicles can accept standard requests (they're just bigger)
+    if (driverType === 'large' && requestType === 'standard') {
+      return true;
+    }
+    
+    // Standard vehicles cannot accept large requests (not enough capacity)
+    if (driverType === 'standard' && requestType === 'large') {
+      return false;
+    }
+    
+    // Specialty vehicles (wheelchair_accessible, tow_truck, etc.) must match exactly
+    // They cannot accept standard or large requests
+    return false;
+  }
+
+  // DEBUG: Check existing ride requests for this driver
+  async debugCheckExistingRequests() {
+    // Removed debug logging
+  }
+
   // Start listening for incoming ride requests
   startListeningForRideRequests() {
     if (!this.currentDriverId) {
@@ -50,19 +81,19 @@ class RideRequestService {
       return;
     }
 
-    console.log('🚗 Starting ride request listener for driver:', this.currentDriverId);
+    // IMPORTANT: Don't create duplicate listeners
+    if (this.rideRequestListeners.has('rideRequests')) {
+      console.log('📡 Ride request listener already active, skipping duplicate');
+      return;
+    }
+
     const rideRequestsRef = collection(this.db, 'rideRequests');
     
-    // Calculate timestamp for last 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    
-    // UPDATED QUERY - Listen for recent broadcast requests where this driver is in availableDrivers array
+    // SIMPLIFIED QUERY - Listen for broadcast requests where this driver is in availableDrivers array
     const q = query(
       rideRequestsRef,
       where('availableDrivers', 'array-contains', this.currentDriverId),
-      where('status', 'in', ['open_for_bids', 'pending']),
-      where('timestamp', '>=', tenMinutesAgo),
-      orderBy('timestamp', 'desc')
+      where('status', 'in', ['open_for_bids', 'pending'])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -71,6 +102,23 @@ class RideRequestService {
           const rideRequest = change.doc.data();
           // Add the document ID to the ride request data
           rideRequest.id = change.doc.id;
+          
+          // Check if driver has already declined this request
+          if (this.declinedRideRequests.has(rideRequest.id)) {
+            return;
+          }
+          
+          // IMPORTANT: Filter out old ride requests (older than 30 minutes)
+          // This prevents showing old requests when the listener first starts
+          const now = Date.now();
+          const thirtyMinutesAgo = now - (30 * 60 * 1000);
+          const requestTimestamp = rideRequest.timestamp?.toMillis?.() || rideRequest.timestamp || rideRequest.createdAt || 0;
+          
+          if (requestTimestamp < thirtyMinutesAgo) {
+            // Silently skip old ride requests
+            return;
+          }
+          
           // Server-side filtering is now handled by the query
           this.handleNewRideRequest(rideRequest);
         }
@@ -99,7 +147,6 @@ class RideRequestService {
 
   // Stop listening for new ride requests (when driver submits bid or goes offline)
   stopListeningForRideRequests() {
-    console.log('🛑 Stopping ride request listener');
     if (this.rideRequestListeners.has('rideRequests')) {
       this.rideRequestListeners.get('rideRequests')();
       this.rideRequestListeners.delete('rideRequests');
@@ -114,14 +161,13 @@ class RideRequestService {
 
     const rideRequestsRef = collection(this.db, 'rideRequests');
     
-    // Calculate timestamp for last 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    // Calculate timestamp for last 30 minutes
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     
-    // Query with timestamp filter to only get recent requests
+    // Simplified query without timestamp filter
     const q = query(
       rideRequestsRef,
-      where('availableDrivers', 'array-contains', this.currentDriverId),
-      where('timestamp', '>=', tenMinutesAgo)
+      where('availableDrivers', 'array-contains', this.currentDriverId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -162,43 +208,62 @@ class RideRequestService {
       
       const driverData = driverDoc.data();
       const specialtyVehicleInfo = driverData.specialtyVehicleInfo || {};
-      const driverSpecialtyType = specialtyVehicleInfo.specialtyVehicleType;
-      const driverServiceCapabilities = specialtyVehicleInfo.serviceCapabilities || [];
       
-      // Check if driver has required specialty vehicle type
-      const requiredVehicleType = rideRequest.requiredVehicleType;
-      if (requiredVehicleType && driverSpecialtyType !== requiredVehicleType) {
-        console.log(`🚫 Driver ${driverId} cannot fulfill request: vehicle type mismatch (${driverSpecialtyType} vs ${requiredVehicleType})`);
+      // Try to get vehicle type from multiple possible locations
+      const driverSpecialtyType = specialtyVehicleInfo.specialtyVehicleType || 
+                                   driverData.vehicleType ||
+                                   driverData.vehicleInfo?.vehicle_info?.vehicleType ||
+                                   'standard';
+      
+      // Ensure service capabilities is always an array, never null
+      const driverServiceCapabilities = Array.isArray(specialtyVehicleInfo.serviceCapabilities) 
+        ? specialtyVehicleInfo.serviceCapabilities 
+        : [];
+      
+      // Check if driver can fulfill the vehicle type requirement
+      const requiredVehicleType = rideRequest.requiredVehicleType || 'standard';
+      
+      // Vehicle type matching logic:
+      // - Large vehicles can accept both 'standard' and 'large' requests
+      // - Standard vehicles can only accept 'standard' requests
+      // - Specialty vehicles (wheelchair, tow_truck) must match exactly
+      const canFulfillVehicleType = this.canVehicleTypeFulfillRequest(driverSpecialtyType, requiredVehicleType);
+      
+      if (!canFulfillVehicleType) {
         return false;
       }
       
       // Check if driver has required service capabilities
-      const requiredCapabilities = rideRequest.requiredCapabilities || [];
+      // Ensure requiredCapabilities is also an array
+      const requiredCapabilities = Array.isArray(rideRequest.requiredCapabilities) 
+        ? rideRequest.requiredCapabilities 
+        : [];
       const missingCapabilities = requiredCapabilities.filter(capability => 
         !driverServiceCapabilities.includes(capability)
       );
       
       if (missingCapabilities.length > 0) {
-        console.log(`🚫 Driver ${driverId} cannot fulfill request: missing capabilities (${missingCapabilities.join(', ')})`);
         return false;
       }
       
       // Check if driver has any of the optional preferences
-      const optionalPreferences = rideRequest.optionalPreferences || [];
+      const optionalPreferences = Array.isArray(rideRequest.optionalPreferences) 
+        ? rideRequest.optionalPreferences 
+        : [];
       const hasOptionalCapabilities = optionalPreferences.some(preference => 
         driverServiceCapabilities.includes(preference)
       );
       
       // If there are optional preferences, driver should have at least one
       if (optionalPreferences.length > 0 && !hasOptionalCapabilities) {
-        console.log(`🚫 Driver ${driverId} cannot fulfill request: no optional preferences met`);
         return false;
       }
       
-      console.log(`✅ Driver ${driverId} can fulfill request`);
       return true;
     } catch (error) {
       console.error('Error checking driver capabilities:', error);
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
       return false;
     }
   }
@@ -208,7 +273,6 @@ class RideRequestService {
     // Check if driver can fulfill this request
     const canFulfill = await this.canDriverFulfillRequest(rideRequest, this.currentDriverId);
     if (!canFulfill) {
-      console.log(`🚫 Driver cannot fulfill ride request ${rideRequest.id}`);
       return;
     }
     
@@ -626,8 +690,9 @@ class RideRequestService {
   // Mark a ride request as declined by this driver
   declineRideRequest(rideRequestId) {
     this.declinedRideRequests.add(rideRequestId);
-    // console.log('🚫 Marked ride request as declined:', rideRequestId);
-    // console.log('📝 Total declined requests:', this.declinedRideRequests.size);
+    console.log('🚫 Marked ride request as declined:', rideRequestId);
+    console.log('📝 Total declined requests:', this.declinedRideRequests.size);
+    console.log('📝 Declined list:', Array.from(this.declinedRideRequests));
   }
 
   // Clear all declined requests (useful for new session or periodic cleanup)

@@ -13,6 +13,7 @@ import {
   getReactNativePersistence
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FIREBASE_CONFIG } from '../../constants/firebase';
 
@@ -20,6 +21,7 @@ import { FIREBASE_CONFIG } from '../../constants/firebase';
 let app;
 let auth;
 let db;
+let storage;
 
 try {
   // Check if Firebase is already initialized
@@ -49,21 +51,24 @@ try {
     }
   }
 
-  // Initialize Firestore
+  // Initialize Firestore and Storage
   if (auth) {
     db = getFirestore(app);
+    storage = getStorage(app);
   } else {
     db = null;
+    storage = null;
   }
 
 } catch (error) {
   // Fallback to basic initialization
   auth = null;
   db = null;
+  storage = null;
 }
 
 // Export Firebase instances
-export { auth, db };
+export { auth, db, storage };
 
 // Lazy getters for backward compatibility
 export const getFirebaseAuth = () => {
@@ -74,10 +79,14 @@ export const getFirebaseFirestore = () => {
   return db;
 };
 
+export const getFirebaseStorage = () => {
+  return storage;
+};
+
 // Legacy exports for backward compatibility with existing code
 export const firebaseAuth = auth;
 export const firebaseFirestore = db;
-export const firebaseStorage = null; // Not implemented yet
+export const firebaseStorage = storage;
 export const firebaseMessaging = null; // Not implemented yet
 export const firebaseFunctions = null; // Not implemented yet
 

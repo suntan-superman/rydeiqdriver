@@ -20,6 +20,7 @@ import { COLORS } from '@/constants';
 import MultiStopNavigation from '../../components/MultiStopNavigation';
 import WaitTimerWidget from '../../components/WaitTimerWidget';
 import DeltaApprovalModal from '../../components/DeltaApprovalModal';
+import RatingModal from '@/components/RatingModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -108,6 +109,9 @@ const ActiveRideScreen = ({ route }) => {
   const [showDeltaApproval, setShowDeltaApproval] = useState(false);
   const [pendingDelta, setPendingDelta] = useState(null);
 
+  // Rating modal state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+
   // Timer for tracking ride duration
   useEffect(() => {
     const interval = setInterval(() => {
@@ -128,6 +132,23 @@ const ActiveRideScreen = ({ route }) => {
   const handleStateChange = (newState) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRide(prev => ({ ...prev, state: newState }));
+  };
+
+  // Handle rating submission
+  const handleRatingSubmit = async (ratingData) => {
+    try {
+      console.log('🌟 Rating submitted:', ratingData);
+      playSuccessSound();
+      Alert.alert(
+        'Rating Submitted',
+        'Thank you for rating your customer!',
+        [{ text: 'OK', onPress: () => setShowRatingModal(false) }]
+      );
+    } catch (error) {
+      console.error('❌ Rating submission error:', error);
+      playErrorSound();
+      Alert.alert('Error', 'Failed to submit rating. Please try again.');
+    }
   };
 
   // Handle phone call
@@ -443,7 +464,7 @@ const ActiveRideScreen = ({ route }) => {
               <Ionicons name="card" size={24} color={COLORS.white} />
               <Text style={[styles.actionText, styles.primaryActionText]}>Collect Payment</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Rating', 'Customer rating interface')}>
+            <TouchableOpacity style={styles.actionButton} onPress={() => setShowRatingModal(true)}>
               <Ionicons name="star" size={24} color={COLORS.warning} />
               <Text style={styles.actionText}>Rate Customer</Text>
             </TouchableOpacity>
@@ -650,6 +671,19 @@ const ActiveRideScreen = ({ route }) => {
         onApprove={handleDeltaApprove}
         onDecline={handleDeltaDecline}
         onRequestNewBid={handleRequestNewBid}
+      />
+
+      {/* Rating Modal */}
+      <RatingModal
+        visible={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onSubmit={handleRatingSubmit}
+        rideData={ride}
+        targetUser={{
+          name: ride.customerName,
+          photo: null, // Would come from rider profile
+          role: 'rider'
+        }}
       />
     </SafeAreaView>
   );
