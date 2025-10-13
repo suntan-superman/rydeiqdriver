@@ -18,11 +18,16 @@ import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '@/constants';
+import { API_KEYS } from '@/constants/config';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Google Maps API Key (should be in env vars in production)
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU';
+// Get Google Maps API Key from centralized config
+const GOOGLE_MAPS_API_KEY = Platform.select({
+  ios: API_KEYS.GOOGLE_MAPS.IOS,
+  android: API_KEYS.GOOGLE_MAPS.ANDROID,
+  default: API_KEYS.GOOGLE_MAPS.WEB,
+});
 
 const NavigationScreen = ({ route }) => {
   const navigation = useNavigation();

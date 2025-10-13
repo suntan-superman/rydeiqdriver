@@ -124,16 +124,52 @@ export const completeRide = createAsyncThunk(
 
 export const cancelRide = createAsyncThunk(
   'rides/cancelRide',
-  async ({ rideId, reason }, { rejectWithValue }) => {
+  async ({ rideId, reason, reasonCode, driverId }, { rejectWithValue }) => {
     try {
       const rideRef = getFirebaseFirestore().collection('rideRequests').doc(rideId);
       await rideRef.update({
         status: RIDE_STATUS.CANCELLED,
         cancelledAt: getFirebaseFirestore().FieldValue.serverTimestamp(),
-        cancellationReason: reason
+        cancellationReason: reason,
+        cancellationReasonCode: reasonCode,
+        canceledBy: 'driver',
+        canceledById: driverId
       });
       
-      return { rideId, reason };
+      // ✅ RELIABILITY TRACKING: Record cancel event and apply consequences
+      if (driverId && reasonCode) {
+        try {
+          const reliabilityService = (await import('@/services/reliabilityService')).default;
+          const { isExemptCancelCode } = await import('@/constants/reliabilityConfig');
+          
+          // Record the cancellation event
+          await reliabilityService.recordCancelEvent(rideId, driverId, reasonCode, {
+            reason: reason,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Lock driver from re-bidding on this specific ride
+          await reliabilityService.lockBidEligibility(driverId, rideId);
+          
+          // Apply cooldown if reason is not exempt
+          const isExempt = isExemptCancelCode(reasonCode);
+          if (!isExempt) {
+            await reliabilityService.applyCooldown(driverId);
+            console.log('⏱️ Applied cooldown due to non-exempt cancellation');
+          } else {
+            console.log('✅ Cancellation exempt from cooldown:', reasonCode);
+          }
+          
+          // Update driver metrics
+          await reliabilityService.updateDriverMetrics(driverId, { cancels: 1 });
+          
+        } catch (reliabilityError) {
+          console.error('⚠️ Error recording reliability data:', reliabilityError);
+          // Don't fail the cancellation if reliability tracking fails
+        }
+      }
+      
+      return { rideId, reason, reasonCode };
     } catch (error) {
       return rejectWithValue(error.message);
     }

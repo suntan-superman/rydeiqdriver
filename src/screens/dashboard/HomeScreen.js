@@ -25,6 +25,8 @@ import RideRequestScreen from '@/screens/ride/RideRequestScreen';
 import { profilePictureService } from '@/services/profilePictureService';
 import ScheduledRideRequests from '@/components/ScheduledRideRequests';
 import MyScheduledRides from '@/components/MyScheduledRides';
+import ReliabilityScoreCard from '@/components/driver/ReliabilityScoreCard';
+import CooldownBanner from '@/components/driver/CooldownBanner';
 // Safe service imports with error handling
 let RideRequestService;
 let RideRequestModal;
@@ -1447,6 +1449,8 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      {/* Cooldown Banner - shows at top when active */}
+      {user?.uid && <CooldownBanner driverId={user.uid} />}
       {/* Pending Approval Banner */}
       {!isApproved && <PendingApprovalBanner />}
       {/* Header */}
@@ -1499,6 +1503,14 @@ const HomeScreen = () => {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Reliability Score Card */}
+        {isApproved && user?.uid && (
+          <ReliabilityScoreCard 
+            driverId={user.uid}
+            compact={false}
+          />
+        )}
 
         {/* Scheduled Rides Status Card */}
         <View style={styles.statusCard}>

@@ -525,10 +525,27 @@ const DriverBidSubmissionScreen = ({
       setIsSubmittingBid(false);
       setBidStatus('idle');
       
-      Alert.alert(
-        'Submission Failed',
-        'Unable to submit your bid. Please check your connection and try again.'
-      );
+      // ✅ RELIABILITY ERROR HANDLING
+      if (error.code === 'BID_COOLDOWN') {
+        const mins = Math.floor(error.retrySec / 60);
+        const secs = error.retrySec % 60;
+        Alert.alert(
+          'Bidding Cooldown Active',
+          `You cannot bid right now due to a recent cancellation.\n\nPlease wait ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`} before bidding again.`,
+          [{ text: 'OK' }]
+        );
+      } else if (error.code === 'BID_LOCKED') {
+        Alert.alert(
+          'Cannot Bid',
+          error.message || 'You cannot bid on this ride at this time.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Submission Failed',
+          'Unable to submit your bid. Please check your connection and try again.'
+        );
+      }
     }
   };
 

@@ -424,6 +424,31 @@ class RideRequestService {
         throw new Error('RideRequestService not initialized. Call initialize() first.');
       }
 
+      // ✅ RELIABILITY CHECK: Check if driver is in cooldown
+      const reliabilityService = (await import('./reliabilityService')).default;
+      const cooldownCheck = await reliabilityService.checkCooldown(this.currentDriverId);
+      
+      if (cooldownCheck.isInCooldown) {
+        const error = new Error(`You cannot bid while in cooldown. Please wait ${cooldownCheck.retrySec} seconds.`);
+        error.code = 'BID_COOLDOWN';
+        error.retrySec = cooldownCheck.retrySec;
+        error.reason = cooldownCheck.reason;
+        throw error;
+      }
+
+      // ✅ RELIABILITY CHECK: Check if driver can bid on this specific ride
+      const eligibilityCheck = await reliabilityService.checkBidEligibility(
+        this.currentDriverId,
+        rideRequestId
+      );
+      
+      if (!eligibilityCheck.canBid) {
+        const error = new Error(eligibilityCheck.reason || 'You cannot bid on this ride');
+        error.code = 'BID_LOCKED';
+        error.type = eligibilityCheck.type;
+        throw error;
+      }
+
       const rideRequestRef = doc(this.db, 'rideRequests', rideRequestId);
       const rideRequestDoc = await getDoc(rideRequestRef);
       
@@ -494,9 +519,16 @@ class RideRequestService {
       this.stopListeningForRideRequests();
       console.log('🛑 Stopped listening for new ride requests after bid submission');
       
+      // ✅ RELIABILITY METRIC: Track bid submission (will be used for scoring)
+      // This will be incremented when bid is awarded (handled by Cloud Functions or rider app)
+      
       return { success: true, rideRequestId, bidAmount: validatedBidAmount };
     } catch (error) {
       console.error('❌ Error submitting bid:', error);
+      // Pass through reliability errors with their codes
+      if (error.code === 'BID_COOLDOWN' || error.code === 'BID_LOCKED') {
+        throw error;
+      }
       throw error;
     }
   }

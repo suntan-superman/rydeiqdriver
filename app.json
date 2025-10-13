@@ -153,19 +153,17 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.rydeiq.driver",
+          "enableGooglePay": true
+        }
+      ]
     ],
     "experiments": {},
     "extra": {
-      "firebaseConfig": {
-        "apiKey": "AIzaSyB9rIUiKOdcrEI3H8-OZ6STioLImUTfJ9o",
-        "authDomain": "ryde-9d4bf.firebaseapp.com",
-        "projectId": "ryde-9d4bf",
-        "storageBucket": "ryde-9d4bf.firebasestorage.app",
-        "messagingSenderId": "649308231342",
-        "appId": "1:649308231342:web:1e6e424c4195c2ba72ff3f"
-      },
-      "googleMapsApiKey": "AIzaSyCAiGgj7WGUntSHs4PmAS1GB4UzqR4MrOU",
       "environment": "development",
       "eas": {
         "projectId": "99bcac79-c28f-4d78-bd00-8a6f9ca54912"

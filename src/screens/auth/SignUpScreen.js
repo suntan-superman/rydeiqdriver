@@ -31,6 +31,7 @@ const SignUpScreen = ({ navigation }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [receiveUpdates, setReceiveUpdates] = useState(true);
+  const [alsoRider, setAlsoRider] = useState(false);
 
   const { signUp } = useAuth();
 
@@ -88,6 +89,7 @@ const SignUpScreen = ({ navigation }) => {
         lastName: formData.lastName,
         phoneNumber: formData.phoneNumber,
         receiveUpdates: receiveUpdates,
+        riderOptIn: alsoRider, // Pass rider opt-in preference
       });
 
       if (result.success) {
@@ -294,6 +296,31 @@ const SignUpScreen = ({ navigation }) => {
             />
           </View>
 
+          {/* Rider Opt-In */}
+          <View style={styles.riderOptInContainer}>
+            <View style={styles.riderOptInHeader}>
+              <Ionicons name="people" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.riderOptInTitle}>Also Use as Rider?</Text>
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>I also want to use AnyRyde as a rider</Text>
+              <Switch
+                value={alsoRider}
+                onValueChange={setAlsoRider}
+                trackColor={{ false: COLORS.gray300, true: COLORS.primary[200] }}
+                thumbColor={alsoRider ? COLORS.primary[500] : COLORS.gray500}
+              />
+            </View>
+            {alsoRider && (
+              <View style={styles.riderInfoBox}>
+                <Ionicons name="information-circle" size={20} color={COLORS.primary[500]} />
+                <Text style={styles.riderInfoText}>
+                  We'll set up both accounts during onboarding. Add payment when you book your first ride!
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Sign Up Button */}
           <TouchableOpacity
             style={[styles.signUpButton, isLoading && styles.disabledButton]}
@@ -429,6 +456,39 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSizes.sm,
     color: COLORS.textSecondary,
     marginRight: 16,
+  },
+  riderOptInContainer: {
+    backgroundColor: COLORS.primary[50],
+    borderRadius: DIMENSIONS.radiusM,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.primary[200],
+  },
+  riderOptInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  riderOptInTitle: {
+    fontSize: TYPOGRAPHY.fontSizes.base,
+    fontWeight: TYPOGRAPHY.fontWeights.semibold,
+    color: COLORS.textPrimary,
+    marginLeft: 8,
+  },
+  riderInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: COLORS.white,
+    borderRadius: DIMENSIONS.radiusS,
+    padding: 12,
+    marginTop: 12,
+  },
+  riderInfoText: {
+    fontSize: TYPOGRAPHY.fontSizes.xs,
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+    flex: 1,
   },
   signUpButton: {
     backgroundColor: COLORS.primary[500],

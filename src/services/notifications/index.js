@@ -66,6 +66,15 @@ export const initializeNotifications = async () => {
         sound: 'default',
       });
 
+      // Create channel for ratings
+      await messaging().setNotificationChannelAsync?.('ratings', {
+        name: 'Ratings',
+        importance: 'low',
+        vibrationPattern: [0, 250],
+        lightColor: '#F59E0B',
+        sound: 'default',
+      });
+
       // Create channel for system updates
       await messaging().setNotificationChannelAsync?.('system', {
         name: 'System Updates',
@@ -115,6 +124,12 @@ export const setBackgroundMessageHandler = () => {
         break;
       case 'earnings':
         // Background earnings update received
+        break;
+      case 'rating_reminder':
+        // Background rating reminder received
+        break;
+      case 'ride_completed':
+        // Background ride completed notification
         break;
       default:
         // Background notification received

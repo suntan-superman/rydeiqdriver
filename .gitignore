@@ -44,3 +44,6 @@ yarn-error.*
 
 # Service account keys
 serviceAccountKey.json
+
+*.apk
+
