@@ -21,6 +21,7 @@ import MultiStopNavigation from '../../components/MultiStopNavigation';
 import WaitTimerWidget from '../../components/WaitTimerWidget';
 import DeltaApprovalModal from '../../components/DeltaApprovalModal';
 import RatingModal from '@/components/RatingModal';
+import { speechService } from '@/services/speechService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -132,6 +133,19 @@ const ActiveRideScreen = ({ route }) => {
   const handleStateChange = (newState) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRide(prev => ({ ...prev, state: newState }));
+    
+    // Trigger speech notifications for relevant state changes
+    try {
+      if (newState === 'arrived-pickup') {
+        speechService.speakArrivingAtPickup();
+      } else if (newState === 'customer-onboard') {
+        speechService.speakPassengerPickedUp();
+      } else if (newState === 'trip-active') {
+        speechService.speakApproachingDestination();
+      }
+    } catch (error) {
+      // Silent fallback for speech errors
+    }
   };
 
   // Handle rating submission

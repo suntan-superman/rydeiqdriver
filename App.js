@@ -31,6 +31,16 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import './src/i18n';
 
+// Step 5: Stripe Provider for payment integration (optional for driver app)
+let StripeProvider = null;
+try {
+  StripeProvider = require('@stripe/stripe-react-native').StripeProvider;
+} catch (e) {
+  console.log('ℹ️ Stripe SDK not installed - using fallback');
+  // Fallback component that just renders children
+  StripeProvider = ({ children }) => children;
+}
+
 // Simple loading component for PersistGate
 function SimpleLoadingScreen() {
   return (
@@ -135,16 +145,21 @@ function AppContent() {
 }
 
 export default function App() {
+  // Get Stripe publishable key from environment
+  const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+  
   return (
-    <Provider store={store}>
-      <PersistGate loading={<SimpleLoadingScreen />} persistor={persistor}>
-        <ThemeProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        </ThemeProvider>
-      </PersistGate>
-    </Provider>
+    <StripeProvider publishableKey={stripePublishableKey}>
+      <Provider store={store}>
+        <PersistGate loading={<SimpleLoadingScreen />} persistor={persistor}>
+          <ThemeProvider>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </ThemeProvider>
+        </PersistGate>
+      </Provider>
+    </StripeProvider>
   );
 }
 

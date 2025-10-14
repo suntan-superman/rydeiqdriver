@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import RideRequestScreen from '@/screens/ride/RideRequestScreen';
 import { profilePictureService } from '@/services/profilePictureService';
@@ -37,6 +37,7 @@ let DriverStatusService;
 let realTimeLocationService;
 let simpleLocationService;
 let locationServices = {};
+let speechService;
 
 try {
   RideRequestService = require('@/services/rideRequestService').default;
@@ -85,6 +86,16 @@ try {
     startListeningForBidAcceptance: () => Promise.resolve(() => {}),
     startListeningForRideStatusChanges: () => Promise.resolve(() => {}),
     stopAllListeners: () => {}
+  };
+}
+
+try {
+  const speechServiceModule = require('@/services/speechService');
+  speechService = speechServiceModule.speechService;
+} catch (error) {
+  console.warn('⚠️ speechService import failed:', error.message);
+  speechService = {
+    speakNewRideRequest: () => Promise.resolve(),
   };
 }
 
@@ -328,6 +339,8 @@ const HomeScreen = () => {
   const [ridesCompleted, setRidesCompleted] = useState(0);
   const [driverRating, setDriverRating] = useState(4.8);
   const [activeRideId, setActiveRideId] = useState(null);
+  const [currentRide, setCurrentRide] = useState(null);  // Full current ride details
+  const [driverLocation, setDriverLocation] = useState(null);  // Driver's current location
   
   // Profile picture state
   const [profilePicture, setProfilePicture] = useState(null);
@@ -351,7 +364,6 @@ const HomeScreen = () => {
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
   const [showEarningsModal, setShowEarningsModal] = useState(false);
   const [showTripHistoryModal, setShowTripHistoryModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   
   // Debug logging for modal state
@@ -381,20 +393,124 @@ const HomeScreen = () => {
   // Track when modal was explicitly closed to prevent immediate reopening
   const [modalJustClosed, setModalJustClosed] = useState(false);
   
-  // Track declined ride request IDs to prevent reopening same requests
+  // Track declined ride request IDs with timestamps to prevent reopening same requests
   // Use ref to ensure callback always has current value
-  const ignoredRideRequestIds = useRef(new Set());
+  const ignoredRideRequestIds = useRef(new Map()); // Changed to Map to store timestamps
   
-  // Clear ignored ride requests every 30 minutes to prevent permanent blocking
+  // Migration: Convert old Set to new Map if needed (for hot reload compatibility)
   useEffect(() => {
-    const clearIgnoredRequests = setInterval(() => {
-      if (ignoredRideRequestIds.current.size > 0) {
-        // console.log('🧹 DRIVER DEBUG: Clearing', ignoredRideRequestIds.current.size, 'ignored ride requests (30min cleanup)');
-        ignoredRideRequestIds.current = new Set();
+    if (ignoredRideRequestIds.current instanceof Set) {
+      const oldSet = ignoredRideRequestIds.current;
+      const newMap = new Map();
+      for (const id of oldSet) {
+        newMap.set(id, Date.now()); // Use current time as timestamp for migrated entries
       }
-    }, 30 * 60 * 1000); // 30 minutes
+      ignoredRideRequestIds.current = newMap;
+    }
+  }, []); // Run once on mount
+  
+  // Track current ride request with ref to avoid stale closure in callbacks
+  const currentRideRequestRef = useRef(null);
+  
+  // Keep ref in sync with rideRequest state AND set up dedicated listener for cancellations
+  useEffect(() => {
+    const rideId = rideRequest?.id;
     
-    return () => clearInterval(clearIgnoredRequests);
+    currentRideRequestRef.current = rideRequest;
+    
+    // Set up polling to check for cancellations (workaround for Firestore snapshot issues)
+    if (rideId && showBidSubmissionModal) {
+      const rideRequestRef = doc(db, 'rideRequests', rideId);
+      
+      // Poll every 2 seconds to check if ride was cancelled
+      const pollInterval = setInterval(async () => {
+        try {
+          const snapshot = await getDoc(rideRequestRef);
+          
+          if (!snapshot.exists()) {
+            clearInterval(pollInterval);
+            return;
+          }
+          
+          const data = snapshot.data();
+          
+          // Check if ride was cancelled
+          if (data.status === 'cancelled') {
+            clearInterval(pollInterval);
+            
+            // Add to ignored list to prevent reopening
+            if (rideId) {
+              // Ensure the Map is initialized and handle Set->Map migration
+              if (!ignoredRideRequestIds.current) {
+                ignoredRideRequestIds.current = new Map();
+              } else if (ignoredRideRequestIds.current instanceof Set) {
+                // Convert Set to Map if needed
+                const oldSet = ignoredRideRequestIds.current;
+                ignoredRideRequestIds.current = new Map();
+                for (const id of oldSet) {
+                  ignoredRideRequestIds.current.set(id, Date.now());
+                }
+              }
+              ignoredRideRequestIds.current.set(rideId, Date.now());
+            }
+            
+            Alert.alert(
+              'Rider Cancelled',
+              'The rider has cancelled this ride request.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    setShowBidSubmissionModal(false);
+                    setRideRequest(null);
+                  }
+                }
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('❌ Polling error:', error);
+        }
+      }, 2000); // Check every 2 seconds
+      
+      // Cleanup polling when ride request changes or modal closes
+      return () => {
+        clearInterval(pollInterval);
+      };
+    }
+  }, [rideRequest?.id, showBidSubmissionModal]); // Only depend on ID, not whole object
+  
+  // Clear ignored ride requests that are older than 2 hours
+  useEffect(() => {
+    const clearOldIgnoredRequests = setInterval(() => {
+      if (!ignoredRideRequestIds.current) {
+        return; // Skip if not initialized
+      }
+      
+      // Handle Set->Map migration if needed
+      if (ignoredRideRequestIds.current instanceof Set) {
+        const oldSet = ignoredRideRequestIds.current;
+        ignoredRideRequestIds.current = new Map();
+        for (const id of oldSet) {
+          ignoredRideRequestIds.current.set(id, Date.now());
+        }
+        return; // Skip cleanup this iteration since we just migrated
+      }
+      
+      const now = Date.now();
+      const twoHoursAgo = now - (2 * 60 * 60 * 1000); // 2 hours
+      
+      let removedCount = 0;
+      for (const [rideId, timestamp] of ignoredRideRequestIds.current.entries()) {
+        if (timestamp < twoHoursAgo) {
+          ignoredRideRequestIds.current.delete(rideId);
+          removedCount++;
+        }
+      }
+      
+    }, 10 * 60 * 1000); // Check every 10 minutes
+    
+    return () => clearInterval(clearOldIgnoredRequests);
   }, []);
 
     // Load profile picture when user changes
@@ -605,14 +721,121 @@ const HomeScreen = () => {
       
       if (user && userId) {
         try {
-          // Initialize services with error handling
+          // IMPORTANT: Set callbacks BEFORE initializing to ensure they're ready when listeners start
+          
+          // Set callback for new ride requests FIRST
+          try {
+            if (RideRequestService && typeof RideRequestService.setRideRequestCallback === 'function') {
+              RideRequestService.setRideRequestCallback((newRideRequest) => {
+                try {
+                  if (newRideRequest) {
+                    // Don't open modal if it was just closed
+                    if (modalJustClosed) {
+                      return;
+                    }
+                    
+                    // Check if this ride request ID has been previously ignored/declined
+                    // Handle Set->Map migration if needed
+                    if (ignoredRideRequestIds.current && ignoredRideRequestIds.current instanceof Set) {
+                      const oldSet = ignoredRideRequestIds.current;
+                      ignoredRideRequestIds.current = new Map();
+                      for (const id of oldSet) {
+                        ignoredRideRequestIds.current.set(id, Date.now());
+                      }
+                    }
+                    
+                    if (ignoredRideRequestIds.current && ignoredRideRequestIds.current.has(newRideRequest.id)) {
+                      return;
+                    }
+                    
+                    // Add to ignored list IMMEDIATELY to prevent duplicate modals
+                    if (!ignoredRideRequestIds.current) {
+                      ignoredRideRequestIds.current = new Map();
+                    }
+                    ignoredRideRequestIds.current.set(newRideRequest.id, Date.now());
+                    
+                    // Set ride request first, then show modal after a brief delay to ensure state is updated
+                    setRideRequest(newRideRequest);
+                    
+                    // Use setTimeout to ensure the rideRequest state is updated before showing modal
+                    setTimeout(() => {
+                      try {
+                        // Double-check modalJustClosed in case it changed during the timeout
+                        if (modalJustClosed) {
+                          return;
+                        }
+                        
+                        setShowBidSubmissionModal(true);
+                      } catch (modalError) {
+                        console.warn('⚠️ Bid submission modal failed, using fallback:', modalError);
+                        setShowRideRequestModal(true);
+                      }
+                    }, 100); // Small delay to ensure state update
+                    
+                    try {
+                      playRideRequestSound(); // Play notification sound
+                    } catch (soundError) {
+                      // Silent fallback for sound errors
+                    }
+                    
+                    // Speak new ride request notification
+                    try {
+                      if (speechService && speechService.speakNewRideRequest) {
+                        speechService.speakNewRideRequest();
+                      }
+                    } catch (speechError) {
+                      // Silent fallback for speech errors
+                    }
+                  }
+                } catch (callbackError) {
+                  console.error('❌ Callback error:', callbackError);
+                }
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to set ride request callback:', error);
+          }
+
+          // Set callback for when ride requests are cancelled SECOND
+          try {
+            if (RideRequestService && typeof RideRequestService.setRideRequestCancelledCallback === 'function') {
+              RideRequestService.setRideRequestCancelledCallback((cancelledRideRequest) => {
+                try {
+                  // Check if this is the currently displayed ride request (using ref to avoid stale closure)
+                  const currentRequest = currentRideRequestRef.current;
+                  if (currentRequest && currentRequest.id === cancelledRideRequest.id) {
+                    // Show alert FIRST (before closing modal)
+                    Alert.alert(
+                      'Rider Cancelled',
+                      'The rider has cancelled this ride request.',
+                      [
+                        {
+                          text: 'OK',
+                          onPress: () => {
+                            // Now close the modal and clear state
+                            setShowBidSubmissionModal(false);
+                            setRideRequest(null);
+                          }
+                        }
+                      ]
+                    );
+                  }
+                } catch (callbackError) {
+                  console.error('❌ Cancellation callback error:', callbackError);
+                }
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to set ride cancellation listener:', error);
+          }
+
+          // NOW initialize services AFTER callbacks are set
           try {
             RideRequestService.initialize(userId);
             
             // Force restart listening to break out of any existing loops
             if (typeof RideRequestService.forceRestartListening === 'function') {
               RideRequestService.forceRestartListening();
-              // console.log('🔄 Force restarted ride request listening on app open');
             }
           } catch (error) {
             console.warn('⚠️ RideRequestService initialization failed:', error);
@@ -641,75 +864,9 @@ const HomeScreen = () => {
           try {
             if (realTimeLocationService && typeof realTimeLocationService.initialize === 'function') {
               await realTimeLocationService.initialize(userId);
-              // console.log('✅ Real-time location service initialized for driver:', userId);
             }
           } catch (error) {
             console.warn('⚠️ realTimeLocationService initialization failed:', error);
-          }
-          
-          // Set callback for new ride requests
-          try {
-            if (RideRequestService && typeof RideRequestService.setRideRequestCallback === 'function') {
-              RideRequestService.setRideRequestCallback((newRideRequest) => {
-                try {
-                  if (newRideRequest) {
-                    // console.log('🎯 New ride request received:', newRideRequest);
-                    // console.log('🎯 New ride request pickup:', newRideRequest.pickup);
-                    // console.log('🎯 New ride request dropoff:', newRideRequest.dropoff);
-                    // console.log('🚪 DRIVER DEBUG: modalJustClosed state:', modalJustClosed);
-                    
-                    // Don't open modal if it was just closed
-                    if (modalJustClosed) {
-                      // console.log('🚫 DRIVER DEBUG: Modal was just closed - ignoring ride request to prevent reopening');
-                      return;
-                    }
-                    
-                    // Check if this ride request ID has been previously ignored/declined
-                    if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
-                      // console.log('🚫 DRIVER DEBUG: Ride request already ignored/declined - not showing modal:', newRideRequest.id);
-                      // console.log('🚫 DRIVER DEBUG: Current ignored list:', Array.from(ignoredRideRequestIds.current));
-                      return;
-                    }
-                    
-                    // Set ride request first, then show modal after a brief delay to ensure state is updated
-                    setRideRequest(newRideRequest);
-                    
-                    // Use setTimeout to ensure the rideRequest state is updated before showing modal
-                    setTimeout(() => {
-                      try {
-                        // Double-check modalJustClosed in case it changed during the timeout
-                        if (modalJustClosed) {
-                          // console.log('🚫 DRIVER DEBUG: Modal was closed during timeout - aborting modal open');
-                          return;
-                        }
-                        
-                        // Double-check ignored list in case it changed during timeout
-                        if (ignoredRideRequestIds.current.has(newRideRequest.id)) {
-                          // console.log('🚫 DRIVER DEBUG: Ride request was ignored during timeout - aborting modal open:', newRideRequest.id);
-                          return;
-                        }
-                        
-                        // console.log('🎯 Showing bid submission modal...');
-                        setShowBidSubmissionModal(true);
-                      } catch (modalError) {
-                        console.warn('⚠️ Bid submission modal failed, using fallback:', modalError);
-                        setShowRideRequestModal(true);
-                      }
-                    }, 100); // Small delay to ensure state update
-                    
-                    try {
-                      playRideRequestSound(); // Play notification sound
-                    } catch (soundError) {
-                      // Silent fallback for sound errors
-                    }
-                  }
-                } catch (callbackError) {
-                  console.error('❌ Callback error:', callbackError);
-                }
-              });
-            }
-          } catch (error) {
-            // Silent fallback for service setup errors
           }
 
           // Listen for driver status changes
@@ -783,37 +940,87 @@ const HomeScreen = () => {
     // State change monitoring removed for cleaner logs
   }, [servicesInitialized]);
 
-  // Restart ride request listening when driver is online and back on home screen
+  // Manage ride request listening based on driver online status
   useEffect(() => {
-    console.log(`🔄 Ride listener check - Online: ${isOnline}, Initialized: ${servicesInitialized}, BidModal: ${showBidSubmissionModal}, RequestModal: ${showRideRequestModal}`);
-    
-    if (isOnline && servicesInitialized && !showBidSubmissionModal && !showRideRequestModal) {
+    if (isOnline && servicesInitialized) {
       try {
-        console.log('✅ Conditions met - starting ride request listener');
         if (RideRequestService && typeof RideRequestService.startListeningForRideRequests === 'function') {
           RideRequestService.startListeningForRideRequests();
         }
       } catch (error) {
-        console.warn('⚠️ Failed to restart ride request listening:', error);
+        console.warn('⚠️ Failed to start ride request listening:', error);
       }
     } else if (!isOnline) {
       try {
-        console.log('🛑 Driver is offline, stopping ride request listening');
         if (RideRequestService && typeof RideRequestService.stopListeningForRideRequests === 'function') {
           RideRequestService.stopListeningForRideRequests();
         }
       } catch (error) {
         console.warn('⚠️ Failed to stop ride request listening:', error);
       }
-    } else {
-      console.log(`⏸️ Not starting listener - conditions not met`);
     }
-  }, [isOnline, servicesInitialized, showBidSubmissionModal, showRideRequestModal]);
-
-  // Debug: Log isOnline status
-  useEffect(() => {
-    console.log(`🔍 Driver isOnline status: ${isOnline}, Services initialized: ${servicesInitialized}`);
   }, [isOnline, servicesInitialized]);
+
+  // Fetch driver's current location
+  useEffect(() => {
+    const fetchDriverLocation = async () => {
+      try {
+        if (getCurrentLocation) {
+          const location = await getCurrentLocation();
+          if (location?.coords) {
+            setDriverLocation({
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch driver location:', error);
+        // Set fallback location (Bakersfield)
+        setDriverLocation({
+          latitude: 35.3733,
+          longitude: -119.0187,
+          isFallback: true
+        });
+      }
+    };
+
+    if (isOnline) {
+      fetchDriverLocation();
+      // Update location every 30 seconds while online
+      const locationInterval = setInterval(fetchDriverLocation, 30000);
+      return () => clearInterval(locationInterval);
+    }
+  }, [isOnline]);
+
+  // Fetch current ride details when activeRideId changes
+  useEffect(() => {
+    const fetchCurrentRide = async () => {
+      if (!activeRideId || !db) {
+        setCurrentRide(null);
+        return;
+      }
+
+      try {
+        const rideRef = doc(db, 'rideRequests', activeRideId);
+        const rideSnap = await getDoc(rideRef);
+        
+        if (rideSnap.exists()) {
+          const rideData = rideSnap.data();
+          setCurrentRide({
+            id: activeRideId,
+            ...rideData,
+            dropoff: rideData.dropoff || rideData.destination
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error fetching current ride:', error);
+        setCurrentRide(null);
+      }
+    };
+
+    fetchCurrentRide();
+  }, [activeRideId]);
 
   // Location tracking functions
   const startLocationUpdates = async () => {
@@ -832,14 +1039,23 @@ const HomeScreen = () => {
 
   // Handle bid submission modal close
   const handleBidSubmissionModalClose = () => {
-    // console.log('🚪 DRIVER DEBUG: handleBidSubmissionModalClose called');
-    // console.log('🚪 DRIVER DEBUG: Current modal state before close:', showBidSubmissionModal);
-    
     // Add current ride request to ignored list to prevent reopening
     if (rideRequest?.id) {
-      ignoredRideRequestIds.current.add(rideRequest.id);
-      // console.log('🚫 DRIVER DEBUG: Added ride request to ignored list:', rideRequest.id);
-      // console.log('🚫 DRIVER DEBUG: Ignored list now contains:', Array.from(ignoredRideRequestIds.current));
+      try {
+        // Ensure the Map is initialized and handle Set->Map migration
+        if (!ignoredRideRequestIds.current) {
+          ignoredRideRequestIds.current = new Map();
+        } else if (ignoredRideRequestIds.current instanceof Set) {
+          const oldSet = ignoredRideRequestIds.current;
+          ignoredRideRequestIds.current = new Map();
+          for (const id of oldSet) {
+            ignoredRideRequestIds.current.set(id, Date.now());
+          }
+        }
+        ignoredRideRequestIds.current.set(rideRequest.id, Date.now());
+      } catch (error) {
+        console.error('❌ ERROR in handleBidSubmissionModalClose:', error);
+      }
     }
     
     setShowBidSubmissionModal(false);
@@ -1031,8 +1247,17 @@ const HomeScreen = () => {
       
       // Add cancelled ride to ignored list
       if (cancellationData?.rideRequestId) {
-        ignoredRideRequestIds.current.add(cancellationData.rideRequestId);
-        // console.log('🚫 Added cancelled ride to ignored list:', cancellationData.rideRequestId);
+        // Ensure the Map is initialized and handle Set->Map migration
+        if (!ignoredRideRequestIds.current) {
+          ignoredRideRequestIds.current = new Map();
+        } else if (ignoredRideRequestIds.current instanceof Set) {
+          const oldSet = ignoredRideRequestIds.current;
+          ignoredRideRequestIds.current = new Map();
+          for (const id of oldSet) {
+            ignoredRideRequestIds.current.set(id, Date.now());
+          }
+        }
+        ignoredRideRequestIds.current.set(cancellationData.rideRequestId, Date.now());
       }
       
       // Navigate back to HomeScreen if we're on a different screen
@@ -1695,13 +1920,13 @@ const HomeScreen = () => {
               <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Analytics</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => setShowDriverToolsModal(true)}
             >
               <Ionicons name="construct" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Driver Tools</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('SustainabilityDashboard')}
@@ -1716,13 +1941,13 @@ const HomeScreen = () => {
               <Ionicons name="people" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Community</Text>
             </TouchableOpacity> */}
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => setShowSafetyModal(true)}
             >
               <Ionicons name="shield-checkmark" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Safety</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => setShowCommunicationModal(true)}
@@ -1758,13 +1983,13 @@ const HomeScreen = () => {
               <Ionicons name="star" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Gamification</Text>
             </TouchableOpacity> */}
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => setShowAccessibilityModal(true)}
             >
               <Ionicons name="accessibility" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Accessibility</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             {/* <TouchableOpacity 
               style={styles.actionCard}
               onPress={() => navigation.navigate('WellnessDashboard')}
@@ -1790,7 +2015,7 @@ const HomeScreen = () => {
             
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => setShowSettingsModal(true)}
+              onPress={() => navigation.navigate('Settings')}
             >
               <Ionicons name="settings" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Settings</Text>
@@ -1983,6 +2208,8 @@ const HomeScreen = () => {
           vehicleType: 'standard',
           driverId: user?.uid || user?.id
         }}
+        driverLocation={driverLocation}
+        currentRide={currentRide}
         onBidSubmitted={handleBidSubmitted}
         onBidAccepted={handleBidAccepted}
         onRideCancelled={handleRideCancelledDuringBidding}
@@ -2021,9 +2248,108 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Analytics Dashboard Coming Soon</Text>
-            </View>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Today's Performance */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.analyticsSectionTitle}>Today's Performance</Text>
+                <View style={styles.statsGrid}>
+                  <View style={styles.statCard}>
+                    <Ionicons name="car" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.statValue}>8</Text>
+                    <Text style={styles.statLabel}>Trips</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="cash" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.statValue}>$127</Text>
+                    <Text style={styles.statLabel}>Earnings</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="time" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.statValue}>5.2h</Text>
+                    <Text style={styles.statLabel}>Online</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="star" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.statValue}>4.9</Text>
+                    <Text style={styles.statLabel}>Rating</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Weekly Summary */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.analyticsSectionTitle}>This Week</Text>
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Trips</Text>
+                    <Text style={styles.summaryValue}>42 trips</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Earnings</Text>
+                    <Text style={styles.summaryValueHighlight}>$687.50</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Average Rating</Text>
+                    <View style={styles.ratingContainer}>
+                      <Ionicons name="star" size={16} color={COLORS.primary[500]} />
+                      <Text style={styles.summaryValue}> 4.85</Text>
+                    </View>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Acceptance Rate</Text>
+                    <Text style={styles.summaryValue}>89%</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Peak Hours */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.analyticsSectionTitle}>Your Best Hours</Text>
+                <View style={styles.peakHoursCard}>
+                  <View style={styles.peakHourRow}>
+                    <Text style={styles.peakHourTime}>7:00 AM - 9:00 AM</Text>
+                    <View style={styles.peakHourBar}>
+                      <View style={[styles.peakHourFill, { width: '85%' }]} />
+                    </View>
+                    <Text style={styles.peakHourEarnings}>$45</Text>
+                  </View>
+                  <View style={styles.peakHourRow}>
+                    <Text style={styles.peakHourTime}>12:00 PM - 2:00 PM</Text>
+                    <View style={styles.peakHourBar}>
+                      <View style={[styles.peakHourFill, { width: '70%' }]} />
+                    </View>
+                    <Text style={styles.peakHourEarnings}>$38</Text>
+                  </View>
+                  <View style={styles.peakHourRow}>
+                    <Text style={styles.peakHourTime}>5:00 PM - 7:00 PM</Text>
+                    <View style={styles.peakHourBar}>
+                      <View style={[styles.peakHourFill, { width: '95%' }]} />
+                    </View>
+                    <Text style={styles.peakHourEarnings}>$52</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Performance Insights */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.analyticsSectionTitle}>Insights</Text>
+                <View style={styles.insightCard}>
+                  <Ionicons name="trending-up" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.insightText}>Your earnings are up 15% from last week!</Text>
+                </View>
+                <View style={styles.insightCard}>
+                  <Ionicons name="timer" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.insightText}>Peak earning time: 5-7 PM on weekdays</Text>
+                </View>
+                <View style={styles.insightCard}>
+                  <Ionicons name="trophy" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.insightText}>You're in the top 20% of drivers this month!</Text>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2112,7 +2438,37 @@ const HomeScreen = () => {
               </TouchableOpacity>
             </View>
             <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Communication Dashboard Coming Soon</Text>
+              <View style={styles.constructionContainer}>
+                <View style={styles.constructionIconContainer}>
+                  <Ionicons name="construct" size={64} color={COLORS.primary[500]} />
+                </View>
+                <Text style={styles.constructionTitle}>Coming Soon</Text>
+                <Text style={styles.constructionSubtitle}>We're working on something amazing!</Text>
+                <View style={styles.constructionFeaturesList}>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="chatbubbles" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>In-app messaging with passengers</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="notifications" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Customizable notifications</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="call" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Quick call options</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="mail" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Message templates</Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.constructionButton}
+                  onPress={() => Alert.alert('Thank You!', 'We\'ll notify you when this feature is ready.')}
+                >
+                  <Text style={styles.constructionButtonText}>Notify Me When Ready</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -2141,9 +2497,124 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Vehicle Dashboard Coming Soon</Text>
-            </View>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Current Vehicle */}
+              <View style={styles.vehicleCard}>
+                <View style={styles.vehicleHeader}>
+                  <Ionicons name="car-sport" size={32} color={COLORS.primary[500]} />
+                  <View style={styles.vehicleInfo}>
+                    <Text style={styles.vehicleName}>2024 Toyota Camry</Text>
+                    <Text style={styles.vehiclePlate}>ABC-1234</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => Alert.alert('Edit Vehicle', 'Vehicle editing feature coming soon!')}
+                  >
+                    <Ionicons name="pencil" size={20} color={COLORS.primary[500]} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.vehicleDetails}>
+                  <View style={styles.vehicleDetailRow}>
+                    <Text style={styles.vehicleDetailLabel}>Color</Text>
+                    <Text style={styles.vehicleDetailValue}>Silver</Text>
+                  </View>
+                  <View style={styles.vehicleDetailRow}>
+                    <Text style={styles.vehicleDetailLabel}>Year</Text>
+                    <Text style={styles.vehicleDetailValue}>2024</Text>
+                  </View>
+                  <View style={styles.vehicleDetailRow}>
+                    <Text style={styles.vehicleDetailLabel}>Seats</Text>
+                    <Text style={styles.vehicleDetailValue}>5</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Maintenance Reminders */}
+              <View style={styles.vehicleSection}>
+                <Text style={styles.vehicleSectionTitle}>Maintenance Reminders</Text>
+                <View style={styles.maintenanceCard}>
+                  <View style={styles.maintenanceItem}>
+                    <Ionicons name="warning" size={20} color={COLORS.warning[500]} />
+                    <View style={styles.maintenanceInfo}>
+                      <Text style={styles.maintenanceTitle}>Oil Change Due Soon</Text>
+                      <Text style={styles.maintenanceSubtitle}>Next: 45,500 miles (in 250 miles)</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                  </View>
+                  <View style={styles.maintenanceDivider} />
+                  <View style={styles.maintenanceItem}>
+                    <Ionicons name="checkmark-circle" size={20} color={COLORS.success[500]} />
+                    <View style={styles.maintenanceInfo}>
+                      <Text style={styles.maintenanceTitle}>Tire Rotation</Text>
+                      <Text style={styles.maintenanceSubtitle}>Completed 2 weeks ago</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Documents Status */}
+              <View style={styles.vehicleSection}>
+                <Text style={styles.vehicleSectionTitle}>Documents</Text>
+                <View style={styles.documentsCard}>
+                  <View style={styles.documentItem}>
+                    <View style={styles.documentLeft}>
+                      <Ionicons name="document-text" size={20} color={COLORS.primary[500]} />
+                      <View style={styles.documentInfo}>
+                        <Text style={styles.documentTitle}>Insurance</Text>
+                        <Text style={styles.documentExpiry}>Expires: Dec 15, 2025</Text>
+                      </View>
+                    </View>
+                    <View style={styles.documentStatusBadge}>
+                      <Text style={styles.documentStatusText}>Valid</Text>
+                    </View>
+                  </View>
+                  <View style={styles.documentDivider} />
+                  <View style={styles.documentItem}>
+                    <View style={styles.documentLeft}>
+                      <Ionicons name="document-text" size={20} color={COLORS.primary[500]} />
+                      <View style={styles.documentInfo}>
+                        <Text style={styles.documentTitle}>Registration</Text>
+                        <Text style={styles.documentExpiry}>Expires: Jun 30, 2026</Text>
+                      </View>
+                    </View>
+                    <View style={styles.documentStatusBadge}>
+                      <Text style={styles.documentStatusText}>Valid</Text>
+                    </View>
+                  </View>
+                  <View style={styles.documentDivider} />
+                  <View style={styles.documentItem}>
+                    <View style={styles.documentLeft}>
+                      <Ionicons name="document-text" size={20} color={COLORS.primary[500]} />
+                      <View style={styles.documentInfo}>
+                        <Text style={styles.documentTitle}>Inspection</Text>
+                        <Text style={styles.documentExpiry}>Expires: Mar 1, 2026</Text>
+                      </View>
+                    </View>
+                    <View style={styles.documentStatusBadge}>
+                      <Text style={styles.documentStatusText}>Valid</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Quick Stats */}
+              <View style={styles.vehicleSection}>
+                <Text style={styles.vehicleSectionTitle}>This Month</Text>
+                <View style={styles.vehicleStatsGrid}>
+                  <View style={styles.vehicleStatCard}>
+                    <Ionicons name="speedometer" size={24} color={COLORS.primary[500]} />
+                    <Text style={styles.vehicleStatValue}>1,247</Text>
+                    <Text style={styles.vehicleStatLabel}>Miles</Text>
+                  </View>
+                  <View style={styles.vehicleStatCard}>
+                    <Ionicons name="water" size={24} color={COLORS.primary[500]} />
+                    <Text style={styles.vehicleStatValue}>42</Text>
+                    <Text style={styles.vehicleStatLabel}>Gallons</Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2163,7 +2634,7 @@ const HomeScreen = () => {
           />
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Payment</Text>
+              <Text style={styles.modalTitle}>Payment Methods</Text>
               <TouchableOpacity 
                 onPress={() => setShowPaymentModal(false)}
                 style={styles.modalCloseButton}
@@ -2171,9 +2642,114 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Payment Dashboard Coming Soon</Text>
-            </View>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Current Payment Method */}
+              <View style={styles.paymentSection}>
+                <Text style={styles.paymentSectionTitle}>Current Payout Method</Text>
+                <View style={styles.paymentMethodCard}>
+                  <View style={styles.paymentMethodHeader}>
+                    <Ionicons name="card" size={24} color={COLORS.primary[500]} />
+                    <View style={styles.paymentMethodInfo}>
+                      <Text style={styles.paymentMethodTitle}>Bank Account</Text>
+                      <Text style={styles.paymentMethodSubtitle}>****1234</Text>
+                    </View>
+                    <View style={styles.paymentDefaultBadge}>
+                      <Text style={styles.paymentDefaultText}>Default</Text>
+                    </View>
+                  </View>
+                  <View style={styles.paymentMethodDetails}>
+                    <Text style={styles.paymentMethodDetail}>Chase Bank</Text>
+                    <Text style={styles.paymentMethodDetail}>Checking Account</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Payout Schedule */}
+              <View style={styles.paymentSection}>
+                <Text style={styles.paymentSectionTitle}>Payout Schedule</Text>
+                <View style={styles.payoutScheduleCard}>
+                  <View style={styles.payoutScheduleRow}>
+                    <Text style={styles.payoutScheduleLabel}>Frequency</Text>
+                    <Text style={styles.payoutScheduleValue}>Weekly</Text>
+                  </View>
+                  <View style={styles.paymentDivider} />
+                  <View style={styles.payoutScheduleRow}>
+                    <Text style={styles.payoutScheduleLabel}>Next Payout</Text>
+                    <Text style={styles.payoutScheduleValue}>Friday, Oct 18</Text>
+                  </View>
+                  <View style={styles.paymentDivider} />
+                  <View style={styles.payoutScheduleRow}>
+                    <Text style={styles.payoutScheduleLabel}>Amount</Text>
+                    <Text style={styles.payoutScheduleValueHighlight}>$687.50</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Recent Transactions */}
+              <View style={styles.paymentSection}>
+                <Text style={styles.paymentSectionTitle}>Recent Transactions</Text>
+                <View style={styles.transactionsList}>
+                  <View style={styles.transactionItem}>
+                    <View style={styles.transactionLeft}>
+                      <View style={styles.transactionIconContainer}>
+                        <Ionicons name="arrow-down" size={16} color={COLORS.success[500]} />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionTitle}>Weekly Payout</Text>
+                        <Text style={styles.transactionDate}>Oct 11, 2025</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.transactionAmount}>+$645.00</Text>
+                  </View>
+                  <View style={styles.transactionDivider} />
+                  <View style={styles.transactionItem}>
+                    <View style={styles.transactionLeft}>
+                      <View style={styles.transactionIconContainer}>
+                        <Ionicons name="arrow-down" size={16} color={COLORS.success[500]} />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionTitle}>Weekly Payout</Text>
+                        <Text style={styles.transactionDate}>Oct 4, 2025</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.transactionAmount}>+$578.50</Text>
+                  </View>
+                  <View style={styles.transactionDivider} />
+                  <View style={styles.transactionItem}>
+                    <View style={styles.transactionLeft}>
+                      <View style={styles.transactionIconContainer}>
+                        <Ionicons name="arrow-down" size={16} color={COLORS.success[500]} />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionTitle}>Weekly Payout</Text>
+                        <Text style={styles.transactionDate}>Sep 27, 2025</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.transactionAmount}>+$612.75</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Payment Actions */}
+              <View style={styles.paymentSection}>
+                <TouchableOpacity 
+                  style={styles.paymentActionButton}
+                  onPress={() => Alert.alert('Add Payment Method', 'Feature coming soon!')}
+                >
+                  <Ionicons name="add-circle" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.paymentActionText}>Add Payment Method</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.paymentActionButton}
+                  onPress={() => Alert.alert('Change Payout Schedule', 'Feature coming soon!')}
+                >
+                  <Ionicons name="calendar" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.paymentActionText}>Change Payout Schedule</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2202,7 +2778,37 @@ const HomeScreen = () => {
               </TouchableOpacity>
             </View>
             <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>AI Pricing Dashboard Coming Soon</Text>
+              <View style={styles.constructionContainer}>
+                <View style={styles.constructionIconContainer}>
+                  <Ionicons name="analytics" size={64} color={COLORS.primary[500]} />
+                </View>
+                <Text style={styles.constructionTitle}>Coming Soon</Text>
+                <Text style={styles.constructionSubtitle}>Advanced AI-powered pricing insights</Text>
+                <View style={styles.constructionFeaturesList}>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="trending-up" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Real-time demand predictions</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="flash" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Surge pricing alerts</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="location" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Optimal zone recommendations</Text>
+                  </View>
+                  <View style={styles.constructionFeatureItem}>
+                    <Ionicons name="stats-chart" size={20} color={COLORS.primary[500]} />
+                    <Text style={styles.constructionFeatureText}>Earnings optimization tips</Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.constructionButton}
+                  onPress={() => Alert.alert('Beta Access', 'Sign up for early beta access when this feature launches!')}
+                >
+                  <Text style={styles.constructionButtonText}>Join Beta Waitlist</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -2261,9 +2867,118 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Earnings Dashboard Coming Soon</Text>
-            </View>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Today's Earnings Highlight */}
+              <View style={styles.earningsHighlight}>
+                <Text style={styles.earningsHighlightLabel}>Today's Earnings</Text>
+                <Text style={styles.earningsHighlightValue}>$127.50</Text>
+                <View style={styles.earningsTrendContainer}>
+                  <Ionicons name="trending-up" size={16} color={COLORS.success[500]} />
+                  <Text style={styles.earningsTrendText}>+12% from yesterday</Text>
+                </View>
+              </View>
+
+              {/* Quick Stats */}
+              <View style={styles.earningsSection}>
+                <View style={styles.earningsStatsRow}>
+                  <View style={styles.earningsStatItem}>
+                    <Text style={styles.earningsStatLabel}>This Week</Text>
+                    <Text style={styles.earningsStatValue}>$687.50</Text>
+                  </View>
+                  <View style={styles.earningsStatItem}>
+                    <Text style={styles.earningsStatLabel}>This Month</Text>
+                    <Text style={styles.earningsStatValue}>$2,845.00</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Earnings Breakdown */}
+              <View style={styles.earningsSection}>
+                <Text style={styles.earningsSectionTitle}>Today's Breakdown</Text>
+                <View style={styles.earningsBreakdownCard}>
+                  <View style={styles.earningsBreakdownRow}>
+                    <Text style={styles.earningsBreakdownLabel}>Trip Fares</Text>
+                    <Text style={styles.earningsBreakdownValue}>$98.50</Text>
+                  </View>
+                  <View style={styles.earningsBreakdownRow}>
+                    <Text style={styles.earningsBreakdownLabel}>Tips</Text>
+                    <Text style={styles.earningsBreakdownValue}>$18.00</Text>
+                  </View>
+                  <View style={styles.earningsBreakdownRow}>
+                    <Text style={styles.earningsBreakdownLabel}>Bonuses</Text>
+                    <Text style={styles.earningsBreakdownValue}>$11.00</Text>
+                  </View>
+                  <View style={styles.earningsDivider} />
+                  <View style={styles.earningsBreakdownRow}>
+                    <Text style={styles.earningsBreakdownLabelBold}>Total</Text>
+                    <Text style={styles.earningsBreakdownValueBold}>$127.50</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Next Payout */}
+              <View style={styles.earningsSection}>
+                <Text style={styles.earningsSectionTitle}>Next Payout</Text>
+                <View style={styles.payoutCard}>
+                  <View style={styles.payoutRow}>
+                    <View style={styles.payoutInfo}>
+                      <Text style={styles.payoutAmount}>$687.50</Text>
+                      <Text style={styles.payoutDate}>Scheduled for Friday, Oct 18</Text>
+                    </View>
+                    <Ionicons name="calendar" size={24} color={COLORS.primary[500]} />
+                  </View>
+                  <View style={styles.payoutProgress}>
+                    <View style={styles.payoutProgressBar}>
+                      <View style={[styles.payoutProgressFill, { width: '65%' }]} />
+                    </View>
+                    <Text style={styles.payoutProgressText}>2 days remaining</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Recent Payouts */}
+              <View style={styles.earningsSection}>
+                <Text style={styles.earningsSectionTitle}>Recent Payouts</Text>
+                <View style={styles.payoutHistoryCard}>
+                  <View style={styles.payoutHistoryItem}>
+                    <View style={styles.payoutHistoryLeft}>
+                      <Text style={styles.payoutHistoryDate}>Oct 11, 2025</Text>
+                      <Text style={styles.payoutHistoryMethod}>Direct Deposit</Text>
+                    </View>
+                    <Text style={styles.payoutHistoryAmount}>$645.00</Text>
+                  </View>
+                  <View style={styles.earningsDivider} />
+                  <View style={styles.payoutHistoryItem}>
+                    <View style={styles.payoutHistoryLeft}>
+                      <Text style={styles.payoutHistoryDate}>Oct 4, 2025</Text>
+                      <Text style={styles.payoutHistoryMethod}>Direct Deposit</Text>
+                    </View>
+                    <Text style={styles.payoutHistoryAmount}>$578.50</Text>
+                  </View>
+                  <View style={styles.earningsDivider} />
+                  <View style={styles.payoutHistoryItem}>
+                    <View style={styles.payoutHistoryLeft}>
+                      <Text style={styles.payoutHistoryDate}>Sep 27, 2025</Text>
+                      <Text style={styles.payoutHistoryMethod}>Direct Deposit</Text>
+                    </View>
+                    <Text style={styles.payoutHistoryAmount}>$612.75</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Earnings Tips */}
+              <View style={styles.earningsSection}>
+                <Text style={styles.earningsSectionTitle}>Boost Your Earnings</Text>
+                <View style={styles.earningsTipCard}>
+                  <Ionicons name="bulb" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.earningsTipText}>Drive during peak hours (5-7 PM) to earn more!</Text>
+                </View>
+                <View style={styles.earningsTipCard}>
+                  <Ionicons name="trophy" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.earningsTipText}>Complete 10 more trips this week to unlock a $20 bonus</Text>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2291,39 +3006,168 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Trip History Dashboard Coming Soon</Text>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Summary Stats */}
+              <View style={styles.tripHistoryStats}>
+                <View style={styles.tripHistoryStatItem}>
+                  <Text style={styles.tripHistoryStatValue}>42</Text>
+                  <Text style={styles.tripHistoryStatLabel}>This Week</Text>
+                </View>
+                <View style={styles.tripHistoryStatDivider} />
+                <View style={styles.tripHistoryStatItem}>
+                  <Text style={styles.tripHistoryStatValue}>187</Text>
+                  <Text style={styles.tripHistoryStatLabel}>This Month</Text>
+                </View>
+                <View style={styles.tripHistoryStatDivider} />
+                <View style={styles.tripHistoryStatItem}>
+                  <Text style={styles.tripHistoryStatValue}>1,245</Text>
+                  <Text style={styles.tripHistoryStatLabel}>All Time</Text>
+                </View>
+              </View>
 
-      {/* Settings Modal */}
-      <Modal
-        visible={showSettingsModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowSettingsModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity 
-            style={styles.modalBackdropTouchable}
-            activeOpacity={1}
-            onPress={() => setShowSettingsModal(false)}
-          />
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Settings</Text>
-              <TouchableOpacity 
-                onPress={() => setShowSettingsModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Settings Dashboard Coming Soon</Text>
-            </View>
+              {/* Recent Trips */}
+              <View style={styles.tripSection}>
+                <Text style={styles.tripSectionTitle}>Recent Trips</Text>
+                
+                {/* Trip 1 */}
+                <View style={styles.tripCard}>
+                  <View style={styles.tripHeader}>
+                    <View style={styles.tripHeaderLeft}>
+                      <Text style={styles.tripDate}>Today, 3:45 PM</Text>
+                      <View style={styles.tripBadge}>
+                        <Text style={styles.tripBadgeText}>Completed</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.tripEarnings}>$18.50</Text>
+                  </View>
+                  <View style={styles.tripRoute}>
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.primary[500]} />
+                      <Text style={styles.tripLocation}>123 Main St, Downtown</Text>
+                    </View>
+                    <View style={styles.tripRouteLine} />
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.error[500]} />
+                      <Text style={styles.tripLocation}>456 Oak Ave, Uptown</Text>
+                    </View>
+                  </View>
+                  <View style={styles.tripFooter}>
+                    <Text style={styles.tripDistance}>5.2 miles • 18 min</Text>
+                    <View style={styles.tripRating}>
+                      <Ionicons name="star" size={14} color={COLORS.primary[500]} />
+                      <Text style={styles.tripRatingText}>5.0</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Trip 2 */}
+                <View style={styles.tripCard}>
+                  <View style={styles.tripHeader}>
+                    <View style={styles.tripHeaderLeft}>
+                      <Text style={styles.tripDate}>Today, 2:15 PM</Text>
+                      <View style={styles.tripBadge}>
+                        <Text style={styles.tripBadgeText}>Completed</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.tripEarnings}>$12.75</Text>
+                  </View>
+                  <View style={styles.tripRoute}>
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.primary[500]} />
+                      <Text style={styles.tripLocation}>789 Pine Rd, Midtown</Text>
+                    </View>
+                    <View style={styles.tripRouteLine} />
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.error[500]} />
+                      <Text style={styles.tripLocation}>321 Elm St, West End</Text>
+                    </View>
+                  </View>
+                  <View style={styles.tripFooter}>
+                    <Text style={styles.tripDistance}>3.8 miles • 12 min</Text>
+                    <View style={styles.tripRating}>
+                      <Ionicons name="star" size={14} color={COLORS.primary[500]} />
+                      <Text style={styles.tripRatingText}>4.8</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Trip 3 */}
+                <View style={styles.tripCard}>
+                  <View style={styles.tripHeader}>
+                    <View style={styles.tripHeaderLeft}>
+                      <Text style={styles.tripDate}>Today, 11:30 AM</Text>
+                      <View style={styles.tripBadge}>
+                        <Text style={styles.tripBadgeText}>Completed</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.tripEarnings}>$24.00</Text>
+                  </View>
+                  <View style={styles.tripRoute}>
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.primary[500]} />
+                      <Text style={styles.tripLocation}>555 Airport Rd</Text>
+                    </View>
+                    <View style={styles.tripRouteLine} />
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.error[500]} />
+                      <Text style={styles.tripLocation}>Downtown Hotel</Text>
+                    </View>
+                  </View>
+                  <View style={styles.tripFooter}>
+                    <Text style={styles.tripDistance}>8.5 miles • 22 min</Text>
+                    <View style={styles.tripRating}>
+                      <Ionicons name="star" size={14} color={COLORS.primary[500]} />
+                      <Text style={styles.tripRatingText}>5.0</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Yesterday's Trips */}
+                <Text style={[styles.tripSectionTitle, { marginTop: 16 }]}>Yesterday</Text>
+                
+                {/* Trip 4 */}
+                <View style={styles.tripCard}>
+                  <View style={styles.tripHeader}>
+                    <View style={styles.tripHeaderLeft}>
+                      <Text style={styles.tripDate}>Oct 13, 6:20 PM</Text>
+                      <View style={styles.tripBadge}>
+                        <Text style={styles.tripBadgeText}>Completed</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.tripEarnings}>$16.25</Text>
+                  </View>
+                  <View style={styles.tripRoute}>
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.primary[500]} />
+                      <Text style={styles.tripLocation}>234 Market St</Text>
+                    </View>
+                    <View style={styles.tripRouteLine} />
+                    <View style={styles.tripRouteRow}>
+                      <Ionicons name="location" size={16} color={COLORS.error[500]} />
+                      <Text style={styles.tripLocation}>890 Broadway Ave</Text>
+                    </View>
+                  </View>
+                  <View style={styles.tripFooter}>
+                    <Text style={styles.tripDistance}>4.3 miles • 15 min</Text>
+                    <View style={styles.tripRating}>
+                      <Ionicons name="star" size={14} color={COLORS.primary[500]} />
+                      <Text style={styles.tripRatingText}>4.9</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* View All Button */}
+                <TouchableOpacity 
+                  style={styles.viewAllButton}
+                  onPress={() => {
+                    Alert.alert('Full History', 'Complete trip history feature coming soon!');
+                  }}
+                >
+                  <Text style={styles.viewAllButtonText}>View All Trips</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.primary[500]} />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2351,9 +3195,160 @@ const HomeScreen = () => {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalPlaceholderText}>Support Dashboard Coming Soon</Text>
-            </View>
+            <ScrollView style={styles.scrollableModalContent}>
+              {/* Emergency Section */}
+              <View style={styles.supportSection}>
+                <Text style={styles.supportSectionTitle}>Emergency</Text>
+                <TouchableOpacity 
+                  style={[styles.supportButton, styles.emergencyButton]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Call Emergency Services',
+                      'This will dial 911. Continue?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Call', 
+                          onPress: () => Linking.openURL('tel:911'),
+                          style: 'destructive'
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="alert-circle" size={24} color={COLORS.white} />
+                  <View style={styles.supportButtonTextContainer}>
+                    <Text style={styles.supportButtonTitle}>Emergency Services</Text>
+                    <Text style={styles.supportButtonSubtitle}>Call 911</Text>
+                  </View>
+                  <Ionicons name="call" size={20} color={COLORS.white} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Company Support Section */}
+              <View style={styles.supportSection}>
+                <Text style={styles.supportSectionTitle}>Company Support</Text>
+                <TouchableOpacity 
+                  style={styles.supportButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Call Support',
+                      'This will dial our support line. Continue?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Call', 
+                          onPress: () => Linking.openURL('tel:8005555555')
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="headset" size={24} color={COLORS.primary[500]} />
+                  <View style={styles.supportButtonTextContainer}>
+                    <Text style={styles.supportButtonTitleDark}>24/7 Helpline</Text>
+                    <Text style={styles.supportButtonSubtitleDark}>1-800-555-5555</Text>
+                  </View>
+                  <Ionicons name="call" size={20} color={COLORS.primary[500]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Help Section */}
+              <View style={styles.supportSection}>
+                <Text style={styles.supportSectionTitle}>Quick Help</Text>
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Passenger Issues', 'Feature coming soon. Contact support at 1-800-555-5555 for immediate assistance.');
+                  }}
+                >
+                  <Ionicons name="person" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Passenger Issues</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Payment Problems', 'Feature coming soon. Contact support at 1-800-555-5555 for immediate assistance.');
+                  }}
+                >
+                  <Ionicons name="card" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Payment Problems</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Vehicle Issues', 'Feature coming soon. Contact support at 1-800-555-5555 for immediate assistance.');
+                  }}
+                >
+                  <Ionicons name="car" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Vehicle Issues</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('App Technical Issues', 'Feature coming soon. Contact support at 1-800-555-5555 for immediate assistance.');
+                  }}
+                >
+                  <Ionicons name="bug" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>App Technical Issues</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Accident/Incident Report', 'Feature coming soon. For emergencies, please call 911. For non-emergencies, contact support at 1-800-555-5555.');
+                  }}
+                >
+                  <Ionicons name="warning" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Accident/Incident Report</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Additional Resources */}
+              <View style={styles.supportSection}>
+                <Text style={styles.supportSectionTitle}>Resources</Text>
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('FAQ', 'Feature coming soon. Visit our website or contact support for answers to common questions.');
+                  }}
+                >
+                  <Ionicons name="help-circle" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>FAQ</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Driver Guide', 'Feature coming soon. Check back later for helpful driving tips and best practices.');
+                  }}
+                >
+                  <Ionicons name="book" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Driver Guide</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.supportItemButton}
+                  onPress={() => {
+                    Alert.alert('Send Feedback', 'Feature coming soon. We value your input! Contact support to share your thoughts.');
+                  }}
+                >
+                  <Ionicons name="chatbox" size={20} color={COLORS.primary[500]} />
+                  <Text style={styles.supportItemText}>Send Feedback</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2425,7 +3420,6 @@ const HomeScreen = () => {
                 );
               }}
               onRideDeclined={(request) => {
-                console.log('Ride declined:', request);
                 checkScheduledRideStatus(); // Refresh status
               }}
             />
@@ -2951,7 +3945,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalContainer: {
-    flex: 1,
     backgroundColor: 'white',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -3029,10 +4022,996 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  scrollableModalContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
   modalPlaceholderText: {
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  // Support Modal Styles
+  supportSection: {
+    marginBottom: 24,
+  },
+  supportSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  supportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  emergencyButton: {
+    backgroundColor: COLORS.error[500],
+    borderColor: COLORS.error[600],
+  },
+  supportButtonTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  supportButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
+    marginBottom: 2,
+  },
+  supportButtonSubtitle: {
+    fontSize: 14,
+    color: COLORS.white,
+    opacity: 0.9,
+  },
+  supportButtonTitleDark: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  supportButtonSubtitleDark: {
+    fontSize: 14,
+    color: COLORS.secondary[600],
+  },
+  supportItemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+  },
+  supportItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.secondary[900],
+    marginLeft: 12,
+  },
+  // Analytics Modal Styles
+  analyticsSection: {
+    marginBottom: 24,
+  },
+  analyticsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginHorizontal: -3,
+  },
+  statCard: {
+    width: '48%',
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 3,
+    marginBottom: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginTop: 6,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: COLORS.secondary[600],
+    marginTop: 3,
+  },
+  summaryCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  summaryLabel: {
+    fontSize: 15,
+    color: COLORS.secondary[600],
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+  },
+  summaryValueHighlight: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary[500],
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 4,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  peakHoursCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  peakHourRow: {
+    marginBottom: 16,
+  },
+  peakHourTime: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 6,
+  },
+  peakHourBar: {
+    height: 8,
+    backgroundColor: COLORS.gray[200],
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  peakHourFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary[500],
+    borderRadius: 4,
+  },
+  peakHourEarnings: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+    textAlign: 'right',
+  },
+  insightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary[100],
+  },
+  insightText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.secondary[900],
+    marginLeft: 12,
+  },
+  // Earnings Modal Styles
+  earningsHighlight: {
+    backgroundColor: COLORS.primary[500],
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  earningsHighlightLabel: {
+    fontSize: 14,
+    color: COLORS.white,
+    opacity: 0.9,
+    marginBottom: 8,
+  },
+  earningsHighlightValue: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: COLORS.white,
+    marginBottom: 8,
+  },
+  earningsTrendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  earningsTrendText: {
+    fontSize: 14,
+    color: COLORS.white,
+    marginLeft: 4,
+  },
+  earningsSection: {
+    marginBottom: 24,
+  },
+  earningsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  earningsStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  earningsStatItem: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  earningsStatLabel: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+    marginBottom: 6,
+  },
+  earningsStatValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+  },
+  earningsBreakdownCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  earningsBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  earningsBreakdownLabel: {
+    fontSize: 15,
+    color: COLORS.secondary[600],
+  },
+  earningsBreakdownValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+  },
+  earningsBreakdownLabelBold: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+  },
+  earningsBreakdownValueBold: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary[500],
+  },
+  earningsDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 8,
+  },
+  payoutCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  payoutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  payoutInfo: {
+    flex: 1,
+  },
+  payoutAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  payoutDate: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  payoutProgress: {
+    marginTop: 8,
+  },
+  payoutProgressBar: {
+    height: 8,
+    backgroundColor: COLORS.gray[200],
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  payoutProgressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary[500],
+  },
+  payoutProgressText: {
+    fontSize: 12,
+    color: COLORS.secondary[600],
+    textAlign: 'right',
+  },
+  payoutHistoryCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  payoutHistoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  payoutHistoryLeft: {
+    flex: 1,
+  },
+  payoutHistoryDate: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  payoutHistoryMethod: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  payoutHistoryAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+  },
+  earningsTipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary[100],
+  },
+  earningsTipText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.secondary[900],
+    marginLeft: 12,
+  },
+  // Trip History Modal Styles
+  tripHistoryStats: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tripHistoryStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  tripHistoryStatValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  tripHistoryStatLabel: {
+    fontSize: 12,
+    color: COLORS.secondary[600],
+  },
+  tripHistoryStatDivider: {
+    width: 1,
+    backgroundColor: COLORS.gray[200],
+    marginHorizontal: 8,
+  },
+  tripSection: {
+    marginBottom: 24,
+  },
+  tripSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  tripCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  tripHeaderLeft: {
+    flex: 1,
+  },
+  tripDate: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+    marginBottom: 6,
+  },
+  tripBadge: {
+    backgroundColor: COLORS.success[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  tripBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.success[700],
+  },
+  tripEarnings: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.primary[500],
+  },
+  tripRoute: {
+    marginBottom: 12,
+  },
+  tripRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  tripRouteLine: {
+    width: 2,
+    height: 20,
+    backgroundColor: COLORS.gray[300],
+    marginLeft: 7,
+    marginVertical: 4,
+  },
+  tripLocation: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.secondary[900],
+    marginLeft: 8,
+  },
+  tripFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray[200],
+  },
+  tripDistance: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  tripRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tripRatingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginLeft: 4,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary[500],
+  },
+  viewAllButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary[500],
+    marginRight: 4,
+  },
+  // Vehicle Modal Styles
+  vehicleCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray[200],
+  },
+  vehicleInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  vehicleName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 4,
+  },
+  vehiclePlate: {
+    fontSize: 14,
+    color: COLORS.secondary[600],
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary[50],
+  },
+  vehicleDetails: {
+    gap: 12,
+  },
+  vehicleDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  vehicleDetailLabel: {
+    fontSize: 14,
+    color: COLORS.secondary[600],
+  },
+  vehicleDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+  },
+  vehicleSection: {
+    marginBottom: 24,
+  },
+  vehicleSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  maintenanceCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  maintenanceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  maintenanceInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  maintenanceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  maintenanceSubtitle: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  maintenanceDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 8,
+  },
+  documentsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  documentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  documentInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  documentTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  documentExpiry: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  documentStatusBadge: {
+    backgroundColor: COLORS.success[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  documentStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.success[700],
+  },
+  documentDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 8,
+  },
+  vehicleStatsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  vehicleStatCard: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  vehicleStatValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginTop: 8,
+  },
+  vehicleStatLabel: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+    marginTop: 4,
+  },
+  // Payment Modal Styles
+  paymentSection: {
+    marginBottom: 24,
+  },
+  paymentSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 12,
+  },
+  paymentMethodCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  paymentMethodHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  paymentMethodInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  paymentMethodTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  paymentMethodSubtitle: {
+    fontSize: 14,
+    color: COLORS.secondary[600],
+  },
+  paymentDefaultBadge: {
+    backgroundColor: COLORS.primary[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  paymentDefaultText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary[500],
+  },
+  paymentMethodDetails: {
+    paddingLeft: 36,
+  },
+  paymentMethodDetail: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+    marginBottom: 4,
+  },
+  payoutScheduleCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  payoutScheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  payoutScheduleLabel: {
+    fontSize: 15,
+    color: COLORS.secondary[600],
+  },
+  payoutScheduleValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+  },
+  payoutScheduleValueHighlight: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.primary[500],
+  },
+  paymentDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 4,
+  },
+  transactionsList: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  transactionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.success[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transactionInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  transactionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.secondary[900],
+    marginBottom: 2,
+  },
+  transactionDate: {
+    fontSize: 13,
+    color: COLORS.secondary[600],
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.success[600],
+  },
+  transactionDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginVertical: 8,
+  },
+  paymentActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+  },
+  paymentActionText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.secondary[900],
+    marginLeft: 12,
+  },
+  // Under Construction Styles
+  constructionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  constructionIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: COLORS.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  constructionTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.secondary[900],
+    marginBottom: 8,
+  },
+  constructionSubtitle: {
+    fontSize: 16,
+    color: COLORS.secondary[600],
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  constructionFeaturesList: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  constructionFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.gray[50],
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  constructionFeatureText: {
+    fontSize: 15,
+    color: COLORS.secondary[900],
+    marginLeft: 12,
+  },
+  constructionButton: {
+    backgroundColor: COLORS.primary[500],
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  constructionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
   },
   fixedFooter: {
     position: 'absolute',

@@ -2,6 +2,7 @@
 let auth, db, doc, onSnapshot, collection, query, where, orderBy, firestoreLimit;
 let playAchievementSound, playNotificationSound, playBidAcceptedSound, playRideCompletedSound, playRideCancelledSound;
 let Haptics, Notifications;
+let speechService;
 
 try {
   const firebaseConfig = require('./firebase/config');
@@ -67,6 +68,21 @@ try {
   console.warn('⚠️ expo-notifications not available:', e.message);
   Notifications = {
     scheduleNotificationAsync: () => Promise.resolve()
+  };
+}
+
+try {
+  const speechServiceModule = require('./speechService');
+  speechService = speechServiceModule.speechService;
+} catch (e) {
+  console.warn('⚠️ Speech service not available:', e.message);
+  speechService = {
+    speakNewRideRequest: () => Promise.resolve(),
+    speakBidAccepted: () => Promise.resolve(),
+    speakBidRejected: () => Promise.resolve(),
+    speakRideCancelled: () => Promise.resolve(),
+    speakRideCompleted: () => Promise.resolve(),
+    speakBiddingExpired: () => Promise.resolve(),
   };
 }
 
@@ -150,6 +166,11 @@ class DriverBidNotificationService {
       const unsubscribe = onSnapshot(rideRequestRef, (docSnapshot) => {
         if (docSnapshot.exists()) {
           const rideData = docSnapshot.data();
+          console.log(`🔔 Ride ${rideRequestId} update received:`, {
+            exists: true,
+            status: rideData.status,
+            cancelledBy: rideData.cancelledBy || rideData.canceledBy
+          });
           this.handleRideRequestUpdate(rideRequestId, rideData, driverId, bidAmount, {
             onBidAccepted,
             onRideCancelled,
@@ -157,6 +178,7 @@ class DriverBidNotificationService {
           });
         } else {
           // Document deleted - ride was likely cancelled
+          console.log(`🔔 Ride ${rideRequestId} update received: Document deleted`);
           this.handleRideCancellation(rideRequestId, onRideCancelled);
         }
       }, (error) => {
@@ -166,7 +188,7 @@ class DriverBidNotificationService {
       // Store the listener for cleanup
       this.activeListeners.set(rideRequestId, unsubscribe);
       
-      // console.log(`🎧 Started listening for bid acceptance on ride ${rideRequestId}`);
+      console.log(`🎧 Started listening for bid acceptance on ride ${rideRequestId}`);
       return unsubscribe;
 
     } catch (error) {
@@ -186,19 +208,20 @@ class DriverBidNotificationService {
   handleRideRequestUpdate(rideRequestId, rideData, driverId, bidAmount, callbacks) {
     const { onBidAccepted, onRideCancelled, onBiddingExpired } = callbacks;
 
-    // console.log('🔄 Driver notification update:', {
-    //   rideRequestId,
-    //   status: rideData.status,
-    //   driverId,
-    //   acceptedDriverId: rideData.acceptedDriver?.driverId,
-    //   acceptedDriver: rideData.acceptedDriver
-    // });
+    console.log('🔄 Driver notification update:', {
+      rideRequestId,
+      status: rideData.status,
+      driverId,
+      acceptedDriverId: rideData.acceptedDriver?.driverId,
+      acceptedDriver: rideData.acceptedDriver,
+      cancelledBy: rideData.cancelledBy || rideData.canceledBy
+    });
 
     switch (rideData.status) {
       case 'accepted':
         // Check if this driver's bid was accepted
         if (rideData.acceptedDriver?.driverId === driverId) {
-          // console.log('🎉 This driver\'s bid was accepted!');
+          console.log('🎉 This driver\'s bid was accepted!');
           this.handleBidAcceptance(rideRequestId, rideData, bidAmount, onBidAccepted);
         } else {
           // Another driver's bid was accepted
@@ -209,6 +232,7 @@ class DriverBidNotificationService {
 
       case 'cancelled':
       case 'expired':
+        console.log('❌ CANCELLATION DETECTED - Calling handleRideCancellation for:', rideRequestId);
         this.handleRideCancellation(rideRequestId, onRideCancelled);
         break;
 
@@ -240,6 +264,9 @@ class DriverBidNotificationService {
 
       // Play success sound and haptic feedback
       await this.playBidAcceptedFeedback();
+
+      // Speak bid accepted notification
+      await speechService.speakBidAccepted();
 
       // Show system notification
       await this.showBidAcceptedNotification(rideData, bidAmount);
@@ -281,6 +308,9 @@ class DriverBidNotificationService {
       // Gentle haptic feedback
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+      // Speak bid rejected notification
+      await speechService.speakBidRejected();
+
       // Show system notification
       await this.showBidRejectedNotification();
 
@@ -311,12 +341,14 @@ class DriverBidNotificationService {
    */
   async handleRideCancellation(rideRequestId, callback) {
     try {
-      // console.log('❌ Ride cancelled:', rideRequestId);
+      console.log('❌ handleRideCancellation called for ride:', rideRequestId);
+      console.log('❌ Callback function provided:', !!callback);
 
       // Play cancellation sound with error handling
       try {
         if (playRideCancelledSound) {
           await playRideCancelledSound();
+          console.log('🔊 Cancellation sound played');
         }
       } catch (error) {
         console.warn('⚠️ Error playing ride cancelled sound:', error);
@@ -326,14 +358,23 @@ class DriverBidNotificationService {
       try {
         if (Haptics && Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          console.log('📳 Haptic feedback triggered');
         }
       } catch (error) {
         console.warn('⚠️ Error with haptic feedback:', error);
       }
 
+      // Speak ride cancelled notification
+      try {
+        await speechService.speakRideCancelled();
+      } catch (error) {
+        console.warn('⚠️ Error speaking ride cancelled notification:', error);
+      }
+
       // Show system notification with error handling
       try {
         await this.showRideCancelledNotification();
+        console.log('🔔 System notification shown');
       } catch (error) {
         console.warn('⚠️ Error showing ride cancelled notification:', error);
       }
@@ -341,13 +382,17 @@ class DriverBidNotificationService {
       // Call the callback if provided
       if (callback) {
         try {
+          console.log('📞 Calling cancellation callback...');
           callback({
             rideRequestId,
             reason: 'ride_cancelled'
           });
+          console.log('✅ Cancellation callback executed successfully');
         } catch (error) {
           console.error('❌ Error in ride cancellation callback:', error);
         }
+      } else {
+        console.warn('⚠️ No callback provided for ride cancellation!');
       }
 
       // Clean up this listener
@@ -383,6 +428,9 @@ class DriverBidNotificationService {
 
       // Success haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Speak ride completed notification
+      await speechService.speakRideCompleted();
 
       // Show completion notification
       await this.showRideCompletedNotification(rideData);

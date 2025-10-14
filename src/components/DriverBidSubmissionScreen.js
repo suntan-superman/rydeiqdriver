@@ -75,7 +75,7 @@ try {
 }
 
 // Safe imports
-let RideRequestService, costEstimationService, FareCalculationCard;
+let RideRequestService, costEstimationService, FareCalculationCard, AsyncStorage;
 try {
   RideRequestService = require('@/services/rideRequestService').default;
   // console.log('✅ RideRequestService imported successfully');
@@ -95,6 +95,47 @@ try {
   FareCalculationCard = null; 
 }
 
+try {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+} catch (e) {
+  console.warn('⚠️ AsyncStorage not available:', e.message);
+  AsyncStorage = null;
+}
+
+// Import bid adjustment configuration utilities
+let bidAdjustmentConfig;
+try {
+  bidAdjustmentConfig = require('@/utils/bidAdjustmentConfig');
+} catch (e) {
+  console.warn('⚠️ bidAdjustmentConfig not available:', e.message);
+  // Fallback defaults
+  bidAdjustmentConfig = {
+    DEFAULT_INCREASE_BUTTONS: [
+      { type: 'amount', value: 2, label: '+$2', id: 'inc_1' },
+      { type: 'amount', value: 5, label: '+$5', id: 'inc_2' },
+      { type: 'percentage', value: 10, label: '+10%', id: 'inc_3' }
+    ],
+    DEFAULT_DECREASE_BUTTONS: [
+      { type: 'amount', value: 2, label: '-$2', id: 'dec_1' },
+      { type: 'amount', value: 5, label: '-$5', id: 'dec_2' },
+      { type: 'percentage', value: 10, label: '-10%', id: 'dec_3' }
+    ],
+    loadButtonConfig: async () => ({
+      increaseButtons: bidAdjustmentConfig.DEFAULT_INCREASE_BUTTONS,
+      decreaseButtons: bidAdjustmentConfig.DEFAULT_DECREASE_BUTTONS
+    })
+  };
+}
+
+const { DEFAULT_INCREASE_BUTTONS, DEFAULT_DECREASE_BUTTONS } = bidAdjustmentConfig;
+
+/**
+ * BID VALIDATION CONSTANTS
+ * These ensure bids stay within safe, reasonable bounds
+ */
+const MIN_BID_AMOUNT = 5.00;    // Minimum bid: $5.00
+const MAX_BID_AMOUNT = 500.00;  // Maximum bid: $500.00
+
 /**
  * Enhanced Driver Bid Submission Screen
  * Provides comprehensive bid submission with real-time feedback and cost analysis
@@ -104,6 +145,8 @@ const DriverBidSubmissionScreen = ({
   rideRequest = null,
   driverInfo = null,
   driverVehicle = null,
+  driverLocation = null,  // Driver's current location
+  currentRide = null,     // Active ride if driver is currently on one
   onBidSubmitted,
   onBidAccepted,
   onRideCancelled,
@@ -116,24 +159,18 @@ const DriverBidSubmissionScreen = ({
   const [customBidAmount, setCustomBidAmountInternal] = useState('15.00');
   
   const setCustomBidAmount = (value) => {
-    // console.log('🔧 setCustomBidAmount called with:', value, 'type:', typeof value);
     if (value === '' || value === null || value === undefined) {
-      console.log('❌ Preventing empty value - not setting');
       return;
     }
     if (typeof value === 'string' && value.trim() === '') {
-      console.log('❌ Preventing empty string - not setting');
       return;
     }
     if (typeof value === 'number' && isNaN(value)) {
-      console.log('❌ Preventing NaN number - not setting');
       return;
     }
     if (typeof value === 'string' && isNaN(parseFloat(value))) {
-      console.log('❌ Preventing non-numeric string - not setting');
       return;
     }
-    // console.log('✅ Setting customBidAmount to:', value);
     setCustomBidAmountInternal(value);
   };
   const [currentPrice, setCurrentPrice] = useState(15);
@@ -147,6 +184,12 @@ const DriverBidSubmissionScreen = ({
   const [netEarnings, setNetEarnings] = useState(null);
   const [bidStatus, setBidStatus] = useState('idle'); // 'idle', 'submitting', 'listening', 'accepted', 'rejected'
   const [showFareDetails, setShowFareDetails] = useState(false);
+  const [pickupDistance, setPickupDistance] = useState(null);
+  const [tripDistance, setTripDistance] = useState(null);
+  const [timeEstimates, setTimeEstimates] = useState(null);
+  const [increaseButtons, setIncreaseButtons] = useState(DEFAULT_INCREASE_BUTTONS);
+  const [decreaseButtons, setDecreaseButtons] = useState(DEFAULT_DECREASE_BUTTONS);
+  const [savedDefaultBid, setSavedDefaultBid] = useState(null); // Save original bid for reset
   
   // Animation refs
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -155,6 +198,112 @@ const DriverBidSubmissionScreen = ({
 
   // Platform commission rate (could be configurable)
   const PLATFORM_COMMISSION = 0.15; // 15%
+
+  /**
+   * Calculate accurate pickup distance based on driver's current state
+   * - If driver is on active ride, calculate from dropoff to new pickup
+   * - Otherwise, calculate from current location to pickup
+   */
+  const calculatePickupDistance = () => {
+    if (!rideRequest?.pickup) return 2.5;
+    
+    // Determine starting point
+    let startPoint = null;
+    
+    if (currentRide?.dropoff?.coordinates) {
+      // Driver is on active ride - calculate from dropoff to new pickup
+      startPoint = {
+        latitude: currentRide.dropoff.coordinates.latitude || currentRide.dropoff.coordinates.lat,
+        longitude: currentRide.dropoff.coordinates.longitude || currentRide.dropoff.coordinates.lng
+      };
+    } else if (driverLocation) {
+      // Driver is available - use current location
+      startPoint = driverLocation;
+    }
+    
+    if (!startPoint || !costEstimationService) {
+      return 2.5; // fallback
+    }
+    
+    try {
+      const distance = costEstimationService.calculatePickupDistance(startPoint, rideRequest.pickup);
+      return Math.max(0.1, distance); // Minimum 0.1 miles
+    } catch (error) {
+      console.error('Error calculating pickup distance:', error);
+      return 2.5;
+    }
+  };
+
+  /**
+   * Calculate trip distance from pickup to destination
+   */
+  const calculateTripDistance = () => {
+    // Check for both destination and dropoff properties
+    const destination = rideRequest?.destination || rideRequest?.dropoff;
+    
+    // First priority: Use the estimated distance from the ride request
+    if (rideRequest?.estimatedDistance) {
+      const parsed = parseFloat(rideRequest.estimatedDistance);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    
+    // Second priority: Use distanceInMiles if available
+    if (rideRequest?.distanceInMiles && rideRequest.distanceInMiles > 0) {
+      return rideRequest.distanceInMiles;
+    }
+    
+    // Third priority: Calculate from coordinates
+    if (!rideRequest?.pickup || !destination) {
+      console.warn('⚠️ Missing pickup or destination for calculation, using fallback');
+      return 3.0;
+    }
+    
+    if (!costEstimationService) {
+      console.warn('⚠️ costEstimationService not available, using fallback');
+      return 3.0;
+    }
+    
+    try {
+      const distance = costEstimationService.calculateTripDistance(
+        rideRequest.pickup,
+        destination
+      );
+      return Math.max(0.1, distance);
+    } catch (error) {
+      console.error('❌ Error calculating trip distance:', error);
+      return 3.0;
+    }
+  };
+
+  /**
+   * Calculate time estimates for pickup and total trip
+   */
+  const calculateTimeEstimates = (pickupDist, tripDist) => {
+    const avgPickupSpeed = 25; // mph average speed in traffic
+    const navigationBuffer = 3; // minutes for navigation/parking
+    
+    // Calculate pickup time
+    const pickupTimeHours = pickupDist / avgPickupSpeed;
+    const pickupTimeMinutes = Math.round(pickupTimeHours * 60) + navigationBuffer;
+    
+    // Get trip duration from ride request
+    const tripTimeMinutes = parseInt(rideRequest?.estimatedDuration) || 
+                           Math.round((tripDist / 30) * 60); // fallback: 30 mph
+    
+    // Total time
+    const totalTimeMinutes = pickupTimeMinutes + tripTimeMinutes;
+    
+    return {
+      pickupTime: pickupTimeMinutes,
+      tripTime: tripTimeMinutes,
+      totalTime: totalTimeMinutes,
+      pickupTimeFormatted: `${pickupTimeMinutes} min`,
+      tripTimeFormatted: `${tripTimeMinutes} min`,
+      totalTimeFormatted: `${totalTimeMinutes} min`
+    };
+  };
 
   /**
    * Simple reverse geocode using Expo Location (no API key needed)
@@ -307,7 +456,13 @@ const DriverBidSubmissionScreen = ({
 
   /**
    * Calculate net earnings after platform commission
-   * @param {number} bidAmount - Gross bid amount
+   * @param {number} bidAmount - Driver's bid amount (what they'll receive before platform fee)
+   * 
+   * FARE CALCULATION BREAKDOWN:
+   * - Bid Amount = Driver compensation (gross)
+   * - Platform Fee = 15% of bid amount (AnyRyde commission)
+   * - Net Driver Earnings = Bid Amount - Platform Fee
+   * - This does NOT include rider fees, tolls, or other charges
    */
   const calculateNetEarnings = (bidAmount) => {
     if (isNaN(bidAmount) || bidAmount <= 0) {
@@ -334,7 +489,86 @@ const DriverBidSubmissionScreen = ({
   };
 
   /**
-   * Handle quick bid adjustment
+   * Load button configuration from storage
+   */
+  const loadButtonConfig = async () => {
+    if (!bidAdjustmentConfig?.loadButtonConfig) return;
+    
+    try {
+      const config = await bidAdjustmentConfig.loadButtonConfig();
+      if (config.increaseButtons) setIncreaseButtons(config.increaseButtons);
+      if (config.decreaseButtons) setDecreaseButtons(config.decreaseButtons);
+    } catch (error) {
+      console.warn('Could not load button config:', error);
+    }
+  };
+
+  /**
+   * Apply bid adjustment based on button type
+   * @param {Object} button - Button configuration {type, value, label}
+   * @param {string} direction - 'increase' or 'decrease'
+   */
+  const applyBidAdjustment = (button, direction) => {
+    const currentBid = parseFloat(customBidAmount) || currentPrice;
+    let newBid = currentBid;
+    
+    if (button.type === 'amount') {
+      // Fixed amount adjustment
+      newBid = direction === 'increase' 
+        ? currentBid + button.value 
+        : currentBid - button.value;
+    } else if (button.type === 'percentage') {
+      // Percentage adjustment
+      const adjustment = currentBid * (button.value / 100);
+      newBid = direction === 'increase'
+        ? currentBid + adjustment
+        : currentBid - adjustment;
+    }
+    
+    // ✅ FAIL-SAFE: Enforce minimum and maximum bid amounts
+    newBid = Math.max(MIN_BID_AMOUNT, Math.min(MAX_BID_AMOUNT, newBid));
+    
+    // Show alert if minimum reached
+    if (newBid === MIN_BID_AMOUNT && direction === 'decrease') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Minimum Bid Reached', 
+        `Cannot go below $${MIN_BID_AMOUNT.toFixed(2)}`
+      );
+    }
+    
+    // Show alert if maximum reached
+    if (newBid === MAX_BID_AMOUNT && direction === 'increase') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Maximum Bid Reached', 
+        `Cannot exceed $${MAX_BID_AMOUNT.toFixed(2)}`
+      );
+    }
+    
+    // Update bid amount
+    setCustomBidAmount(newBid.toFixed(2));
+    setCurrentPrice(newBid);
+    
+    // Haptic feedback (only if not at limit)
+    if (newBid !== MIN_BID_AMOUNT && newBid !== MAX_BID_AMOUNT) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  /**
+   * Reset bid to original default amount
+   */
+  const resetToDefaultBid = () => {
+    if (savedDefaultBid !== null) {
+      setCustomBidAmount(savedDefaultBid.toFixed(2));
+      setCurrentPrice(savedDefaultBid);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  /**
+   * Handle quick bid adjustment (legacy - keeping for compatibility)
    * @param {number} adjustment - Amount to add/subtract
    */
   const handleQuickBidAdjustment = (adjustment) => {
@@ -400,9 +634,22 @@ const DriverBidSubmissionScreen = ({
     const bidAmount = parseFloat(customBidAmount);
     // console.log('💰 Parsed bid amount:', bidAmount);
     
-    if (isNaN(bidAmount) || bidAmount < 5) {
+    // ✅ FAIL-SAFE: Final validation before submission
+    if (isNaN(bidAmount) || bidAmount < MIN_BID_AMOUNT) {
       console.error('❌ Invalid bid amount:', bidAmount);
-      Alert.alert('Invalid Bid', 'Please enter a valid bid amount. Minimum bid is $5.00');
+      Alert.alert(
+        'Invalid Bid', 
+        `Please enter a valid bid amount. Minimum bid is $${MIN_BID_AMOUNT.toFixed(2)}`
+      );
+      return;
+    }
+    
+    if (bidAmount > MAX_BID_AMOUNT) {
+      console.error('❌ Bid too high:', bidAmount);
+      Alert.alert(
+        'Bid Too High', 
+        `Maximum bid is $${MAX_BID_AMOUNT.toFixed(2)}. Please adjust your bid.`
+      );
       return;
     }
 
@@ -429,6 +676,30 @@ const DriverBidSubmissionScreen = ({
       return;
     }
 
+    // ✅ CONFIRMATION DIALOG: Show confirmation before submitting custom bid
+    Alert.alert(
+      'Confirm Bid',
+      `Submit bid of $${bidAmount.toFixed(2)} for this ride?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Submit',
+          style: 'default',
+          onPress: async () => {
+            await submitBidToFirebase(bidAmount);
+          }
+        }
+      ]
+    );
+  };
+
+  /**
+   * Actually submit the bid to Firebase (called after confirmation)
+   */
+  const submitBidToFirebase = async (bidAmount) => {
     try {
       setIsSubmittingBid(true);
       setBidStatus('submitting');
@@ -575,32 +846,40 @@ const DriverBidSubmissionScreen = ({
    * Handle ride cancellation callback
    */
   const handleRideCancelledCallback = (cancellationData) => {
-    // console.log('❌ Ride cancelled! Closing bid screen and restarting listening');
-    
-    // Immediately close the modal
-    if (onClose) {
-      onClose();
-    }
+    console.log('🚨 DriverBidSubmissionScreen: handleRideCancelledCallback triggered!', cancellationData);
     
     // Force reset all state immediately
     setIsListeningForAcceptance(false);
     setBidStatus('idle');
     setIsSubmittingBid(false);
     
-    if (onRideCancelled) {
-      onRideCancelled(cancellationData);
-    }
-    
-    // Restart general ride request listening
-    if (driverBidNotificationService && typeof driverBidNotificationService.restartRideRequestListening === 'function') {
-      driverBidNotificationService.restartRideRequestListening();
-    }
-    
-    // Close the bid submission screen
-    // console.log('🚪 Calling onClose from handleRideCancelledCallback');
-    if (onClose) {
-      onClose();
-    }
+    // ✅ SHOW ALERT FIRST, THEN CLOSE MODAL AFTER USER ACKNOWLEDGES
+    console.log('🔔 DriverBidSubmissionScreen: Showing cancellation alert to driver');
+    Alert.alert(
+      'Ride Cancelled',
+      'The rider has cancelled this ride request.',
+      [{ 
+        text: 'OK',
+        onPress: () => {
+          // Close modal after user acknowledges
+          if (onClose) {
+            console.log('🚪 DriverBidSubmissionScreen: Closing modal after user acknowledged cancellation');
+            onClose();
+          }
+          
+          if (onRideCancelled) {
+            console.log('🔄 DriverBidSubmissionScreen: Calling onRideCancelled prop');
+            onRideCancelled(cancellationData);
+          }
+          
+          // Restart general ride request listening
+          if (driverBidNotificationService && typeof driverBidNotificationService.restartRideRequestListening === 'function') {
+            console.log('🔄 DriverBidSubmissionScreen: Restarting ride request listening');
+            driverBidNotificationService.restartRideRequestListening();
+          }
+        }
+      }]
+    );
   };
 
   /**
@@ -722,7 +1001,10 @@ const DriverBidSubmissionScreen = ({
     }
   };
 
-  const isValidBid = !isNaN(parseFloat(customBidAmount)) && parseFloat(customBidAmount) >= 5;
+  // ✅ FAIL-SAFE: Validate bid amount for submit button
+  const isValidBid = !isNaN(parseFloat(customBidAmount)) && 
+                     parseFloat(customBidAmount) >= MIN_BID_AMOUNT && 
+                     parseFloat(customBidAmount) <= MAX_BID_AMOUNT;
 
 
 
@@ -739,30 +1021,84 @@ const DriverBidSubmissionScreen = ({
     }
   }, [rideRequest?.companyBid]);
 
-  // Comment out address resolution for iOS debugging  
-  /*
-  // Resolve addresses when ride request changes
+  // Calculate accurate distances and times when ride request or driver state changes
+  useEffect(() => {
+    if (rideRequest && isVisible) {
+      // Calculate distances
+      const pickup = calculatePickupDistance();
+      const trip = calculateTripDistance();
+      setPickupDistance(pickup);
+      setTripDistance(trip);
+      
+      // Calculate time estimates
+      const times = calculateTimeEstimates(pickup, trip);
+      setTimeEstimates(times);
+    }
+  }, [rideRequest?.id, driverLocation, currentRide?.id, isVisible]);
+
+  // Load button configuration on mount
+  useEffect(() => {
+    loadButtonConfig();
+  }, []);
+
+  // Save default bid when ride request changes (for reset functionality)
+  useEffect(() => {
+    if (rideRequest?.companyBid && !isNaN(rideRequest.companyBid)) {
+      setSavedDefaultBid(rideRequest.companyBid);
+    }
+  }, [rideRequest?.companyBid]);
+
+  // Use addresses from ride request or resolve from coordinates
   useEffect(() => {
     const resolveAddresses = async () => {
-      if (rideRequest?.pickup?.coordinates && rideRequest?.destination?.coordinates) {
+      if (!rideRequest) return;
+      
+      // First, try to use addresses directly from ride request
+      if (rideRequest.pickup?.address && rideRequest.destination?.address) {
+        setResolvedAddresses({
+          pickup: rideRequest.pickup.address,
+          destination: rideRequest.destination.address
+        });
+        return;
+      }
+      
+      // Fallback: use dropoff.address if available
+      if (rideRequest.pickup?.address && rideRequest.dropoff?.address) {
+        setResolvedAddresses({
+          pickup: rideRequest.pickup.address,
+          destination: rideRequest.dropoff.address
+        });
+        return;
+      }
+      
+      // Last resort: reverse geocode from coordinates if available
+      if (rideRequest.pickup?.coordinates && (rideRequest.destination?.coordinates || rideRequest.dropoff?.coordinates)) {
         try {
-          console.log('📍 Resolving addresses for coordinates...');
+          const destCoords = rideRequest.destination?.coordinates || rideRequest.dropoff?.coordinates;
+          
           const [pickupAddr, destAddr] = await Promise.all([
-            reverseGeocode(rideRequest.pickup.coordinates.lat, rideRequest.pickup.coordinates.lng),
-            reverseGeocode(rideRequest.destination.coordinates.lat, rideRequest.destination.coordinates.lng)
+            reverseGeocode(
+              rideRequest.pickup.coordinates.lat || rideRequest.pickup.coordinates.latitude, 
+              rideRequest.pickup.coordinates.lng || rideRequest.pickup.coordinates.longitude
+            ),
+            reverseGeocode(
+              destCoords.lat || destCoords.latitude, 
+              destCoords.lng || destCoords.longitude
+            )
           ]);
           
           setResolvedAddresses({
             pickup: pickupAddr,
             destination: destAddr
           });
-          console.log('✅ Addresses resolved:', { pickup: pickupAddr, destination: destAddr });
         } catch (error) {
-          console.log('❌ Address resolution failed:', error);
-          // Fallback to coordinates
+          console.error('❌ Address resolution failed:', error);
+          // Final fallback to coordinates display
+          const pickupCoords = rideRequest.pickup.coordinates;
+          const destCoords = rideRequest.destination?.coordinates || rideRequest.dropoff?.coordinates;
           setResolvedAddresses({
-            pickup: `${rideRequest.pickup.coordinates.lat.toFixed(4)}, ${rideRequest.pickup.coordinates.lng.toFixed(4)}`,
-            destination: `${rideRequest.destination.coordinates.lat.toFixed(4)}, ${rideRequest.destination.coordinates.lng.toFixed(4)}`
+            pickup: `${(pickupCoords.lat || pickupCoords.latitude).toFixed(4)}, ${(pickupCoords.lng || pickupCoords.longitude).toFixed(4)}`,
+            destination: `${(destCoords.lat || destCoords.latitude).toFixed(4)}, ${(destCoords.lng || destCoords.longitude).toFixed(4)}`
           });
         }
       }
@@ -772,7 +1108,6 @@ const DriverBidSubmissionScreen = ({
       resolveAddresses();
     }
   }, [rideRequest?.id]);
-  */
 
   // Add debug logging for visibility state
   // useEffect(() => {
@@ -819,7 +1154,7 @@ const DriverBidSubmissionScreen = ({
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: 20,
+          padding: 10,
           borderBottomWidth: 1,
           borderBottomColor: '#E5E7EB'
         }}>
@@ -830,80 +1165,87 @@ const DriverBidSubmissionScreen = ({
           }}>
             Submit Your Bid
           </Text>
-          <TouchableOpacity onPress={handleClose}>
+          {/* <TouchableOpacity onPress={handleClose}>
             <Text style={{ fontSize: 24, color: '#6B7280' }}>✕</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
         
         {/* Scrollable Content */}
-        <ScrollView style={{ flex: 1, height: 500 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
           {/* Ride Details - Beautiful Layout with Icons */}
           {rideRequest && (
-            <View style={styles.rideDetails}>
-              <View style={styles.detailRow}>
-                <Ionicons name="location" size={16} color={COLORS?.primary || '#007AFF'} />
-                <Text style={styles.detailText}>
+            <View style={[styles.rideDetails, { padding: 16, marginBottom: 8 }]}>
+              <View style={[styles.detailRow, { marginBottom: 8 }]}>
+                <Ionicons name="location" size={18} color={COLORS?.primary || '#007AFF'} />
+                <Text style={[styles.detailText, { fontSize: 14, lineHeight: 20 }]}>
                   From: {resolvedAddresses.pickup || 'Loading address...'}
                 </Text>
               </View>
               
-              <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={16} color={COLORS?.secondary?.[600] || '#6B7280'} />
-                <Text style={styles.detailText}>
+              <View style={[styles.detailRow, { marginBottom: 8 }]}>
+                <Ionicons name="location-outline" size={18} color={COLORS?.secondary?.[600] || '#6B7280'} />
+                <Text style={[styles.detailText, { fontSize: 14, lineHeight: 20 }]}>
                   To: {resolvedAddresses.destination || 'Loading address...'}
                 </Text>
               </View>
               
-              <View style={styles.detailRow}>
-                <Ionicons name="time" size={16} color={COLORS?.primary || '#007AFF'} />
-                <Text style={styles.detailText}>
+              <View style={[styles.detailRow, { marginBottom: 8 }]}>
+                <Ionicons name="time" size={18} color={COLORS?.primary || '#007AFF'} />
+                <Text style={[styles.detailText, { fontSize: 14 }]}>
                   {rideRequest.estimatedDistance || rideRequest.distanceInMiles?.toFixed(1) + ' miles' || 'Distance'} • {rideRequest.estimatedDuration || 'Duration'}
                 </Text>
               </View>
               
-              <View style={styles.detailRow}>
-                <Ionicons name="wallet" size={16} color={COLORS?.success || '#10B981'} />
-                <Text style={styles.detailText}>
-                  ${rideRequest.companyBid?.toFixed(2) || 'N/A'}
+              {/* <View style={styles.detailRow}>
+                <Ionicons name="wallet" size={18} color={COLORS?.success || '#10B981'} />
+                <Text style={[styles.detailText, { fontSize: 16, fontWeight: '600' }]}>
+                  Default Bid: ${rideRequest.companyBid?.toFixed(2) || 'N/A'}
                 </Text>
-              </View>
+              </View> */}
             </View>
           )}
           
-          {/* Driver Location to Pickup Analysis */}
+          {/* Driver Location to Pickup Analysis - ACCURATE CALCULATIONS */}
           {rideRequest && (
             <View style={{
-              padding: 10,
+              padding: 8,
+              marginHorizontal: 12,
+              marginBottom: 4,
+              marginTop: 4,
               backgroundColor: '#F0FDF4',
-              borderBottomWidth: 1,
-              borderBottomColor: '#E5E7EB'
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: '#86EFAC'
             }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <Ionicons name="car-sport" size={16} color="#EA580C" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="car-sport" size={18} color="#EA580C" />
                 <Text style={{
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: '600',
                   color: '#EA580C',
                   marginLeft: 8
                 }}>
                   Your Trip Breakdown
+                  {currentRide && ' (After Current Ride)'}
                 </Text>
               </View>
               
-              <View style={{ marginBottom: 4 }}>
-                <Text style={{ fontSize: 13, color: '#15803D', marginBottom: 2 }}>
-                  🚗 To pickup location: ~2.5 miles (estimated)
+              <View style={{ marginBottom: 6 }}>
+                <Text style={{ fontSize: 14, color: '#15803D', marginBottom: 8 }}>
+                  🚗 {currentRide ? 'From dropoff to pickup' : 'To pickup location'}: {pickupDistance?.toFixed(1) || '...'} miles
                 </Text>
-                <Text style={{ fontSize: 13, color: '#15803D', marginBottom: 2 }}>
-                  🛣️ Trip distance: {rideRequest.distanceInMiles?.toFixed(1) || rideRequest.estimatedDistance || 'N/A'}
+                <Text style={{ fontSize: 14, color: '#15803D', marginBottom: 8 }}>
+                  🛣️ Trip distance: {tripDistance?.toFixed(1) || rideRequest.estimatedDistance || 'N/A'}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#15803D' }}>
-                  ⏱️ Total time: ~{((parseInt(rideRequest.estimatedDuration) || 15) + 8)} min (including pickup)
+                <Text style={{ fontSize: 14, color: '#15803D' }}>
+                  ⏱️ Total time: ~{timeEstimates?.totalTime || '...'} min (Pickup: {timeEstimates?.pickupTime || '...'}m + Trip: {timeEstimates?.tripTime || '...'}m)
                 </Text>
               </View>
               
-              <Text style={{ fontSize: 12, color: '#15803D', fontStyle: 'italic' }}>
-                Consider pickup distance and return trip when setting your price
+              <Text style={{ fontSize: 12, color: '#059669', fontStyle: 'italic', marginTop: 8 }}>
+                {currentRide 
+                  ? 'Calculated from your current dropoff to new pickup location'
+                  : 'Consider pickup distance and return trip when setting your price'}
               </Text>
             </View>
           )}
@@ -951,23 +1293,22 @@ const DriverBidSubmissionScreen = ({
           
           {/* Submit Default Bid Button - Top Section */}
           <View style={{
-            padding: 15,
-            borderBottomWidth: 1,
-            borderBottomColor: '#E5E7EB',
-            backgroundColor: '#F0F9FF'
+            paddingHorizontal: 16,
+            paddingVertical: 4,
+            marginBottom: 0
           }}>
             <TouchableOpacity
               style={{
                 backgroundColor: '#16A34A',
-                paddingVertical: 12,
-                paddingHorizontal: 20,
-                borderRadius: 8,
+                paddingVertical: 11,
+                paddingHorizontal: 16,
+                borderRadius: 10,
                 alignItems: 'center',
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
+                shadowOpacity: 0.15,
                 shadowRadius: 4,
-                elevation: 3
+                elevation: 4
               }}
               onPress={async () => {
                 // console.log('🎯 Accept Default Bid pressed!');
@@ -992,13 +1333,39 @@ const DriverBidSubmissionScreen = ({
             >
               <Text style={{
                 color: 'white',
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: 'bold'
               }}>
                 Accept Default Bid: ${currentPrice.toFixed(2)}
               </Text>
             </TouchableOpacity>
-          </View>
+            
+            {/* Fare Breakdown Explanation */}
+            {/* <View style={{
+              backgroundColor: '#EFF6FF',
+              padding: 12,
+              marginTop: 8,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#BFDBFE'
+            }}>
+              <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600', marginBottom: 4 }}>
+                💡 Default Bid Breakdown:
+              </Text>
+              <Text style={{ fontSize: 11, color: '#1E3A8A', marginBottom: 2 }}>
+                • Gross Earnings: ${currentPrice.toFixed(2)} (your bid)
+              </Text>
+              <Text style={{ fontSize: 11, color: '#1E3A8A', marginBottom: 2 }}>
+                • AnyRyde Fee (15%): -${(currentPrice * 0.15).toFixed(2)}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>
+                • Your Net Pay: ${(currentPrice * 0.85).toFixed(2)}
+              </Text>
+              <Text style={{ fontSize: 10, color: '#6B7280', marginTop: 4, fontStyle: 'italic' }}>
+                Rider pays separately for tolls and fees
+              </Text>
+            </View>  */}
+            </View> 
 
           {/* Quick Bid Options - Commented out for now */}
           {/* 
@@ -1043,54 +1410,140 @@ const DriverBidSubmissionScreen = ({
           </View>
           */}
           
-          {/* Custom Bid Input - Compact Layout */}
-          <View style={styles.customBidSection}>
-            <Text style={styles.customBidLabel}>
-              Custom Amount:
-            </Text>
-            <View style={styles.customBidInputRow}>
-              <TextInput
-                style={styles.customBidInput}
-                placeholder="$0.00"
-                value={customBidAmount}
-                onChangeText={(value) => {
-                  // console.log('💰 TextInput changed:', value);
-                  setCustomBidAmount(value);
-                }}
-                keyboardType="numeric"
-                maxLength={6}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.submitBidButton,
-                  { backgroundColor: isValidBid ? COLORS.success : COLORS.gray[300] }
-                ]}
-                onPress={handleSubmitBid}
-                disabled={!isValidBid}
-              >
-                <Text style={[
-                  styles.submitBidButtonText,
-                  { color: isValidBid ? 'white' : COLORS.gray[400] }
-                ]}>
-                  Submit
-                </Text>
-              </TouchableOpacity>
+          {/* Custom Bid Adjustment - Enhanced with Quick Buttons */}
+          <View style={[styles.customBidSection, { marginHorizontal: 12, marginBottom: 8, padding: 12, paddingTop: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={[styles.customBidLabel, { fontSize: 16 }]}>
+                Custom Bid Amount:
+              </Text>
+              {savedDefaultBid !== null && parseFloat(customBidAmount) !== savedDefaultBid && (
+                <TouchableOpacity
+                  onPress={resetToDefaultBid}
+                  style={{
+                    backgroundColor: '#EFF6FF',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: '#BFDBFE'
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600' }}>
+                    ↺ Reset
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
+
+            {/* Green Increase Buttons Row */}
+            <View style={[styles.adjustmentButtonsRow, { marginBottom: 14 }]}>
+              {increaseButtons.map((button) => (
+                <TouchableOpacity
+                  key={button.id}
+                  style={[styles.adjustmentButton, styles.increaseButton]}
+                  onPress={() => applyBidAdjustment(button, 'increase')}
+                >
+                  <Text style={styles.increaseButtonText}>{button.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Custom Bid Input with Submit Button - Horizontal */}
+            <View style={[styles.customBidInputRow, { marginBottom: 6 }]}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={styles.customBidInput}
+                  placeholder="$0.00"
+                  value={customBidAmount}
+                  onChangeText={(value) => {
+                    // Allow typing but don't validate yet
+                    setCustomBidAmount(value);
+                  }}
+                  onBlur={() => {
+                    // ✅ FAIL-SAFE: Validate on blur (when user finishes typing)
+                    const bidValue = parseFloat(customBidAmount);
+                    if (!isNaN(bidValue)) {
+                      if (bidValue < MIN_BID_AMOUNT) {
+                        setCustomBidAmount(MIN_BID_AMOUNT.toFixed(2));
+                        Alert.alert(
+                          'Minimum Bid',
+                          `Bid cannot be less than $${MIN_BID_AMOUNT.toFixed(2)}. Adjusted to minimum.`
+                        );
+                      } else if (bidValue > MAX_BID_AMOUNT) {
+                        setCustomBidAmount(MAX_BID_AMOUNT.toFixed(2));
+                        Alert.alert(
+                          'Maximum Bid',
+                          `Bid cannot exceed $${MAX_BID_AMOUNT.toFixed(2)}. Adjusted to maximum.`
+                        );
+                      }
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={6}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.submitBidButton,
+                    { 
+                      backgroundColor: isValidBid ? '#16A34A' : COLORS.gray[300],
+                      borderWidth: 1,
+                      borderColor: isValidBid ? '#15803D' : COLORS.gray[300]
+                    }
+                  ]}
+                  onPress={handleSubmitBid}
+                  disabled={!isValidBid}
+                >
+                  <Text style={[
+                    styles.submitBidButtonText,
+                    { color: isValidBid ? 'white' : COLORS.gray[400] }
+                  ]}>
+                    Submit
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Red Decrease Buttons Row */}
+            <View style={styles.adjustmentButtonsRow}>
+              {decreaseButtons.map((button) => (
+                <TouchableOpacity
+                  key={button.id}
+                  style={[styles.adjustmentButton, styles.decreaseButton]}
+                  onPress={() => applyBidAdjustment(button, 'decrease')}
+                >
+                  <Text style={styles.decreaseButtonText}>{button.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Helper Text with Dynamic Limits */}
+            <Text style={{
+              fontSize: 9,
+              color: '#6B7280',
+              textAlign: 'center',
+              marginTop: 3,
+              marginBottom: 1,
+              fontStyle: 'italic'
+            }}>
+              Tap buttons for quick adjustments • Min: ${MIN_BID_AMOUNT.toFixed(2)}, Max: ${MAX_BID_AMOUNT.toFixed(2)}
+            </Text>
           </View>
 
           {/* Decline Button */}
-          <View style={{ padding: 15 }}>
+          <View style={{ paddingHorizontal: 12, paddingTop: 3, paddingBottom: 8 }}>
             <TouchableOpacity
               style={{
-                backgroundColor: COLORS.error,
-                paddingVertical: 14,
-                paddingHorizontal: 20,
-                borderRadius: 8,
+                backgroundColor: '#DC2626',
+                paddingVertical: 5,
+                paddingHorizontal: 12,
+                borderRadius: 6,
                 alignItems: 'center',
                 flexDirection: 'row',
                 justifyContent: 'center',
                 borderWidth: 1,
-                borderColor: COLORS.error,
+                borderColor: '#B91C1C',
               }}
               onPress={() => {
                 Alert.alert(
@@ -1113,10 +1566,10 @@ const DriverBidSubmissionScreen = ({
                 );
               }}
             >
-              <Ionicons name="close-circle" size={20} color="white" style={{ marginRight: 8 }} />
+              <Ionicons name="close-circle" size={16} color="white" style={{ marginRight: 6 }} />
               <Text style={{
                 color: 'white',
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: '600'
               }}>
                 Decline Ride Request
@@ -1171,64 +1624,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
   },
   title: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: 'bold',
     color: COLORS.secondary[900],
   },
   closeButton: {
-    padding: 4,
+    padding: 2,
   },
   rideDetails: {
-    padding: 20,
+    padding: 12,
     backgroundColor: COLORS.secondary[50],
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   detailText: {
-    marginLeft: 8,
+    marginLeft: 6,
     fontSize: 14,
     color: COLORS.secondary[700],
     flex: 1,
   },
   fareCardContainer: {
-    padding: 20,
+    padding: 12,
   },
   fareCard: {
     marginBottom: 0,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.secondary[900],
-    marginBottom: 12,
+    marginBottom: 8,
   },
   quickBidContainer: {
-    padding: 20,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary[200],
   },
   quickBidRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   quickBidButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 8,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 6,
     alignItems: 'center',
   },
   quickBidButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   smartBidButton: {
@@ -1236,26 +1689,26 @@ const styles = StyleSheet.create({
   },
   smartBidButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   bidInputContainer: {
-    padding: 20,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary[200],
   },
   bidInput: {
     borderWidth: 1,
     borderColor: COLORS.secondary[300],
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 18,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     textAlign: 'center',
     backgroundColor: 'white',
   },
   earningsContainer: {
-    padding: 20,
+    padding: 12,
     backgroundColor: COLORS.secondary[50],
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary[200],
@@ -1264,70 +1717,70 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   earningsRowNet: {
-    paddingTop: 8,
+    paddingTop: 5,
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary[300],
-    marginTop: 4,
+    marginTop: 3,
   },
   earningsRowProfit: {
-    paddingTop: 8,
+    paddingTop: 5,
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary[300],
-    marginTop: 4,
+    marginTop: 3,
   },
   earningsLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.secondary[600],
   },
   earningsValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.secondary[800],
     fontWeight: '500',
   },
   earningsLabelNet: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.secondary[900],
     fontWeight: '600',
   },
   earningsValueNet: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.secondary[900],
     fontWeight: 'bold',
   },
   earningsLabelProfit: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.secondary[700],
     fontWeight: '500',
   },
   earningsValueProfit: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   listeningContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 10,
     backgroundColor: COLORS.primary + '10',
-    marginHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 20,
+    marginHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 10,
   },
   listeningText: {
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 6,
+    fontSize: 12,
     color: COLORS.primary,
     fontStyle: 'italic',
   },
   submitButton: {
     backgroundColor: COLORS.success,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
   },
   submitButtonDisabled: {
@@ -1341,7 +1794,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   
@@ -1353,67 +1806,107 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.secondary[50],
     borderWidth: 1,
     borderColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    gap: 8,
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    gap: 6,
   },
   showDetailsButtonText: {
     color: COLORS.primary,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   fareCard: {
-    marginHorizontal: 20,
-    marginBottom: 12,
+    marginHorizontal: 12,
+    marginBottom: 6,
   },
   customBidSection: {
     backgroundColor: COLORS.secondary[50],
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    borderRadius: 8,
+    padding: 6,
+    marginHorizontal: 12,
+    marginBottom: 4,
   },
   customBidLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.secondary[800],
-    marginBottom: 12,
+    marginBottom: 6,
     textAlign: 'center',
   },
   customBidInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   customBidInput: {
-    flex: 1,
+    width: '100%',
     borderWidth: 2,
     borderColor: COLORS.primary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    fontSize: 15,
     fontWeight: '600',
     backgroundColor: 'white',
     textAlign: 'center',
     color: COLORS.secondary[900],
-    minWidth: 100,
-    maxWidth: 150,
   },
   submitBidButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 8,
-    minWidth: 80,
+    width: '100%',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   submitBidButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // Quick Adjustment Buttons Styles
+  adjustmentButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginVertical: 3,
+  },
+  adjustmentButton: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  increaseButton: {
+    backgroundColor: '#16A34A', // Green
+    borderWidth: 1,
+    borderColor: '#15803D',
+  },
+  increaseButtonText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  decreaseButton: {
+    backgroundColor: '#DC2626', // Red
+    borderWidth: 1,
+    borderColor: '#B91C1C',
+  },
+  decreaseButtonText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
 

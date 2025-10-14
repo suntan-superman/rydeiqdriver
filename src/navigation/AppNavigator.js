@@ -65,7 +65,14 @@ try { ForgotPasswordScreen = require('@/screens/auth/ForgotPasswordScreen').defa
 try { OnboardingScreen = require('@/screens/auth/OnboardingScreen').default || FallbackScreen; } catch (e) { OnboardingScreen = FallbackScreen; }
 try { ActiveRideScreen = require('@/screens/ride/ActiveRideScreen').default || FallbackScreen; } catch (e) { ActiveRideScreen = FallbackScreen; }
 try { NavigationScreen = require('@/screens/navigation/NavigationScreen').default || FallbackScreen; } catch (e) { NavigationScreen = FallbackScreen; }
-try { SettingsScreen = require('@/screens/settings/SettingsScreen').default || FallbackScreen; } catch (e) { SettingsScreen = FallbackScreen; }
+try { 
+  SettingsScreen = require('@/screens/settings/SettingsScreen').default || FallbackScreen; 
+} catch (e) { 
+  console.error('❌ SettingsScreen import error:', e);
+  console.error('❌ Error message:', e.message);
+  console.error('❌ Error stack:', e.stack);
+  SettingsScreen = FallbackScreen; 
+}
 try { ProfileScreen = require('@/screens/profile/ProfileScreen').default || FallbackScreen; } catch (e) { ProfileScreen = FallbackScreen; }
 try { EarningsScreen = require('@/screens/earnings/EarningsScreen').default || FallbackScreen; } catch (e) { EarningsScreen = FallbackScreen; }
 try { TripHistoryScreen = require('@/screens/trips/TripHistoryScreen').default || FallbackScreen; } catch (e) { TripHistoryScreen = FallbackScreen; }

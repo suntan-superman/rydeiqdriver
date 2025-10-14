@@ -24,6 +24,8 @@ import i18n from '@/i18n';
 import { updateSettings, setTheme, setLanguage } from '@/store/slices/appSlice';
 
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+import BidAdjustmentSettingsModal from '@/components/BidAdjustmentSettingsModal';
+import SpeechSettingsModal from '@/components/SpeechSettingsModal';
 
 const SettingsScreen = () => {
   const navigation = useNavigation();
@@ -31,6 +33,12 @@ const SettingsScreen = () => {
   const { signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { t } = useTranslation();
+  
+  // Bid adjustment settings modal state
+  const [showBidAdjustmentSettings, setShowBidAdjustmentSettings] = useState(false);
+  
+  // Speech settings modal state
+  const [showSpeechSettings, setShowSpeechSettings] = useState(false);
   
   // Redux state
   const settings = useSelector(state => state.app.settings);
@@ -257,6 +265,13 @@ const SettingsScreen = () => {
             onToggle={(value) => handleSettingChange('sound', value)}
           />
           <SettingItem
+            icon="megaphone-outline"
+            title="Voice Notifications"
+            subtitle="Hear ride updates spoken aloud"
+            onPress={() => setShowSpeechSettings(true)}
+            showArrow
+          />
+          <SettingItem
             icon="phone-portrait-outline"
             title="Vibration"
             subtitle="Haptic feedback"
@@ -318,6 +333,13 @@ const SettingsScreen = () => {
         {/* Ride & Bidding Preferences */}
         <SectionHeader title="Ride & Bidding" icon="car-outline" />
         <Card>
+          <SettingItem
+            icon="keypad-outline"
+            title="Quick Bid Adjustment Buttons"
+            subtitle="Customize tap buttons for safe bid adjustments while driving"
+            onPress={() => setShowBidAdjustmentSettings(true)}
+            showArrow
+          />
           <SettingItem
             icon="cash-outline"
             title="Minimum Fare"
@@ -551,6 +573,18 @@ const SettingsScreen = () => {
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Bid Adjustment Settings Modal */}
+      <BidAdjustmentSettingsModal
+        visible={showBidAdjustmentSettings}
+        onClose={() => setShowBidAdjustmentSettings(false)}
+      />
+
+      {/* Speech Settings Modal */}
+      <SpeechSettingsModal
+        visible={showSpeechSettings}
+        onClose={() => setShowSpeechSettings(false)}
+      />
     </SafeAreaView>
   );
 };

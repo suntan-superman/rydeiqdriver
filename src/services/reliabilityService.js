@@ -16,7 +16,7 @@ import {
   serverTimestamp,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '@/constants/firebase';
+import { db } from '@/services/firebase/config';
 import { 
   RELIABILITY_CONFIG, 
   calculateReliabilityScore,

@@ -25,6 +25,8 @@ class RideRequestService {
     this.rideRequestListeners = new Map();
     this.currentDriverId = null;
     this.declinedRideRequests = new Set(); // Track declined/ignored ride requests
+    this.rideRequestCancelledCallback = null; // Callback for when ride is cancelled
+    this.isInitialLoad = true; // Flag to skip existing rides on first load
   }
 
   // Initialize service with current driver
@@ -83,7 +85,6 @@ class RideRequestService {
 
     // IMPORTANT: Don't create duplicate listeners
     if (this.rideRequestListeners.has('rideRequests')) {
-      console.log('📡 Ride request listener already active, skipping duplicate');
       return;
     }
 
@@ -97,6 +98,12 @@ class RideRequestService {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Skip ALL existing rides on initial load - only show NEW rides that come in after driver goes online
+      if (this.isInitialLoad) {
+        this.isInitialLoad = false; // Future snapshots will process normally
+        return;
+      }
+      
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const rideRequest = change.doc.data();
@@ -108,19 +115,17 @@ class RideRequestService {
             return;
           }
           
-          // IMPORTANT: Filter out old ride requests (older than 30 minutes)
-          // This prevents showing old requests when the listener first starts
-          const now = Date.now();
-          const thirtyMinutesAgo = now - (30 * 60 * 1000);
-          const requestTimestamp = rideRequest.timestamp?.toMillis?.() || rideRequest.timestamp || rideRequest.createdAt || 0;
-          
-          if (requestTimestamp < thirtyMinutesAgo) {
-            // Silently skip old ride requests
-            return;
-          }
-          
           // Server-side filtering is now handled by the query
           this.handleNewRideRequest(rideRequest);
+        } else if (change.type === 'removed') {
+          // Ride was removed from query (likely cancelled by rider)
+          const rideRequest = change.doc.data();
+          rideRequest.id = change.doc.id;
+          
+          // Call the cancellation callback if one is set
+          if (this.rideRequestCancelledCallback) {
+            this.rideRequestCancelledCallback(rideRequest);
+          }
         }
       });
     }, (error) => {
@@ -151,6 +156,8 @@ class RideRequestService {
       this.rideRequestListeners.get('rideRequests')();
       this.rideRequestListeners.delete('rideRequests');
     }
+    // Reset initial load flag for next time driver goes online
+    this.isInitialLoad = true;
   }
 
   // Fallback method for when composite index is not available
@@ -180,12 +187,10 @@ class RideRequestService {
           if (rideRequest.status === 'pending' || rideRequest.status === 'open_for_bids') {
             // Check if driver has already declined this request
             if (this.declinedRideRequests.has(rideRequest.id)) {
-              console.log('🚫 Ignoring previously declined ride request:', rideRequest.id);
               return;
             }
             
             // Process the ride request (timestamp filtering is now done server-side)
-            console.log('🔄 Processing recent ride request:', rideRequest.id);
             this.handleNewRideRequest(rideRequest);
           }
         }
@@ -272,7 +277,9 @@ class RideRequestService {
   async handleNewRideRequest(rideRequest) {
     // Check if driver can fulfill this request
     const canFulfill = await this.canDriverFulfillRequest(rideRequest, this.currentDriverId);
+    
     if (!canFulfill) {
+      console.log('❌ Driver cannot fulfill this request - skipping callback');
       return;
     }
     
@@ -722,9 +729,6 @@ class RideRequestService {
   // Mark a ride request as declined by this driver
   declineRideRequest(rideRequestId) {
     this.declinedRideRequests.add(rideRequestId);
-    console.log('🚫 Marked ride request as declined:', rideRequestId);
-    console.log('📝 Total declined requests:', this.declinedRideRequests.size);
-    console.log('📝 Declined list:', Array.from(this.declinedRideRequests));
   }
 
   // Clear all declined requests (useful for new session or periodic cleanup)
@@ -786,6 +790,11 @@ class RideRequestService {
   // Set callback for new ride requests
   setRideRequestCallback(callback) {
     this.onRideRequestReceived = callback;
+  }
+
+  // Set callback for when ride requests are cancelled
+  setRideRequestCancelledCallback(callback) {
+    this.rideRequestCancelledCallback = callback;
   }
 
   // Cleanup listeners

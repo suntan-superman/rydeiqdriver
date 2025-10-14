@@ -45,5 +45,12 @@ yarn-error.*
 # Service account keys
 serviceAccountKey.json
 
+# service accounts / keys
+*service-account*.json
+*firebase*-service-account*.json
+*.p12
+*.pem
+*.keystore
+*.key
 *.apk
 

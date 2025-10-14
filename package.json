@@ -13,7 +13,9 @@
     "build:all": "eas build --platform all",
     "preview": "expo start --dev-client",
     "lint": "eslint . --ext .js,.jsx --fix",
-    "lint:check": "eslint . --ext .js,.jsx"
+    "lint:check": "eslint . --ext .js,.jsx",
+    "cleanup:rides": "node scripts/cleanup-rides-simple.js",
+    "cleanup:rides:help": "node scripts/cleanup-rides.js --help"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
@@ -42,6 +44,7 @@
     "expo-network": "~7.1.5",
     "expo-notifications": "^0.31.4",
     "expo-secure-store": "~14.2.4",
+    "expo-speech": "^14.0.7",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
     "expo-task-manager": "~13.1.6",
