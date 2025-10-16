@@ -29,12 +29,13 @@
         "NSLocationAlwaysUsageDescription": "AnyRyde needs background location access to continue tracking rides and receive requests while the app is in background.",
         "NSCameraUsageDescription": "AnyRyde needs camera access to verify customer identity and capture required documentation.",
         "NSPhotoLibraryUsageDescription": "AnyRyde needs photo library access to upload profile pictures and vehicle documentation.",
-        "NSMicrophoneUsageDescription": "AnyRyde needs microphone access for emergency calling and voice commands.",
         "NSContactsUsageDescription": "AnyRyde needs contacts access to add emergency contacts for safety features.",
         "NSFaceIDUsageDescription": "AnyRyde uses Face ID for secure and convenient authentication.",
         "NSBluetoothAlwaysUsageDescription": "AnyRyde uses Bluetooth to connect with vehicle systems for enhanced driver experience.",
         "NSCalendarsUsageDescription": "AnyRyde can access your calendar to help schedule driving availability.",
-        "UIBackgroundModes": [
+        "NSSpeechRecognitionUsageDescription": "AnyRyde uses speech recognition to let you answer hands-free.",
+        "NSMicrophoneUsageDescription": "AnyRyde needs microphone access to listen for 'yes' or 'no'.",
+      "UIBackgroundModes": [
           "location",
           "remote-notification"
         ],
@@ -146,7 +147,9 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "minSdkVersion": 24
+            "minSdkVersion": 24,
+            "useAndroidX": true,
+            "enableJetifier": true
           },
           "ios": {
             "deploymentTarget": "15.1"
