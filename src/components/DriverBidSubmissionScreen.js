@@ -75,7 +75,37 @@ try {
 }
 
 // Safe imports
-let RideRequestService, costEstimationService, FareCalculationCard, AsyncStorage;
+let RideRequestService, costEstimationService, FareCalculationCard, AsyncStorage, voiceCommandService, VoiceCommandIndicator, speechService;
+try {
+  voiceCommandService = require('@/services/voiceCommandService').default;
+} catch (e) {
+  console.warn('⚠️ voiceCommandService not available:', e.message);
+  voiceCommandService = {
+    initialize: () => Promise.resolve(true),
+    startListening: () => Promise.resolve(true),
+    stopListening: () => Promise.resolve(),
+    destroy: () => Promise.resolve(),
+    getListeningState: () => false,
+  };
+}
+
+try {
+  VoiceCommandIndicator = require('@/components/VoiceCommandIndicator').default;
+} catch (e) {
+  console.warn('⚠️ VoiceCommandIndicator not available:', e.message);
+  VoiceCommandIndicator = () => null;
+}
+
+try {
+  speechService = require('@/services/speechService').default;
+} catch (e) {
+  console.warn('⚠️ speechService not available:', e.message);
+  speechService = {
+    speak: () => Promise.resolve(),
+    getSettings: () => ({ enabled: false }),
+  };
+}
+
 try {
   RideRequestService = require('@/services/rideRequestService').default;
   // console.log('✅ RideRequestService imported successfully');
@@ -187,6 +217,13 @@ const DriverBidSubmissionScreen = ({
   const [pickupDistance, setPickupDistance] = useState(null);
   const [tripDistance, setTripDistance] = useState(null);
   const [timeEstimates, setTimeEstimates] = useState(null);
+  
+  // Voice command state
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceContext, setVoiceContext] = useState(null); // 'ride_request' or 'confirmation'
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'accept' or 'decline'
+  const voiceTimeoutRef = useRef(null);
   const [increaseButtons, setIncreaseButtons] = useState(DEFAULT_INCREASE_BUTTONS);
   const [decreaseButtons, setDecreaseButtons] = useState(DEFAULT_DECREASE_BUTTONS);
   const [savedDefaultBid, setSavedDefaultBid] = useState(null); // Save original bid for reset
@@ -384,6 +421,166 @@ const DriverBidSubmissionScreen = ({
     }
     */
   }, [customBidAmount]);
+
+  // Initialize voice command service
+  useEffect(() => {
+    voiceCommandService.initialize();
+    return () => {
+      voiceCommandService.destroy();
+      if (voiceTimeoutRef.current) {
+        clearTimeout(voiceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Start voice listening when modal opens (after speech announcement)
+  useEffect(() => {
+    if (isVisible && rideRequest) {
+      // Check if voice is enabled in speech settings
+      const settings = speechService.getSettings();
+      if (settings?.enabled) {
+        // Wait for sound (2s) + voice announcement (3s) to finish
+        voiceTimeoutRef.current = setTimeout(() => {
+          startVoiceListening();
+        }, 5000);
+      }
+    } else {
+      // Stop listening when modal closes
+      stopVoiceListening();
+    }
+
+    return () => {
+      if (voiceTimeoutRef.current) {
+        clearTimeout(voiceTimeoutRef.current);
+      }
+    };
+  }, [isVisible, rideRequest]);
+
+  /**
+   * Start voice listening for accept/decline
+   */
+  const startVoiceListening = async () => {
+    try {
+      setIsVoiceListening(true);
+      setVoiceContext('ride_request');
+      
+      await voiceCommandService.startListening('ride_request', handleVoiceCommand, 10000);
+      console.log('🎤 Voice listening started for ride request');
+    } catch (error) {
+      console.error('❌ Failed to start voice listening:', error);
+      setIsVoiceListening(false);
+    }
+  };
+
+  /**
+   * Stop voice listening
+   */
+  const stopVoiceListening = async () => {
+    try {
+      await voiceCommandService.stopListening();
+      setIsVoiceListening(false);
+      setVoiceContext(null);
+      setNeedsConfirmation(false);
+      setPendingAction(null);
+      console.log('🔇 Voice listening stopped');
+    } catch (error) {
+      console.error('❌ Failed to stop voice listening:', error);
+    }
+  };
+
+  /**
+   * Handle voice command results
+   */
+  const handleVoiceCommand = async (result) => {
+    console.log('🎤 Voice command result:', result);
+    
+    if (result.type === 'success') {
+      const { command } = result;
+      
+      if (command === 'decline') {
+        // Require confirmation for decline to prevent accidents
+        setPendingAction('decline');
+        setNeedsConfirmation(true);
+        setVoiceContext('confirmation');
+        
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        } catch (e) {}
+        
+        // Ask for confirmation
+        await speechService.speak('Are you sure you want to decline this ride? Say confirm or cancel', null);
+        
+        // Start listening for confirmation
+        setTimeout(async () => {
+          setIsVoiceListening(true);
+          await voiceCommandService.startListening('confirmation', handleConfirmation, 10000);
+        }, 4000); // Wait for speech to finish
+        
+      } else if (command === 'accept') {
+        // Accept the ride immediately
+        setPendingAction('accept');
+        
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {}
+        
+        await speechService.speak('Ride accepted', null);
+        
+        // Proceed to bid submission (use existing functionality)
+        // The modal will stay open for driver to set bid amount
+        setIsVoiceListening(false);
+        setVoiceContext(null);
+      }
+    } else if (result.type === 'timeout') {
+      console.log('⏱️ Voice command timeout - driver can use touch buttons');
+      setIsVoiceListening(false);
+      setVoiceContext(null);
+    } else if (result.type === 'error') {
+      console.error('❌ Voice error:', result.error);
+      setIsVoiceListening(false);
+      setVoiceContext(null);
+    }
+  };
+
+  /**
+   * Handle confirmation voice command (for decline)
+   */
+  const handleConfirmation = async (result) => {
+    if (result.type === 'success') {
+      const { command } = result;
+      
+      if (command === 'confirm' && pendingAction === 'decline') {
+        // Execute decline
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {}
+        
+        await speechService.speak('Ride declined', null);
+        
+        // Close modal and decline
+        setIsVoiceListening(false);
+        setNeedsConfirmation(false);
+        setPendingAction(null);
+        onClose();
+        
+      } else if (command === 'cancel') {
+        // Cancel action, go back to listening for accept/decline
+        setPendingAction(null);
+        setNeedsConfirmation(false);
+        
+        try {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } catch (e) {}
+        
+        await speechService.speak('Cancelled. Say accept or decline', null);
+        
+        setTimeout(() => startVoiceListening(), 3000);
+      }
+    } else {
+      setIsVoiceListening(false);
+      setNeedsConfirmation(false);
+    }
+  };
 
   /**
    * Show modal with animation
@@ -1141,6 +1338,12 @@ const DriverBidSubmissionScreen = ({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
       >
+        {/* Voice Command Indicator */}
+        <VoiceCommandIndicator 
+          isListening={isVoiceListening} 
+          context={voiceContext} 
+        />
+        
         <View style={{
           width: width * 0.9,
           height: height * 0.9,

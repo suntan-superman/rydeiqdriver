@@ -22,6 +22,8 @@ import WaitTimerWidget from '../../components/WaitTimerWidget';
 import DeltaApprovalModal from '../../components/DeltaApprovalModal';
 import RatingModal from '@/components/RatingModal';
 import { speechService } from '@/services/speechService';
+import voiceCommandService from '@/services/voiceCommandService';
+import EmergencyModal from '@/components/EmergencyModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -113,6 +115,12 @@ const ActiveRideScreen = ({ route }) => {
   // Rating modal state
   const [showRatingModal, setShowRatingModal] = useState(false);
 
+  // Emergency modal state
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+
+  // Voice command state
+  const [voiceCommandActive, setVoiceCommandActive] = useState(false);
+
   // Timer for tracking ride duration
   useEffect(() => {
     const interval = setInterval(() => {
@@ -121,6 +129,109 @@ const ActiveRideScreen = ({ route }) => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Voice command integration based on ride state
+  useEffect(() => {
+    let voiceTimeout = null;
+
+    const startVoiceListener = async () => {
+      try {
+        // Determine which voice context based on ride state
+        let context = null;
+        let callback = null;
+
+        switch (ride.state) {
+          case 'en-route-pickup':
+            context = 'pickup_arrival';
+            callback = handleVoiceCommand;
+            break;
+          
+          case 'arrived-pickup':
+          case 'customer-onboard':
+            context = 'start_trip';
+            callback = handleVoiceCommand;
+            break;
+          
+          case 'trip-active':
+            context = 'active_ride';
+            callback = handleVoiceCommand;
+            break;
+          
+          default:
+            // No voice commands for this state
+            return;
+        }
+
+        if (context && callback) {
+          setVoiceCommandActive(true);
+          await voiceCommandService.startListening(context, callback, 30000);
+        }
+      } catch (error) {
+        console.error('❌ Voice listener error:', error);
+      }
+    };
+
+    // Start listening after a short delay
+    voiceTimeout = setTimeout(() => {
+      startVoiceListener();
+    }, 2000);
+
+    return () => {
+      if (voiceTimeout) clearTimeout(voiceTimeout);
+      voiceCommandService.stopListening().catch(() => {});
+      setVoiceCommandActive(false);
+    };
+  }, [ride.state]);
+
+  // Handle voice commands
+  const handleVoiceCommand = async (result) => {
+    if (result.type === 'timeout' || result.type === 'error') {
+      setVoiceCommandActive(false);
+      return;
+    }
+
+    const command = result.command;
+    console.log(`🎤 Voice command received: ${command}`);
+
+    try {
+      switch (command) {
+        case 'arrived':
+          if (ride.state === 'en-route-pickup') {
+            await speechService.speakRideStatusUpdate('arrived');
+            handleStateChange('arrived-pickup');
+          }
+          break;
+
+        case 'start_trip':
+          if (ride.state === 'arrived-pickup' || ride.state === 'customer-onboard') {
+            const destination = ride.destination?.address || 'destination';
+            await speechService.speakRideStatusUpdate('started', destination);
+            handleStateChange('trip-active');
+          }
+          break;
+
+        case 'complete_trip':
+          if (ride.state === 'trip-active') {
+            const earnings = ride.bidAmount ? `$${ride.bidAmount.toFixed(2)}` : '';
+            await speechService.speakRideStatusUpdate('completed', earnings);
+            handleCompleteTrip();
+          }
+          break;
+
+        case 'problem':
+          await speechService.speak('Opening emergency assistance', null);
+          setShowEmergencyModal(true);
+          break;
+
+        default:
+          console.log('❓ Unknown voice command:', command);
+      }
+    } catch (error) {
+      console.error('❌ Error handling voice command:', error);
+    }
+
+    setVoiceCommandActive(false);
+  };
 
   // Format timer display
   const formatTimer = (seconds) => {
@@ -698,6 +809,14 @@ const ActiveRideScreen = ({ route }) => {
           photo: null, // Would come from rider profile
           role: 'rider'
         }}
+      />
+
+      {/* Emergency Modal */}
+      <EmergencyModal
+        visible={showEmergencyModal}
+        onClose={() => setShowEmergencyModal(false)}
+        currentRide={ride}
+        driverLocation={null}
       />
     </SafeAreaView>
   );

@@ -27,6 +27,11 @@ import ScheduledRideRequests from '@/components/ScheduledRideRequests';
 import MyScheduledRides from '@/components/MyScheduledRides';
 import ReliabilityScoreCard from '@/components/driver/ReliabilityScoreCard';
 import CooldownBanner from '@/components/driver/CooldownBanner';
+import SpeechSettingsModal from '@/components/SpeechSettingsModal';
+import { speechService as voiceSpeechService } from '@/services/speechService';
+import scheduledRideReminderService from '@/services/scheduledRideReminderService';
+import emergencyVoiceService from '@/services/emergencyVoiceService';
+import EmergencyModal from '@/components/EmergencyModal';
 // Safe service imports with error handling
 let RideRequestService;
 let RideRequestModal;
@@ -357,6 +362,9 @@ const HomeScreen = () => {
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showDriverToolsModal, setShowDriverToolsModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [showSpeechSettings, setShowSpeechSettings] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => voiceSpeechService?.getSettings()?.enabled || false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showCommunicationModal, setShowCommunicationModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -408,6 +416,35 @@ const HomeScreen = () => {
       ignoredRideRequestIds.current = newMap;
     }
   }, []); // Run once on mount
+
+  // Initialize Phase 2 services (scheduled reminders and emergency voice)
+  useEffect(() => {
+    const initializePhase2Services = async () => {
+      try {
+        // Initialize scheduled ride reminder service
+        await scheduledRideReminderService.initialize();
+        console.log('✅ Scheduled ride reminder service initialized');
+
+        // Initialize emergency voice service with callback
+        await emergencyVoiceService.initialize();
+        await emergencyVoiceService.startGlobalListener((emergencyData) => {
+          console.log('🚨 Emergency detected:', emergencyData);
+          setShowEmergencyModal(true);
+        });
+        console.log('✅ Emergency voice service initialized');
+      } catch (error) {
+        console.error('❌ Error initializing Phase 2 services:', error);
+      }
+    };
+
+    initializePhase2Services();
+
+    // Cleanup on unmount
+    return () => {
+      scheduledRideReminderService.destroy().catch(() => {});
+      emergencyVoiceService.destroy().catch(() => {});
+    };
+  }, []);
   
   // Track current ride request with ref to avoid stale closure in callbacks
   const currentRideRequestRef = useRef(null);
@@ -772,19 +809,33 @@ const HomeScreen = () => {
                       }
                     }, 100); // Small delay to ensure state update
                     
+                    // Play sound first, then speak after a delay
                     try {
                       playRideRequestSound(); // Play notification sound
-                    } catch (soundError) {
-                      // Silent fallback for sound errors
-                    }
                     
-                    // Speak new ride request notification
+                      // Wait for sound to finish (approximately 2 seconds) before speaking
+                      setTimeout(() => {
                     try {
                       if (speechService && speechService.speakNewRideRequest) {
-                        speechService.speakNewRideRequest();
+                            const pickupAddress = newRideRequest.pickup?.address || 'unknown location';
+                            const destinationAddress = newRideRequest.destination?.address || 'unknown destination';
+                            speechService.speakNewRideRequest(pickupAddress, destinationAddress);
                       }
                     } catch (speechError) {
                       // Silent fallback for speech errors
+                        }
+                      }, 2000); // 2 second delay to let sound finish
+                    } catch (soundError) {
+                      // If sound fails, speak immediately
+                      try {
+                        if (speechService && speechService.speakNewRideRequest) {
+                          const pickupAddress = newRideRequest.pickup?.address || 'unknown location';
+                          const destinationAddress = newRideRequest.destination?.address || 'unknown destination';
+                          speechService.speakNewRideRequest(pickupAddress, destinationAddress);
+                        }
+                      } catch (speechError) {
+                        // Silent fallback for speech errors
+                      }
                     }
                   }
                 } catch (callbackError) {
@@ -1914,11 +1965,26 @@ const HomeScreen = () => {
           <Text style={styles.quickActionsTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
             <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => setShowAnalyticsModal(true)}
+              style={[
+                styles.actionCard,
+                voiceEnabled && styles.actionCardActive
+              ]}
+              onPress={async () => {
+                const newState = !voiceEnabled;
+                await voiceSpeechService.updateSetting('enabled', newState);
+                setVoiceEnabled(newState);
+              }}
+              onLongPress={() => setShowSpeechSettings(true)}
             >
-              <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
-              <Text style={styles.actionText}>Analytics</Text>
+              <Ionicons 
+                name={voiceEnabled ? "volume-high" : "volume-mute"} 
+                size={20} 
+                color={voiceEnabled ? COLORS.white : COLORS.success} 
+              />
+              <Text style={[
+                styles.actionText,
+                voiceEnabled && styles.actionTextActive
+              ]}>Voice</Text>
             </TouchableOpacity>
             {/* <TouchableOpacity 
               style={styles.actionCard}
@@ -1949,11 +2015,30 @@ const HomeScreen = () => {
               <Text style={styles.actionText}>Safety</Text>
             </TouchableOpacity> */}
             <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => setShowCommunicationModal(true)}
+              style={[
+                styles.actionCard,
+                voiceEnabled && styles.actionCardActive
+              ]}
+              onPress={async () => {
+                const newState = !voiceEnabled;
+                await voiceSpeechService.updateSetting('enabled', newState);
+                setVoiceEnabled(newState);
+                // Provide feedback
+                if (newState) {
+                  await voiceSpeechService.speak('Voice commands enabled', null);
+                }
+              }}
+              onLongPress={() => setShowSpeechSettings(true)}
             >
-              <Ionicons name="chatbubbles" size={20} color={COLORS.primary[500]} />
-              <Text style={styles.actionText}>Communication</Text>
+              <Ionicons 
+                name={voiceEnabled ? "mic" : "mic-off"} 
+                size={20} 
+                color={voiceEnabled ? COLORS.white : COLORS.primary[500]} 
+              />
+              <Text style={[
+                styles.actionText,
+                voiceEnabled && styles.actionTextActive
+              ]}>Talk</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
@@ -2257,7 +2342,7 @@ const HomeScreen = () => {
                     <Ionicons name="car" size={20} color={COLORS.primary[500]} />
                     <Text style={styles.statValue}>8</Text>
                     <Text style={styles.statLabel}>Trips</Text>
-                  </View>
+            </View>
                   <View style={styles.statCard}>
                     <Ionicons name="cash" size={20} color={COLORS.primary[500]} />
                     <Text style={styles.statValue}>$127</Text>
@@ -2441,7 +2526,7 @@ const HomeScreen = () => {
               <View style={styles.constructionContainer}>
                 <View style={styles.constructionIconContainer}>
                   <Ionicons name="construct" size={64} color={COLORS.primary[500]} />
-                </View>
+            </View>
                 <Text style={styles.constructionTitle}>Coming Soon</Text>
                 <Text style={styles.constructionSubtitle}>We're working on something amazing!</Text>
                 <View style={styles.constructionFeaturesList}>
@@ -2505,7 +2590,7 @@ const HomeScreen = () => {
                   <View style={styles.vehicleInfo}>
                     <Text style={styles.vehicleName}>2024 Toyota Camry</Text>
                     <Text style={styles.vehiclePlate}>ABC-1234</Text>
-                  </View>
+            </View>
                   <TouchableOpacity 
                     style={styles.editButton}
                     onPress={() => Alert.alert('Edit Vehicle', 'Vehicle editing feature coming soon!')}
@@ -2652,7 +2737,7 @@ const HomeScreen = () => {
                     <View style={styles.paymentMethodInfo}>
                       <Text style={styles.paymentMethodTitle}>Bank Account</Text>
                       <Text style={styles.paymentMethodSubtitle}>****1234</Text>
-                    </View>
+            </View>
                     <View style={styles.paymentDefaultBadge}>
                       <Text style={styles.paymentDefaultText}>Default</Text>
                     </View>
@@ -2781,7 +2866,7 @@ const HomeScreen = () => {
               <View style={styles.constructionContainer}>
                 <View style={styles.constructionIconContainer}>
                   <Ionicons name="analytics" size={64} color={COLORS.primary[500]} />
-                </View>
+            </View>
                 <Text style={styles.constructionTitle}>Coming Soon</Text>
                 <Text style={styles.constructionSubtitle}>Advanced AI-powered pricing insights</Text>
                 <View style={styles.constructionFeaturesList}>
@@ -2875,7 +2960,7 @@ const HomeScreen = () => {
                 <View style={styles.earningsTrendContainer}>
                   <Ionicons name="trending-up" size={16} color={COLORS.success[500]} />
                   <Text style={styles.earningsTrendText}>+12% from yesterday</Text>
-                </View>
+            </View>
               </View>
 
               {/* Quick Stats */}
@@ -3012,17 +3097,17 @@ const HomeScreen = () => {
                 <View style={styles.tripHistoryStatItem}>
                   <Text style={styles.tripHistoryStatValue}>42</Text>
                   <Text style={styles.tripHistoryStatLabel}>This Week</Text>
-                </View>
+            </View>
                 <View style={styles.tripHistoryStatDivider} />
                 <View style={styles.tripHistoryStatItem}>
                   <Text style={styles.tripHistoryStatValue}>187</Text>
                   <Text style={styles.tripHistoryStatLabel}>This Month</Text>
-                </View>
+          </View>
                 <View style={styles.tripHistoryStatDivider} />
                 <View style={styles.tripHistoryStatItem}>
                   <Text style={styles.tripHistoryStatValue}>1,245</Text>
                   <Text style={styles.tripHistoryStatLabel}>All Time</Text>
-                </View>
+        </View>
               </View>
 
               {/* Recent Trips */}
@@ -3157,7 +3242,7 @@ const HomeScreen = () => {
                 </View>
 
                 {/* View All Button */}
-                <TouchableOpacity 
+          <TouchableOpacity 
                   style={styles.viewAllButton}
                   onPress={() => {
                     Alert.alert('Full History', 'Complete trip history feature coming soon!');
@@ -3165,8 +3250,8 @@ const HomeScreen = () => {
                 >
                   <Text style={styles.viewAllButtonText}>View All Trips</Text>
                   <Ionicons name="chevron-forward" size={20} color={COLORS.primary[500]} />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
+            </View>
             </ScrollView>
           </View>
         </View>
@@ -3220,7 +3305,7 @@ const HomeScreen = () => {
                   <View style={styles.supportButtonTextContainer}>
                     <Text style={styles.supportButtonTitle}>Emergency Services</Text>
                     <Text style={styles.supportButtonSubtitle}>Call 911</Text>
-                  </View>
+            </View>
                   <Ionicons name="call" size={20} color={COLORS.white} />
                 </TouchableOpacity>
               </View>
@@ -3459,6 +3544,20 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Speech Settings Modal */}
+      <SpeechSettingsModal
+        visible={showSpeechSettings}
+        onClose={() => setShowSpeechSettings(false)}
+      />
+
+      {/* Emergency Modal */}
+      <EmergencyModal
+        visible={showEmergencyModal}
+        onClose={() => setShowEmergencyModal(false)}
+        currentRide={null}
+        driverLocation={null}
+      />
     </SafeAreaView>
   );
 };
@@ -3637,10 +3736,10 @@ const styles = StyleSheet.create({
   statCard: {
     backgroundColor: COLORS.white,
     borderRadius: 6,
-    padding: 6,
+    padding: 5, // Reduced by 20% from 6
     alignItems: 'center',
     flex: 1,
-    marginHorizontal: 3,
+    marginHorizontal: 2, // Reduced by 20% from 3
     elevation: 1,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
@@ -3648,14 +3747,14 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 13, // Reduced by 20% from 16
     fontWeight: '700',
     color: COLORS.secondary[900],
-    marginTop: 4,
+    marginTop: 3, // Reduced by 20% from 4
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 8, // Reduced by 20% from 10
     color: COLORS.secondary[500],
     fontWeight: '500',
   },
@@ -3745,12 +3844,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
+  actionCardActive: {
+    backgroundColor: COLORS.success,
+  },
   actionText: {
     fontSize: 9,
     fontWeight: '500',
     color: COLORS.secondary[900],
     marginTop: 6,
     textAlign: 'center',
+  },
+  actionTextActive: {
+    color: COLORS.white,
   },
   demoSection: {
     marginBottom: 20,

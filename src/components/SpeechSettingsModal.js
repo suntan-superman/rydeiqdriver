@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants';
 import { speechService } from '@/services/speechService';
@@ -65,6 +66,11 @@ const SpeechSettingsModal = ({ visible, onClose }) => {
       ? 'Male voice selected' 
       : 'Female voice selected';
     await speechService.speak(message, null);
+  };
+
+  const handleSliderChange = async (key, value) => {
+    await speechService.updateSetting(key, value);
+    setSettings({ ...settings, [key]: value });
   };
 
   const handleTestSpeech = async () => {
@@ -168,6 +174,49 @@ const SpeechSettingsModal = ({ visible, onClose }) => {
                     </Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {/* Volume, Pitch, Rate Sliders */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Volume: {(settings.volume || 1.0).toFixed(1)}</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={1}
+                  step={0.1}
+                  value={settings.volume || 1.0}
+                  onValueChange={(value) => handleSliderChange('volume', value)}
+                  minimumTrackTintColor={COLORS.success}
+                  maximumTrackTintColor={COLORS.secondary[300]}
+                />
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Pitch: {(settings.pitch || 1.0).toFixed(1)}</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0.5}
+                  maximumValue={2}
+                  step={0.1}
+                  value={settings.pitch || 1.0}
+                  onValueChange={(value) => handleSliderChange('pitch', value)}
+                  minimumTrackTintColor={COLORS.success}
+                  maximumTrackTintColor={COLORS.secondary[300]}
+                />
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Rate: {(settings.rate || 1.0).toFixed(1)}</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0.5}
+                  maximumValue={2}
+                  step={0.1}
+                  value={settings.rate || 1.0}
+                  onValueChange={(value) => handleSliderChange('rate', value)}
+                  minimumTrackTintColor={COLORS.success}
+                  maximumTrackTintColor={COLORS.secondary[300]}
+                />
               </View>
 
               {/* Event Toggles */}
@@ -342,6 +391,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
   },
   testButton: {
     flexDirection: 'row',

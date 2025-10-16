@@ -49,6 +49,9 @@ const DEFAULT_SETTINGS = {
     arrivingAtPickup: true,        // Medium priority
     passengerPickedUp: true,       // Medium priority
     approachingDestination: true,  // Medium priority
+    scheduledRideReminder: true,   // Phase 2 - High priority
+    scheduledRideUrgent: true,     // Phase 2 - High priority (15 min)
+    rideStatusUpdate: true,        // Phase 2 - Medium priority
   }
 };
 
@@ -97,7 +100,7 @@ class SpeechService {
     try {
       this.settings = { ...this.settings, ...newSettings };
       await AsyncStorage.setItem(SPEECH_SETTINGS_KEY, JSON.stringify(this.settings));
-      console.log('✅ Speech settings saved');
+      // console.log('✅ Speech settings saved');
     } catch (error) {
       console.error('❌ Error saving speech settings:', error);
     }
@@ -319,6 +322,49 @@ class SpeechService {
   async speakApproachingDestination() {
     const message = 'Approaching destination';
     await this.speak(message, 'approachingDestination');
+  }
+
+  // ============================================================
+  // PHASE 2 - SCHEDULED RIDE REMINDERS
+  // ============================================================
+
+  /**
+   * Speak scheduled ride reminder (1 hour before)
+   */
+  async speakScheduledRideReminder(pickupAddress, pickupTime) {
+    const message = `Reminder: You have a scheduled ride in 1 hour. Pickup at ${pickupAddress} at ${pickupTime}`;
+    await this.speak(message, 'scheduledRideReminder');
+  }
+
+  /**
+   * Speak urgent scheduled ride reminder (15 minutes before)
+   */
+  async speakScheduledRideUrgent(pickupAddress) {
+    const message = `Your scheduled ride is in 15 minutes. Pickup at ${pickupAddress}. Would you like navigation?`;
+    await this.speak(message, 'scheduledRideUrgent');
+  }
+
+  /**
+   * Speak ride status update (arrived, started, completed)
+   */
+  async speakRideStatusUpdate(status, details = '') {
+    let message = '';
+    
+    switch (status) {
+      case 'arrived':
+        message = 'Arrived at pickup. Passenger has been notified';
+        break;
+      case 'started':
+        message = details ? `Trip started. Navigation to ${details} is active` : 'Trip started';
+        break;
+      case 'completed':
+        message = details ? `Trip completed! You earned ${details}` : 'Trip completed!';
+        break;
+      default:
+        message = 'Ride status updated';
+    }
+    
+    await this.speak(message, 'rideStatusUpdate');
   }
 }
 
