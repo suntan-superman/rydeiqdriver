@@ -2,6 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, Animated, Easing } from 'react-native';
+import { initializeEnvValidation } from '@/utils/validateEnv';
+
+// Validate environment variables at startup
+initializeEnvValidation();
 
 // Step 1: Test constants import with safety
 let COLORS;
@@ -29,6 +33,8 @@ import '@/services/firebase/config';
 // Step 4: Test AuthContext with lazy Firebase imports
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { QueryProvider } from '@/contexts/QueryClientProvider';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import './src/i18n';
 
 // Step 5: Stripe Provider for payment integration (optional for driver app)
@@ -149,17 +155,21 @@ export default function App() {
   const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
   
   return (
-    <StripeProvider publishableKey={stripePublishableKey}>
-      <Provider store={store}>
-        <PersistGate loading={<SimpleLoadingScreen />} persistor={persistor}>
-          <ThemeProvider>
-            <AuthProvider>
-              <AppContent />
-            </AuthProvider>
-          </ThemeProvider>
-        </PersistGate>
-      </Provider>
-    </StripeProvider>
+    <ErrorBoundary>
+      <StripeProvider publishableKey={stripePublishableKey}>
+        <Provider store={store}>
+          <PersistGate loading={<SimpleLoadingScreen />} persistor={persistor}>
+            <ThemeProvider>
+              <QueryProvider>
+                <AuthProvider>
+                  <AppContent />
+                </AuthProvider>
+              </QueryProvider>
+            </ThemeProvider>
+          </PersistGate>
+        </Provider>
+      </StripeProvider>
+    </ErrorBoundary>
   );
 }
 

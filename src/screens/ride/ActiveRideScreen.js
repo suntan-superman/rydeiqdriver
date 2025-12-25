@@ -24,6 +24,11 @@ import RatingModal from '@/components/RatingModal';
 import { speechService } from '@/services/speechService';
 import voiceCommandService from '@/services/voiceCommandService';
 import EmergencyModal from '@/components/EmergencyModal';
+import VideoRecordingConsentModal from '@/components/VideoRecordingConsentModal';
+import VideoRecordingStatusIndicator from '@/components/VideoRecordingStatusIndicator';
+import VideoIncidentReportModal from '@/components/VideoIncidentReportModal';
+import RouteOptimizationDashboard from '../../components/navigation/RouteOptimizationDashboard';
+import routeOptimizationService from '../../services/routeOptimizationService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -85,19 +90,20 @@ const ActiveRideScreen = ({ route }) => {
     customerRating: 4.9,
     customerPhone: '+1 (555) 123-4567',
     pickup: {
-      address: '123 Main Street, Downtown',
+      address: '123 Main Street, Downtown Bakersfield',
       coordinates: { lat: 35.3733, lng: -119.0187 }
     },
     destination: {
-      address: '456 Oak Avenue, Uptown',
-      coordinates: { lat: 35.3733, lng: -119.0187 }
+      address: '456 Oak Avenue, East Bakersfield',
+      coordinates: { lat: 35.3850, lng: -118.9950 }  // ~2 miles away
     },
     estimatedDistance: '3.2 miles',
     estimatedDuration: '12 minutes',
     bidAmount: 18.50,
     rideType: 'standard',
     startTime: new Date(),
-    state: 'ride-accepted' // Current ride state
+    state: 'ride-accepted', // Current ride state
+    videoRecordingRequested: true // Enable video recording for testing
   };
 
   const [ride, setRide] = useState({ ...defaultRide, ...rideData });
@@ -121,6 +127,22 @@ const ActiveRideScreen = ({ route }) => {
   // Voice command state
   const [voiceCommandActive, setVoiceCommandActive] = useState(false);
 
+  // Video recording state
+  const [showVideoConsentModal, setShowVideoConsentModal] = useState(false);
+  const [showVideoIncidentModal, setShowVideoIncidentModal] = useState(false);
+  const [videoRecording, setVideoRecording] = useState({
+    isRecording: false,
+    consentGiven: false,
+    recordingStartedAt: null,
+    recordingDuration: 0,
+    incidentFlagged: false,
+  });
+
+  // Route optimization state
+  const [showRouteOptimization, setShowRouteOptimization] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState(null);
+  const [alternativeRoutes, setAlternativeRoutes] = useState([]);
+
   // Timer for tracking ride duration
   useEffect(() => {
     const interval = setInterval(() => {
@@ -129,6 +151,59 @@ const ActiveRideScreen = ({ route }) => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Load route optimization data when ride changes
+  useEffect(() => {
+    const loadRouteData = async () => {
+      if (ride?.pickup?.coordinates && ride?.destination?.coordinates) {
+        try {
+          const origin = {
+            latitude: ride.pickup.coordinates.latitude,
+            longitude: ride.pickup.coordinates.longitude
+          };
+          const destination = {
+            latitude: ride.destination.coordinates.latitude,
+            longitude: ride.destination.coordinates.longitude
+          };
+
+          const optimizedRoute = await routeOptimizationService.getOptimizedRoute(origin, destination);
+          setCurrentRoute(optimizedRoute);
+
+          const alternatives = await routeOptimizationService.getAlternativeRoutes(origin, destination, optimizedRoute);
+          setAlternativeRoutes(alternatives);
+        } catch (error) {
+          console.error('Error loading route data:', error);
+        }
+      }
+    };
+
+    loadRouteData();
+  }, [ride?.pickup?.coordinates, ride?.destination?.coordinates]);
+
+  // Video recording timer
+  useEffect(() => {
+    let interval;
+    if (videoRecording.isRecording) {
+      interval = setInterval(() => {
+        setVideoRecording(prev => ({
+          ...prev,
+          recordingDuration: prev.recordingDuration + 1,
+        }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [videoRecording.isRecording]);
+
+  // Check for video recording request when ride starts
+  useEffect(() => {
+    if (ride.state === 'ride-accepted' && ride.videoRecordingRequested && !videoRecording.consentGiven) {
+      // Show video consent modal after a short delay
+      const timer = setTimeout(() => {
+        setShowVideoConsentModal(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [ride.state, ride.videoRecordingRequested, videoRecording.consentGiven]);
 
   // Voice command integration based on ride state
   useEffect(() => {
@@ -186,6 +261,15 @@ const ActiveRideScreen = ({ route }) => {
   // Handle voice commands
   const handleVoiceCommand = async (result) => {
     if (result.type === 'timeout' || result.type === 'error') {
+      setVoiceCommandActive(false);
+      return;
+    }
+
+    // Handle emergency detection
+    if (result.type === 'emergency') {
+      console.log('🚨 EMERGENCY detected in ActiveRideScreen:', result.command);
+      await speechService.speak('Emergency assistance activated', null);
+      setShowEmergencyModal(true);
       setVoiceCommandActive(false);
       return;
     }
@@ -334,6 +418,76 @@ const ActiveRideScreen = ({ route }) => {
         }
       ]
     );
+  };
+
+  // Video Recording Handlers
+  const handleVideoConsent = (consentData) => {
+    setVideoRecording(prev => ({
+      ...prev,
+      consentGiven: true,
+      recordingStartedAt: new Date().toISOString(),
+    }));
+    setShowVideoConsentModal(false);
+    
+    // Auto-start recording after consent
+    setTimeout(() => {
+      setVideoRecording(prev => ({
+        ...prev,
+        isRecording: true,
+      }));
+    }, 1000);
+  };
+
+  const handleVideoDecline = () => {
+    setShowVideoConsentModal(false);
+    Alert.alert(
+      'Recording Declined',
+      'Video recording has been declined. The ride will continue normally.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleToggleRecording = () => {
+    if (videoRecording.isRecording) {
+      // Stop recording
+      setVideoRecording(prev => ({
+        ...prev,
+        isRecording: false,
+      }));
+    } else {
+      // Start recording
+      setVideoRecording(prev => ({
+        ...prev,
+        isRecording: true,
+        recordingStartedAt: new Date().toISOString(),
+      }));
+    }
+  };
+
+  const handleFlagIncident = () => {
+    setShowVideoIncidentModal(true);
+  };
+
+  const handleSubmitIncident = async (incidentData) => {
+    try {
+      // TODO: Submit incident to backend
+      console.log('🚨 Incident reported:', incidentData);
+      
+      setVideoRecording(prev => ({
+        ...prev,
+        incidentFlagged: true,
+      }));
+      
+      // Show success message
+      Alert.alert(
+        'Incident Reported',
+        'Your incident report has been submitted. Support will review the video recording.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error submitting incident:', error);
+      Alert.alert('Error', 'Failed to submit incident report. Please try again.');
+    }
   };
 
   // Multi-Stop Handlers
@@ -491,6 +645,10 @@ const ActiveRideScreen = ({ route }) => {
               <Ionicons name="navigate" size={24} color={COLORS.white} />
               <Text style={[styles.actionText, styles.primaryActionText]}>Navigate</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => setShowRouteOptimization(true)}>
+              <Ionicons name="map" size={24} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Route Options</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
               <Ionicons name="call" size={24} color={COLORS.success} />
               <Text style={styles.actionText}>Call</Text>
@@ -512,6 +670,10 @@ const ActiveRideScreen = ({ route }) => {
             <TouchableOpacity style={[styles.actionButton, styles.primaryAction]} onPress={() => handleStateChange('arrived-pickup')}>
               <Ionicons name="location" size={24} color={COLORS.white} />
               <Text style={[styles.actionText, styles.primaryActionText]}>I've Arrived</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => setShowRouteOptimization(true)}>
+              <Ionicons name="map" size={24} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Route Options</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
               <Ionicons name="call" size={24} color={COLORS.success} />
@@ -610,7 +772,7 @@ const ActiveRideScreen = ({ route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? 8 : 0 }]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       
       {/* Header */}
@@ -730,6 +892,18 @@ const ActiveRideScreen = ({ route }) => {
           </View>
         </View>
 
+        {/* Video Recording Status */}
+        {ride.videoRecordingRequested && (
+          <VideoRecordingStatusIndicator
+            isRecording={videoRecording.isRecording}
+            recordingDuration={videoRecording.recordingDuration}
+            onToggleRecording={handleToggleRecording}
+            onFlagIncident={handleFlagIncident}
+            showControls={ride.state === 'trip-active' || ride.state === 'customer-onboard'}
+            compact={false}
+          />
+        )}
+
         {/* Multi-Stop Navigation - Show during active trip */}
         {isMultiStop && (ride.state === 'trip-active' || ride.state === 'customer-onboard') && (
           <>
@@ -817,6 +991,34 @@ const ActiveRideScreen = ({ route }) => {
         onClose={() => setShowEmergencyModal(false)}
         currentRide={ride}
         driverLocation={null}
+      />
+
+      {/* Video Recording Modals */}
+      <VideoRecordingConsentModal
+        visible={showVideoConsentModal}
+        onClose={() => setShowVideoConsentModal(false)}
+        onConsent={handleVideoConsent}
+        onDecline={handleVideoDecline}
+        rideData={ride}
+        riderName={ride.customerName}
+      />
+
+      <VideoIncidentReportModal
+        visible={showVideoIncidentModal}
+        onClose={() => setShowVideoIncidentModal(false)}
+        onSubmit={handleSubmitIncident}
+        rideData={ride}
+        recordingDuration={videoRecording.recordingDuration}
+      />
+
+      {/* Route Optimization Dashboard */}
+      <RouteOptimizationDashboard
+        visible={showRouteOptimization}
+        onClose={() => setShowRouteOptimization(false)}
+        driverId={ride.driverId}
+        currentRoute={currentRoute}
+        alternativeRoutes={alternativeRoutes}
+        rideData={ride}
       />
     </SafeAreaView>
   );

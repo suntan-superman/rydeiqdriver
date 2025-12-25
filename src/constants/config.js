@@ -10,9 +10,8 @@ export const API_KEYS = {
   // Google Services
   GOOGLE_MAPS: {
     // Get from Google Cloud Console: https://console.cloud.google.com/
-    ANDROID: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY || 'YOUR_ANDROID_MAPS_API_KEY',
-    IOS: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY || 'YOUR_IOS_MAPS_API_KEY',
-    WEB: process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY || 'YOUR_WEB_MAPS_API_KEY',
+    // Using a single unified key for all platforms
+    API_KEY: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY',
   },
   
   // Fuel Price APIs
@@ -177,12 +176,8 @@ export const validateConfig = () => {
   const errors = [];
   
   // Check essential API keys
-  if (!API_KEYS.GOOGLE_MAPS.ANDROID || API_KEYS.GOOGLE_MAPS.ANDROID === 'YOUR_ANDROID_MAPS_API_KEY') {
-    errors.push('Missing Google Maps Android API key');
-  }
-  
-  if (!API_KEYS.GOOGLE_MAPS.IOS || API_KEYS.GOOGLE_MAPS.IOS === 'YOUR_IOS_MAPS_API_KEY') {
-    errors.push('Missing Google Maps iOS API key');
+  if (!API_KEYS.GOOGLE_MAPS.API_KEY || API_KEYS.GOOGLE_MAPS.API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
+    errors.push('Missing Google Maps API key');
   }
   
   if (isProduction) {

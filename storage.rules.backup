@@ -1,0 +1,209 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================
+    // Helper Functions
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'super_admin');
+    }
+    
+    function isSupport() {
+      return isAuthenticated() && 
+        (request.auth.token.role == 'support' || isAdmin());
+    }
+    
+    // Check if user is involved in the ride
+    function isInvolvedInRide(rideId) {
+      let rideData = firestore.get(/databases/(default)/documents/rides/$(rideId)).data;
+      return request.auth.uid == rideData.driverId || 
+             request.auth.uid == rideData.riderId;
+    }
+    
+    // Check if user is assigned reviewer for an incident
+    function isAssignedReviewer(incidentId) {
+      let incidentData = firestore.get(
+        /databases/(default)/documents/videoIncidents/$(incidentId)
+      ).data;
+      return request.auth.uid == incidentData.assignedTo;
+    }
+    
+    // Check if incident is closed
+    function incidentIsClosed(incidentId) {
+      let incidentData = firestore.get(
+        /databases/(default)/documents/videoIncidents/$(incidentId)
+      ).data;
+      return incidentData.reviewStatus == 'closed';
+    }
+    
+    // Validate video file
+    function isValidVideoFile() {
+      return request.resource.contentType.matches('video/.*') &&
+             request.resource.size < 500 * 1024 * 1024; // Max 500MB per file
+    }
+    
+    // Validate image file
+    function isValidImageFile() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 10 * 1024 * 1024; // Max 10MB per image
+    }
+    
+    // ============================================
+    // Video Incident Uploads
+    // Videos uploaded when incidents are flagged
+    // ============================================
+    
+    match /videoIncidents/{rideId}/{fileName} {
+      // Upload rules - Only involved parties can upload
+      allow create: if isAuthenticated() && 
+        isInvolvedInRide(rideId) &&
+        isValidVideoFile() &&
+        fileName.matches('.*\\.(mp4|mov|avi)$');
+      
+      // Read rules - Involved parties, assigned reviewer, and admins
+      allow read: if isAuthenticated() && (
+        isInvolvedInRide(rideId) ||
+        isAssignedReviewer(rideId) ||
+        isAdmin() ||
+        isSupport()
+      );
+      
+      // Delete rules - Only admin after incident is closed
+      allow delete: if isAdmin() && incidentIsClosed(rideId);
+      
+      // Update not allowed (immutable after upload)
+      allow update: if false;
+    }
+    
+    // ============================================
+    // Driver Video Equipment Verification
+    // Photos of installed equipment for admin review
+    // ============================================
+    
+    match /driverVerification/{driverId}/{fileName} {
+      // Drivers can upload verification photos
+      allow create: if isAuthenticated() && 
+        request.auth.uid == driverId &&
+        isValidImageFile() &&
+        fileName.matches('.*\\.(jpg|jpeg|png|webp)$');
+      
+      // Driver and admins can read
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == driverId || isAdmin());
+      
+      // Update to replace photo
+      allow update: if isAuthenticated() && 
+        request.auth.uid == driverId &&
+        isValidImageFile();
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // Privacy Notice Sticker Photos
+    // Proof that privacy notice is posted in vehicle
+    // ============================================
+    
+    match /privacyNoticePhotos/{driverId}/{fileName} {
+      // Drivers can upload privacy notice photos
+      allow create: if isAuthenticated() && 
+        request.auth.uid == driverId &&
+        isValidImageFile();
+      
+      // Driver and admins can read
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == driverId || isAdmin());
+      
+      // Allow update to replace photo
+      allow update: if isAuthenticated() && 
+        request.auth.uid == driverId &&
+        isValidImageFile();
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // Temporary Video Clips
+    // Short clips extracted for review (auto-expire in 7 days)
+    // ============================================
+    
+    match /tempVideoClips/{incidentId}/{clipId} {
+      // Only admins and support can create temp clips
+      allow create: if isAdmin() || isSupport();
+      
+      // Admins, support, and involved parties can read
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        isSupport() ||
+        isAssignedReviewer(incidentId)
+      );
+      
+      // Update not allowed
+      allow update: if false;
+      
+      // Admins and support can delete
+      allow delete: if isAdmin() || isSupport();
+    }
+    
+    // ============================================
+    // Video Thumbnails
+    // Generated thumbnails for quick preview
+    // ============================================
+    
+    match /videoThumbnails/{rideId}/{thumbnailFile} {
+      // System-generated, so only admins can create
+      allow create: if isAdmin();
+      
+      // Same read permissions as video incidents
+      allow read: if isAuthenticated() && (
+        isInvolvedInRide(rideId) ||
+        isAssignedReviewer(rideId) ||
+        isAdmin() ||
+        isSupport()
+      );
+      
+      // No updates
+      allow update: if false;
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // Driver Profile Pictures (existing)
+    // Keep existing profile picture rules
+    // ============================================
+    
+    match /profilePictures/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // Vehicle Photos (existing)
+    // ============================================
+    
+    match /vehiclePhotos/{driverId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == driverId;
+    }
+    
+    // ============================================
+    // Default Deny
+    // ============================================
+    
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

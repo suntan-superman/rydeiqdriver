@@ -1035,6 +1035,9 @@ class WellnessService {
     return onSnapshot(updatesQuery, (snapshot) => {
       const updates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(updates);
+    }, (error) => {
+      console.error('Error in wellness updates subscription:', error);
+      callback([], error);
     });
   }
 

@@ -3,8 +3,24 @@
  * Handles voice recognition for hands-free driver interactions
  */
 
-import Voice from '@react-native-voice/voice';
+// Safe import for Voice module
+let Voice;
+try {
+  Voice = require('@react-native-voice/voice').default;
+} catch (e) {
+  console.warn('⚠️ @react-native-voice/voice not available:', e.message);
+  Voice = null;
+}
+
 import { Platform, PermissionsAndroid } from 'react-native';
+
+// Import emergency service for checking keywords
+let emergencyVoiceService = null;
+try {
+  emergencyVoiceService = require('./emergencyVoiceService').default;
+} catch (e) {
+  console.warn('Emergency voice service not available');
+}
 
 // Command vocabularies
 const ACCEPT_WORDS = ['accept', 'yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'affirmative', 'take it', 'take'];
@@ -20,7 +36,8 @@ const PROBLEM_WORDS = ['problem', 'issue', 'help', 'need help', 'trouble'];
 
 // Normalize text for matching
 function normalize(text) {
-  return (text || '').toLowerCase().trim();
+  if (!text) return '';
+  return text.toString().toLowerCase().trim();
 }
 
 class VoiceCommandService {
@@ -30,6 +47,7 @@ class VoiceCommandService {
     this.onCommandCallback = null;
     this.commandTimeout = null;
     this.locale = 'en-US';
+    this.isAvailable = false; // Track if Voice module is available
   }
 
   /**
@@ -37,6 +55,14 @@ class VoiceCommandService {
    */
   async initialize() {
     try {
+      // Check if Voice module is available (requires dev build)
+      if (!Voice || typeof Voice.start !== 'function') {
+        console.warn('⚠️ Voice module not available. Voice commands disabled.');
+        console.warn('📱 Run "npx expo run:android" to enable voice features.');
+        this.isAvailable = false;
+        return false;
+      }
+
       // Request permissions on Android
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.request(
@@ -55,16 +81,25 @@ class VoiceCommandService {
         }
       }
 
-      // Set up event handlers
-      Voice.onSpeechStart = this.onSpeechStart.bind(this);
-      Voice.onSpeechEnd = this.onSpeechEnd.bind(this);
-      Voice.onSpeechResults = this.onSpeechResults.bind(this);
-      Voice.onSpeechError = this.onSpeechError.bind(this);
+      // Set up event handlers ONLY if Voice is available
+      if (Voice && typeof Voice.on === 'function') {
+        try {
+          Voice.on('start', this.onSpeechStart.bind(this));
+          Voice.on('end', this.onSpeechEnd.bind(this));
+          Voice.on('results', this.onSpeechResults.bind(this));
+          Voice.on('error', this.onSpeechError.bind(this));
+        } catch (listenerError) {
+          console.warn('⚠️ Could not set up Voice listeners:', listenerError.message);
+          // Continue anyway - some methods might still work
+        }
+      }
 
+      this.isAvailable = true;
       console.log('✅ Voice command service initialized');
       return true;
     } catch (error) {
       console.error('❌ Voice initialization error:', error);
+      this.isAvailable = false;
       return false;
     }
   }
@@ -74,6 +109,11 @@ class VoiceCommandService {
    */
   async startListening(context, callback, timeoutMs = 10000) {
     try {
+      if (!this.isAvailable) {
+        console.warn('⚠️ Voice not available, skipping voice commands');
+        return false;
+      }
+
       if (this.isListening) {
         await this.stopListening();
       }
@@ -82,8 +122,19 @@ class VoiceCommandService {
       this.onCommandCallback = callback;
       this.isListening = true;
 
-      await Voice.start(this.locale);
-      console.log(`🎤 Listening for ${context} commands...`);
+      if (Voice && typeof Voice.start === 'function') {
+        try {
+          await Voice.start(this.locale);
+          console.log(`🎤 Listening for ${context} commands...`);
+        } catch (voiceError) {
+          console.warn('⚠️ Voice.start failed:', voiceError.message);
+          this.isListening = false;
+          return false;
+        }
+      } else {
+        console.warn('⚠️ Voice.start not available');
+        return false;
+      }
 
       // Auto-stop after timeout
       this.commandTimeout = setTimeout(() => {
@@ -111,7 +162,14 @@ class VoiceCommandService {
         this.commandTimeout = null;
       }
 
-      await Voice.stop();
+      if (this.isAvailable && Voice && typeof Voice.stop === 'function') {
+        try {
+          await Voice.stop();
+        } catch (voiceError) {
+          console.warn('⚠️ Voice.stop failed:', voiceError.message);
+        }
+      }
+      
       this.isListening = false;
       this.currentContext = null;
       console.log('🔇 Stopped listening');
@@ -217,6 +275,31 @@ class VoiceCommandService {
       return;
     }
 
+    // PRIORITY CHECK: Always check for emergency keywords first
+    if (emergencyVoiceService) {
+      const emergencyResult = emergencyVoiceService.checkForEmergency(bestMatch);
+      if (emergencyResult && emergencyResult.action !== 'unknown') {
+        console.log('🚨 EMERGENCY DETECTED - handling immediately');
+        this.stopListening();
+        
+        // Trigger emergency handling
+        emergencyVoiceService.handleEmergency(emergencyResult, bestMatch);
+        
+        // Also notify the callback so UI can respond
+        if (this.onCommandCallback) {
+          this.onCommandCallback({
+            type: 'emergency',
+            command: emergencyResult.action,
+            text: bestMatch,
+            confidence: 'high',
+            urgency: emergencyResult.urgency
+          });
+        }
+        return;
+      }
+    }
+
+    // Normal command processing
     const command = this.parseCommand(bestMatch, this.currentContext);
     
     if (command.action !== 'unknown') {
@@ -254,11 +337,37 @@ class VoiceCommandService {
    */
   async destroy() {
     try {
-      await Voice.destroy();
-      Voice.removeAllListeners();
+      // Stop listening first - safe even if Voice is null
+      try {
+        await this.stopListening();
+      } catch (stopError) {
+        console.warn('⚠️ Error during stopListening in destroy:', stopError.message);
+      }
+      
+      // Only call Voice methods if Voice is definitely not null and has the method
+      if (Voice && Voice !== null) {
+        try {
+          if (typeof Voice.destroy === 'function') {
+            await Voice.destroy();
+          }
+        } catch (destroyError) {
+          console.warn('⚠️ Error calling Voice.destroy():', destroyError.message);
+        }
+        
+        try {
+          if (typeof Voice.removeAllListeners === 'function') {
+            Voice.removeAllListeners();
+          }
+        } catch (removeError) {
+          console.warn('⚠️ Error calling Voice.removeAllListeners():', removeError.message);
+        }
+      }
+      
+      // Clear local state
       this.isListening = false;
       this.currentContext = null;
       this.onCommandCallback = null;
+      this.isAvailable = false;
       console.log('🗑️ Voice command service destroyed');
     } catch (error) {
       console.error('❌ Destroy error:', error);

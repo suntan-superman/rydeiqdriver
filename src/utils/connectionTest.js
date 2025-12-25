@@ -1,6 +1,6 @@
-import RideRequestService from '@/services/rideRequestService';
-import DriverStatusService from '@/services/driverStatusService';
-import { auth } from '@/services/firebase/config';
+import RideRequestService from '../services/rideRequestService';
+import DriverStatusService from '../services/driverStatusService';
+import { auth } from '../services/firebase/config';
 
 // Test data for simulating rider requests
 const mockRideRequest = {

@@ -91,7 +91,7 @@ try {
 } catch (e) { RydeAnimation = FallbackScreen; }
 
 try {
-  AnalyticsDashboard = require('@/screens/dashboard/AnalyticsDashboard').default;
+  AnalyticsDashboard = require('@/screens/analytics/AnalyticsDashboard').default;
 } catch (e) { AnalyticsDashboard = FallbackScreen; }
 
 try {
@@ -216,7 +216,7 @@ const AppNavigator = () => {
         }}
       />
       <Stack.Screen 
-        name="AnalyticsDashboard" 
+        name="Analytics" 
         component={AnalyticsDashboard}
         options={{
           headerShown: false,

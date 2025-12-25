@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import { COLORS } from '@/constants';
+import { FONT_SIZES, SPACING, CARD_SIZES, BORDER_RADIUS, hp, wp, rf } from '@/constants/responsiveSizes';
 import ScheduleTimeline from './ScheduleTimeline';
 import ScheduleWeekView from './ScheduleWeekView';
 import ScheduleMonthView from './ScheduleMonthView';
@@ -654,17 +655,17 @@ const styles = StyleSheet.create({
   },
   rideCard: {
     backgroundColor: COLORS.white || '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    borderLeftWidth: 4,
+    borderRadius: CARD_SIZES.BORDER_RADIUS,
+    padding: CARD_SIZES.PADDING,
+    marginBottom: SPACING.SMALL,
+    borderLeftWidth: wp('1%'),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 1,
     },
     shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowRadius: CARD_SIZES.SHADOW_RADIUS,
     elevation: 3,
   },
   rideHeader: {
@@ -673,25 +674,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: hp('4%'),
+    height: hp('4%'),
+    borderRadius: hp('2%'),
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: SPACING.SMALL,
   },
   rideInfo: {
     flex: 1,
   },
   rideTitle: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.SMALL,
     fontWeight: '600',
     color: COLORS.textPrimary || '#111827',
   },
   rideDateTime: {
-    fontSize: 12,
+    fontSize: FONT_SIZES.CAPTION,
     color: COLORS.textPrimary || '#111827',
-    marginTop: 2,
+    marginTop: hp('0.3%'),
     fontWeight: '500',
   },
   statusBadge: {

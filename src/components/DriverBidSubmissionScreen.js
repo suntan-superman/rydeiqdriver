@@ -182,6 +182,11 @@ const DriverBidSubmissionScreen = ({
   onRideCancelled,
   onClose
 }) => {
+  // Validate driverInfo immediately
+  if (!driverInfo || !driverInfo.id) {
+    console.warn('⚠️ WARNING: DriverBidSubmissionScreen received invalid driverInfo:', driverInfo);
+  }
+  
   // Get screen dimensions
   const { width, height } = Dimensions.get('window');
   
@@ -505,7 +510,10 @@ const DriverBidSubmissionScreen = ({
         
         try {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        } catch (e) {}
+        } catch (hapticError) {
+          // Haptics may not be available on all devices - non-critical failure
+          console.warn('Haptic feedback unavailable:', hapticError?.message || 'Unknown error');
+        }
         
         // Ask for confirmation
         await speechService.speak('Are you sure you want to decline this ride? Say confirm or cancel', null);
@@ -522,7 +530,10 @@ const DriverBidSubmissionScreen = ({
         
         try {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (e) {}
+        } catch (hapticError) {
+          // Haptics may not be available on all devices - non-critical failure
+          console.warn('Haptic feedback unavailable:', hapticError?.message || 'Unknown error');
+        }
         
         await speechService.speak('Ride accepted', null);
         
@@ -553,7 +564,10 @@ const DriverBidSubmissionScreen = ({
         // Execute decline
         try {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (e) {}
+        } catch (hapticError) {
+          // Haptics may not be available on all devices - non-critical failure
+          console.warn('Haptic feedback unavailable:', hapticError?.message || 'Unknown error');
+        }
         
         await speechService.speak('Ride declined', null);
         
@@ -570,7 +584,10 @@ const DriverBidSubmissionScreen = ({
         
         try {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch (e) {}
+        } catch (hapticError) {
+          // Haptics may not be available on all devices - non-critical failure
+          console.warn('Haptic feedback unavailable:', hapticError?.message || 'Unknown error');
+        }
         
         await speechService.speak('Cancelled. Say accept or decline', null);
         
@@ -919,9 +936,19 @@ const DriverBidSubmissionScreen = ({
         setBidStatus('listening');
         
         // Start listening for bid acceptance
+        const driverId = driverInfo?.id || 'unknown';
+        
+        if (!driverId || driverId === 'unknown') {
+          console.error('❌ Driver ID not available for bid acceptance listening');
+          Alert.alert('Error', 'Driver ID not available. Please try again.');
+          setIsListeningForAcceptance(false);
+          setBidStatus('idle');
+          return;
+        }
+        
         await driverBidNotificationService.startListeningForBidAcceptance(
           rideRequest.id,
-          driverInfo?.id || 'unknown',
+          driverId,
           bidAmount,
           handleBidAcceptanceCallback,
           handleRideCancelledCallback,

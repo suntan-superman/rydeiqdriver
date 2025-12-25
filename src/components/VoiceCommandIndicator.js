@@ -7,6 +7,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants';
+import { FONT_SIZES, SPACING, ICON_SIZES, BORDER_RADIUS, hp, wp } from '@/constants/responsiveSizes';
 
 const VoiceCommandIndicator = ({ isListening, context }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -51,7 +52,7 @@ const VoiceCommandIndicator = ({ isListening, context }) => {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.iconContainer, { transform: [{ scale: pulseAnim }] }]}>
-        <Ionicons name="mic" size={32} color={COLORS.white} />
+        <Ionicons name="mic" size={hp('4%')} color={COLORS.white} />
       </Animated.View>
       <Text style={styles.message}>{getContextMessage()}</Text>
       <View style={styles.waveContainer}>
@@ -66,7 +67,7 @@ const VoiceCommandIndicator = ({ isListening, context }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 100,
+    top: hp('12%'),
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -74,38 +75,38 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     backgroundColor: COLORS.success,
-    borderRadius: 40,
-    width: 80,
-    height: 80,
+    borderRadius: hp('5%'),
+    width: hp('10%'),
+    height: hp('10%'),
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: hp('0.5%') },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: hp('1%'),
     elevation: 8,
   },
   message: {
-    marginTop: 12,
-    fontSize: 16,
+    marginTop: SPACING.SMALL,
+    fontSize: FONT_SIZES.MEDIUM,
     fontWeight: '600',
     color: COLORS.secondary[900],
     backgroundColor: COLORS.white,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: SPACING.MEDIUM,
+    paddingVertical: SPACING.SMALL,
+    borderRadius: BORDER_RADIUS.XLARGE,
     overflow: 'hidden',
   },
   waveContainer: {
     flexDirection: 'row',
-    marginTop: 8,
-    gap: 4,
+    marginTop: SPACING.SMALL,
+    gap: wp('1%'),
   },
   wave: {
-    width: 3,
-    height: 20,
+    width: wp('0.8%'),
+    height: hp('2.5%'),
     backgroundColor: COLORS.success,
-    borderRadius: 2,
+    borderRadius: hp('0.3%'),
   },
 });
 

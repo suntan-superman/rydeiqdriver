@@ -222,7 +222,7 @@ const SupportScreen = () => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.COLORS.background, paddingTop: Platform.OS === 'android' ? 16 : 0 }]}>
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.COLORS.background} />
       
       {/* Header */}
@@ -263,10 +263,10 @@ const SupportScreen = () => {
         </Card>
 
         {/* Contact Options */}
-        <SectionHeader 
+        {/* <SectionHeader 
           title={t('contactSupport')} 
           subtitle={t('getHelpFromSupportTeam')}
-        />
+        /> */}
         <Card>
           {contactOptions.map((option) => (
             <ContactCard key={option.id} option={option} />
@@ -275,8 +275,8 @@ const SupportScreen = () => {
 
         {/* Quick Help */}
         <SectionHeader 
-          title={t('quickHelp')} 
-          subtitle={t('commonTopicsAndGuides')}
+          title={t('Quick Help')} 
+          subtitle={t('Common Topics And sGuides')}
         />
         <View style={styles.quickHelpGrid}>
           {quickHelp.map((item) => (
@@ -286,8 +286,8 @@ const SupportScreen = () => {
 
         {/* FAQ Section */}
         <SectionHeader 
-          title={t('frequentlyAskedQuestions')} 
-          subtitle={t('findAnswersToCommonQuestions')}
+          title={t('FAQ')} 
+          subtitle={t('Find AnswersToCommonQuestions')}
         />
         <Card>
           {faqData.map((item) => (
@@ -297,8 +297,8 @@ const SupportScreen = () => {
 
         {/* Additional Resources */}
         <SectionHeader 
-          title={t('additionalResources')} 
-          subtitle={t('moreWaysToGetHelp')}
+          title={t('Additional Resources')} 
+          subtitle={t('More Ways To Get Help')}
         />
         <Card>
           <TouchableOpacity style={styles.resourceItem}>
@@ -306,8 +306,8 @@ const SupportScreen = () => {
               <Ionicons name="book" size={24} color={theme.COLORS.primary} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>{t('driverHandbook')}</Text>
-              <Text style={styles.resourceSubtitle}>{t('completeGuideToDrivingWithAnyRyde')}</Text>
+              <Text style={styles.resourceTitle}>{t('Driver Handbook')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('Complete Guide To Driving With AnyRyde')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
@@ -317,8 +317,8 @@ const SupportScreen = () => {
               <Ionicons name="videocam" size={24} color={theme.COLORS.info} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>{t('videoTutorials')}</Text>
-              <Text style={styles.resourceSubtitle}>{t('watchStepByStepGuides')}</Text>
+              <Text style={styles.resourceTitle}>{t('Video Tutorials')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('Watch StepByStepGuides')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
@@ -328,8 +328,8 @@ const SupportScreen = () => {
               <Ionicons name="people" size={24} color={theme.COLORS.success} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>{t('driverCommunity')}</Text>
-              <Text style={styles.resourceSubtitle}>{t('connectWithOtherDrivers')}</Text>
+              <Text style={styles.resourceTitle}>{t('Driver Community')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('Connect With Other Drivers')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
@@ -342,8 +342,8 @@ const SupportScreen = () => {
               <Ionicons name="share-social" size={24} color={theme.COLORS.warning} />
             </View>
             <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>{t('referADriver')}</Text>
-              <Text style={styles.resourceSubtitle}>{t('shareAnyRydeWithFriends')}</Text>
+              <Text style={styles.resourceTitle}>{t('Refer A Driver')}</Text>
+              <Text style={styles.resourceSubtitle}>{t('Share AnyRyde With Friends')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.COLORS.secondary} />
           </TouchableOpacity>
@@ -351,12 +351,12 @@ const SupportScreen = () => {
 
         {/* App Info */}
         <Card style={styles.appInfoCard}>
-          <Text style={styles.appInfoTitle}>{t('anyRydeDriver')}</Text>
+          <Text style={styles.appInfoTitle}>{t('AnyRyde')}</Text>
           <Text style={styles.appInfoText}>
-            {t('yourRidesYourRatesYourRules')}
+            {t('Your Rides Your Rates Your Rules')}
           </Text>
           <Text style={styles.appInfoText}>
-            {t('copyright')}
+            {t('Copyright 2025 AnyRyde')}
           </Text>
         </Card>
 
@@ -619,6 +619,7 @@ const styles = StyleSheet.create({
   appInfoText: {
     fontSize: TYPOGRAPHY.fontSizes.sm,
     color: COLORS.secondary[600],
+    fontWeight: TYPOGRAPHY.fontWeights.bold,
     textAlign: 'center',
     marginBottom: DIMENSIONS.paddingS,
   },

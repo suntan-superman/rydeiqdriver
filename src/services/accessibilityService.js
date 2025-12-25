@@ -585,6 +585,9 @@ class AccessibilityService {
     return onSnapshot(updatesQuery, (snapshot) => {
       const updates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(updates);
+    }, (error) => {
+      console.error('Error in accessibility updates subscription:', error);
+      callback([], error);
     });
   }
 

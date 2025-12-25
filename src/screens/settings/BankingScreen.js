@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { db } from '../../services/firebase/config';
 
 const WEB_BANKING_URL = 'https://anyryde.com/banking'; // TODO: Replace with actual link if available
 

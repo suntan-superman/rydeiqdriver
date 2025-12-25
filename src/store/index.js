@@ -5,12 +5,12 @@ import { combineReducers } from '@reduxjs/toolkit';
 
 // Import slices
 import authSlice from './slices/authSlice'; // ✅ Fixed - uses lazy Firebase imports
-// import driverSlice from './slices/driverSlice'; // ❌ Has Firebase imports - temporarily disabled
-// import ridesSlice from './slices/ridesSlice'; // ❌ Has Firebase imports - temporarily disabled
-// import biddingSlice from './slices/biddingSlice'; // ❌ Has Firebase imports - temporarily disabled
+import driverSlice from './slices/driverSlice'; // ✅ Re-enabled - uses lazy Firebase imports
+import ridesSlice from './slices/ridesSlice'; // ✅ Re-enabled - uses lazy Firebase imports
+import biddingSlice from './slices/biddingSlice'; // ✅ Re-enabled - uses lazy Firebase imports
 import locationSlice from './slices/locationSlice'; // ✅ Should work now with lazy Firebase config
-// import earningsSlice from './slices/earningsSlice'; // ❌ Has Firebase imports - temporarily disabled
-// import notificationSlice from './slices/notificationSlice'; // ❌ Has Firebase imports - temporarily disabled
+import earningsSlice from './slices/earningsSlice'; // ✅ Re-enabled - uses lazy Firebase imports
+import notificationSlice from './slices/notificationSlice'; // ✅ Re-enabled - uses lazy Firebase imports
 import appSlice from './slices/appSlice'; // ✅ No Firebase imports - safe
 import analyticsSlice from './slices/analyticsSlice'; // ✅ Analytics slice for dashboard
 import driverToolsSlice from './slices/driverToolsSlice'; // ✅ Driver tools slice for dashboard
@@ -29,19 +29,19 @@ import wellnessSlice from './slices/wellnessSlice'; // ✅ Wellness slice for ad
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'app'], // Only persist safe slices for now
-  blacklist: ['location'] // Don't persist real-time location data
+  whitelist: ['auth', 'app', 'driver', 'notification'], // Persist auth, app settings, driver profile, and notification settings
+  blacklist: ['location', 'rides', 'bidding', 'earnings'] // Don't persist real-time data
 };
 
 // Root reducer - testing with Firebase config fix
 const rootReducer = combineReducers({
   auth: authSlice,
-  // driver: driverSlice, // Temporarily disabled
-  // rides: ridesSlice, // Temporarily disabled
-  // bidding: biddingSlice, // Temporarily disabled
+  driver: driverSlice, // ✅ Re-enabled
+  rides: ridesSlice, // ✅ Re-enabled
+  bidding: biddingSlice, // ✅ Re-enabled
   location: locationSlice, // Re-enabled - should work now
-  // earnings: earningsSlice, // Temporarily disabled
-  // notification: notificationSlice, // Temporarily disabled
+  earnings: earningsSlice, // ✅ Re-enabled
+  notification: notificationSlice, // ✅ Re-enabled
   app: appSlice,
   analytics: analyticsSlice, // ✅ Add analytics slice
   driverTools: driverToolsSlice, // ✅ Add driver tools slice

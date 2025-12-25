@@ -5,9 +5,13 @@
  */
 
 import {
-  widthPercentageToDP as wp,
-  heightPercentageToDP as hp,
+  widthPercentageToDP as wpFunc,
+  heightPercentageToDP as hpFunc,
 } from 'react-native-responsive-screen';
+
+// Export the base functions
+export const wp = wpFunc;
+export const hp = hpFunc;
 
 // ============================================================
 // SPACING
@@ -15,27 +19,27 @@ import {
 
 export const SPACING = {
   // Tiny spacing (2-4px equivalent)
-  TINY: hp('0.3%'),
-  TINY_HORIZONTAL: wp('0.5%'),
+  TINY: hpFunc('0.3%'),
+  TINY_HORIZONTAL: wpFunc('0.5%'),
   
   // Small spacing (6-10px equivalent)
-  SMALL: hp('0.8%'),
-  SMALL_HORIZONTAL: wp('1.5%'),
+  SMALL: hpFunc('0.8%'),
+  SMALL_HORIZONTAL: wpFunc('1.5%'),
   
   // Medium spacing (12-16px equivalent)
-  MEDIUM: hp('1.5%'),
-  MEDIUM_HORIZONTAL: wp('3%'),
+  MEDIUM: hpFunc('1.5%'),
+  MEDIUM_HORIZONTAL: wpFunc('3%'),
   
   // Large spacing (20-24px equivalent)
-  LARGE: hp('2.5%'),
-  LARGE_HORIZONTAL: wp('5%'),
+  LARGE: hpFunc('2.5%'),
+  LARGE_HORIZONTAL: wpFunc('5%'),
   
   // Extra large spacing (32-40px equivalent)
-  XLARGE: hp('4%'),
-  XLARGE_HORIZONTAL: wp('8%'),
+  XLARGE: hpFunc('4%'),
+  XLARGE_HORIZONTAL: wpFunc('8%'),
   
   // Section spacing
-  SECTION: hp('3%'),
+  SECTION: hpFunc('3%'),
 };
 
 // ============================================================
@@ -44,26 +48,26 @@ export const SPACING = {
 
 export const FONT_SIZES = {
   // Small text (8-10px equivalent)
-  TINY: Math.max(hp('1%'), 10),      // Min 10px for readability
+  TINY: Math.max(hpFunc('1%'), 10),      // Min 10px for readability
   
   // Caption text (11-12px equivalent)
-  CAPTION: Math.max(hp('1.3%'), 11),  // Min 11px
+  CAPTION: Math.max(hpFunc('1.3%'), 11),  // Min 11px
   
   // Body text (13-14px equivalent)
-  SMALL: Math.max(hp('1.5%'), 12),    // Min 12px
-  BODY: Math.max(hp('1.8%'), 13),     // Min 13px
+  SMALL: Math.max(hpFunc('1.5%'), 12),    // Min 12px
+  BODY: Math.max(hpFunc('1.8%'), 13),     // Min 13px
   
   // Heading text (16-18px equivalent)
-  MEDIUM: Math.max(hp('2%'), 14),     // Min 14px
-  HEADING: Math.max(hp('2.5%'), 16),  // Min 16px
+  MEDIUM: Math.max(hpFunc('2%'), 14),     // Min 14px
+  HEADING: Math.max(hpFunc('2.5%'), 16),  // Min 16px
   
   // Large heading (20-24px equivalent)
-  LARGE: Math.max(hp('3%'), 18),      // Min 18px
-  XLARGE: Math.max(hp('3.5%'), 20),   // Min 20px
+  LARGE: Math.max(hpFunc('3%'), 18),      // Min 18px
+  XLARGE: Math.max(hpFunc('3.5%'), 20),   // Min 20px
   
   // Title text (28-32px equivalent)
-  TITLE: Math.max(hp('4%'), 24),      // Min 24px
-  DISPLAY: Math.max(hp('5%'), 28),    // Min 28px
+  TITLE: Math.max(hpFunc('4%'), 24),      // Min 24px
+  DISPLAY: Math.max(hpFunc('5%'), 28),    // Min 28px
 };
 
 // ============================================================
@@ -72,33 +76,33 @@ export const FONT_SIZES = {
 
 export const BUTTON_SIZES = {
   // Button heights
-  SMALL: hp('5%'),
-  MEDIUM: hp('6%'),
-  LARGE: hp('7%'),
+  SMALL: hpFunc('5%'),
+  MEDIUM: hpFunc('6%'),
+  LARGE: hpFunc('7%'),
   
   // Button paddings
-  PADDING_HORIZONTAL: wp('4%'),
-  PADDING_VERTICAL: hp('1.5%'),
+  PADDING_HORIZONTAL: wpFunc('4%'),
+  PADDING_VERTICAL: hpFunc('1.5%'),
 };
 
 export const ICON_SIZES = {
-  TINY: hp('1.5%'),
-  SMALL: hp('2%'),
-  MEDIUM: hp('2.5%'),
-  LARGE: hp('3.5%'),
-  XLARGE: hp('5%'),
+  TINY: hpFunc('1.5%'),
+  SMALL: hpFunc('2%'),
+  MEDIUM: hpFunc('2.5%'),
+  LARGE: hpFunc('3.5%'),
+  XLARGE: hpFunc('5%'),
 };
 
 export const INPUT_SIZES = {
-  HEIGHT: hp('6%'),
-  PADDING: wp('3%'),
-  BORDER_RADIUS: hp('1%'),
+  HEIGHT: hpFunc('6%'),
+  PADDING: wpFunc('3%'),
+  BORDER_RADIUS: hpFunc('1%'),
 };
 
 export const CARD_SIZES = {
-  PADDING: wp('4%'),
-  BORDER_RADIUS: hp('1.2%'),
-  SHADOW_RADIUS: hp('0.5%'),
+  PADDING: wpFunc('4%'),
+  BORDER_RADIUS: hpFunc('1.2%'),
+  SHADOW_RADIUS: hpFunc('0.5%'),
 };
 
 // ============================================================
@@ -107,22 +111,22 @@ export const CARD_SIZES = {
 
 export const WIDTHS = {
   // Standard widths
-  FULL: wp('100%'),
-  CONTENT: wp('90%'),          // Main content area
-  CONTENT_MAX: wp('95%'),      // Maximum content width
-  HALF: wp('45%'),
-  THIRD: wp('30%'),
-  QUARTER: wp('22%'),
+  FULL: wpFunc('100%'),
+  CONTENT: wpFunc('90%'),          // Main content area
+  CONTENT_MAX: wpFunc('95%'),      // Maximum content width
+  HALF: wpFunc('45%'),
+  THIRD: wpFunc('30%'),
+  QUARTER: wpFunc('22%'),
   
   // Modal widths
-  MODAL_SMALL: wp('75%'),
-  MODAL_MEDIUM: wp('85%'),
-  MODAL_LARGE: wp('95%'),
+  MODAL_SMALL: wpFunc('75%'),
+  MODAL_MEDIUM: wpFunc('85%'),
+  MODAL_LARGE: wpFunc('95%'),
   
   // Card widths
-  CARD_SMALL: wp('40%'),
-  CARD_MEDIUM: wp('45%'),
-  CARD_LARGE: wp('90%'),
+  CARD_SMALL: wpFunc('40%'),
+  CARD_MEDIUM: wpFunc('45%'),
+  CARD_LARGE: wpFunc('90%'),
 };
 
 // ============================================================
@@ -131,19 +135,19 @@ export const WIDTHS = {
 
 export const HEIGHTS = {
   // Component heights
-  HEADER: hp('8%'),
-  TAB_BAR: hp('8%'),
-  BOTTOM_SHEET: hp('60%'),
+  HEADER: hpFunc('8%'),
+  TAB_BAR: hpFunc('8%'),
+  BOTTOM_SHEET: hpFunc('60%'),
   
   // Modal heights
-  MODAL_SMALL: hp('30%'),
-  MODAL_MEDIUM: hp('50%'),
-  MODAL_LARGE: hp('80%'),
+  MODAL_SMALL: hpFunc('30%'),
+  MODAL_MEDIUM: hpFunc('50%'),
+  MODAL_LARGE: hpFunc('80%'),
   
   // Row heights
-  LIST_ITEM: hp('8%'),
-  LIST_ITEM_SMALL: hp('6%'),
-  LIST_ITEM_LARGE: hp('10%'),
+  LIST_ITEM: hpFunc('8%'),
+  LIST_ITEM_SMALL: hpFunc('6%'),
+  LIST_ITEM_LARGE: hpFunc('10%'),
 };
 
 // ============================================================
@@ -152,13 +156,13 @@ export const HEIGHTS = {
 
 export const TOUCH_TARGETS = {
   // Minimum touch targets for accessibility (44x44 points)
-  MIN_WIDTH: Math.max(wp('10%'), 44),
-  MIN_HEIGHT: Math.max(hp('5.5%'), 44),
+  MIN_WIDTH: Math.max(wpFunc('10%'), 44),
+  MIN_HEIGHT: Math.max(hpFunc('5.5%'), 44),
   
   // Standard touch targets
-  SMALL: hp('5%'),
-  MEDIUM: hp('6%'),
-  LARGE: hp('8%'),
+  SMALL: hpFunc('5%'),
+  MEDIUM: hpFunc('6%'),
+  LARGE: hpFunc('8%'),
 };
 
 // ============================================================
@@ -166,11 +170,11 @@ export const TOUCH_TARGETS = {
 // ============================================================
 
 export const BORDER_RADIUS = {
-  SMALL: hp('0.5%'),
-  MEDIUM: hp('1%'),
-  LARGE: hp('1.5%'),
-  XLARGE: hp('2%'),
-  ROUND: hp('50%'),
+  SMALL: hpFunc('0.5%'),
+  MEDIUM: hpFunc('1%'),
+  LARGE: hpFunc('1.5%'),
+  XLARGE: hpFunc('2%'),
+  ROUND: hpFunc('50%'),
 };
 
 // ============================================================
@@ -181,20 +185,20 @@ export const BORDER_RADIUS = {
  * Get responsive width
  * @param {number} percentage - Percentage of screen width (1-100)
  */
-export const rw = (percentage) => wp(`${percentage}%`);
+export const rw = (percentage) => wpFunc(`${percentage}%`);
 
 /**
  * Get responsive height
  * @param {number} percentage - Percentage of screen height (1-100)
  */
-export const rh = (percentage) => hp(`${percentage}%`);
+export const rh = (percentage) => hpFunc(`${percentage}%`);
 
 /**
  * Get responsive font size with minimum
  * @param {number} percentage - Percentage of screen height
  * @param {number} min - Minimum font size in pixels
  */
-export const rf = (percentage, min = 12) => Math.max(hp(`${percentage}%`), min);
+export const rf = (percentage, min = 12) => Math.max(hpFunc(`${percentage}%`), min);
 
 // ============================================================
 // RESPONSIVE SIZES OBJECT (backward compatibility)
@@ -227,6 +231,7 @@ export const RESPONSIVE_SIZES = {
   HALF_WIDTH: WIDTHS.HALF,
 };
 
+// Default export with all constants and functions
 export default {
   SPACING,
   FONT_SIZES,

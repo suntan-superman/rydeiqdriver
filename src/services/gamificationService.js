@@ -884,6 +884,9 @@ class GamificationService {
     return onSnapshot(updatesQuery, (snapshot) => {
       const updates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(updates);
+    }, (error) => {
+      console.error('Error in gamification updates subscription:', error);
+      callback([], error);
     });
   }
 }

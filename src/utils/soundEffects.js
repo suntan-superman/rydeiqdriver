@@ -1,5 +1,5 @@
 import { Audio } from 'expo-av';
-import { store } from '@/store';
+import { store } from '../store';
 
 // Sound configuration - using actual sound files from assets
 const SOUND_URIS = {

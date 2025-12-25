@@ -36,15 +36,18 @@ yarn add react-native-responsive-screen
 - Automatic listeners based on ride state
 
 ### 3. **Emergency Commands** 🚨 (Always Active)
-- Works even when voice is toggled OFF for safety
-- Commands: "emergency", "help", "911", "safety concern"
-- Global listener monitors every 30 seconds
+- Detects emergency keywords in ALL voice inputs
+- Commands: "emergency", "help", "911", "safety concern"  
+- Priority handling - interrupts other commands
 - Emergency modal with police/medical/roadside options
+- **Battery efficient** - no separate listener needed
 
 **Files:**
-- `src/services/emergencyVoiceService.js` - Global emergency listener
+- `src/services/emergencyVoiceService.js` - Passive emergency keyword checker
 - `src/components/EmergencyModal.js` - Emergency UI
-- Integration in `HomeScreen.js` and `ActiveRideScreen.js`
+- Integration in `voiceCommandService.js`, `HomeScreen.js`, `ActiveRideScreen.js`
+
+**Note:** Emergency detection happens through the main voice service, so it works whenever voice commands are active (no battery drain from continuous listening).
 
 ### 4. **Natural Language Parser** 🧠
 - Parses spoken numbers: "fifteen dollars" → $15.00

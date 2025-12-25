@@ -23,11 +23,7 @@ import { API_KEYS } from '@/constants/config';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Get Google Maps API Key from centralized config
-const GOOGLE_MAPS_API_KEY = Platform.select({
-  ios: API_KEYS.GOOGLE_MAPS.IOS,
-  android: API_KEYS.GOOGLE_MAPS.ANDROID,
-  default: API_KEYS.GOOGLE_MAPS.WEB,
-});
+const GOOGLE_MAPS_API_KEY = API_KEYS.GOOGLE_MAPS.API_KEY;
 
 const NavigationScreen = ({ route }) => {
   const navigation = useNavigation();
@@ -42,12 +38,12 @@ const NavigationScreen = ({ route }) => {
     customerName: 'Sarah M.',
     customerPhone: '+1 (555) 123-4567',
     pickup: {
-      address: '123 Main Street, Downtown',
+      address: '123 Main Street, Downtown Bakersfield',
       coordinates: { latitude: 35.3733, longitude: -119.0187 }
     },
     destination: {
-      address: '456 Oak Avenue, Uptown',
-      coordinates: { latitude: 35.3733, longitude: -119.0187 }
+      address: '456 Oak Avenue, East Bakersfield',
+      coordinates: { latitude: 35.3850, longitude: -118.9950 }  // ~2 miles away
     },
     estimatedDistance: '3.2 miles',
     estimatedDuration: '12 minutes',
@@ -295,6 +291,28 @@ const NavigationScreen = ({ route }) => {
     );
   };
 
+  // Handle cancel ride
+  const handleCancelRide = () => {
+    Alert.alert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride? This cannot be undone.',
+      [
+        { text: 'No, Keep Ride', style: 'cancel' },
+        { 
+          text: 'Yes, Cancel Ride', 
+          style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            // TODO: Call ride cancellation service
+            Alert.alert('Ride Cancelled', 'The ride has been cancelled', [
+              { text: 'OK', onPress: () => navigation.navigate('Home') }
+            ]);
+          }
+        }
+      ]
+    );
+  };
+
   const destination = getDestination();
 
   return (
@@ -390,10 +408,20 @@ const NavigationScreen = ({ route }) => {
           <View style={styles.navigationHeader}>
             <View style={styles.navigationInfo}>
               <Text style={styles.navigationDistance}>
-                {distance ? `${distance.toFixed(1)} mi` : ride.estimatedDistance}
+                {distance 
+                  ? `${distance.toFixed(1)} mi` 
+                  : (typeof ride.estimatedDistance === 'number' 
+                      ? `${ride.estimatedDistance.toFixed(1)} mi` 
+                      : ride.estimatedDistance)
+                }
               </Text>
               <Text style={styles.navigationDuration}>
-                {duration ? Math.ceil(duration / 60) : parseInt(ride.estimatedDuration)} min
+                {duration 
+                  ? `${Math.ceil(duration / 60)} min`
+                  : (typeof ride.estimatedDuration === 'number'
+                      ? `${Math.ceil(ride.estimatedDuration)} min`
+                      : ride.estimatedDuration)
+                }
               </Text>
             </View>
             <View style={styles.navigationActions}>
@@ -432,7 +460,7 @@ const NavigationScreen = ({ route }) => {
             style={styles.actionButton}
             onPress={toggleMapType}
           >
-            <Ionicons name="layers" size={24} color={COLORS.secondary[700]} />
+            <Ionicons name="layers" size={20} color={COLORS.secondary[700]} />
             <Text style={styles.actionButtonText}>Map</Text>
           </TouchableOpacity>
           
@@ -440,8 +468,8 @@ const NavigationScreen = ({ route }) => {
             style={styles.actionButton}
             onPress={handleExternalNavigation}
           >
-            <Ionicons name="navigate" size={24} color={COLORS.secondary[700]} />
-            <Text style={styles.actionButtonText}>External</Text>
+            <Ionicons name="navigate" size={20} color={COLORS.secondary[700]} />
+            <Text style={styles.actionButtonText}>Nav</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -456,10 +484,18 @@ const NavigationScreen = ({ route }) => {
           
           <TouchableOpacity 
             style={styles.actionButton}
+            onPress={handleCancelRide}
+          >
+            <Ionicons name="close-circle" size={20} color={COLORS.error} />
+            <Text style={styles.actionButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
             onPress={handleEmergency}
           >
-            <Ionicons name="alert-circle" size={24} color={COLORS.error} />
-            <Text style={styles.actionButtonText}>Emergency</Text>
+            <Ionicons name="alert-circle" size={20} color={COLORS.warning} />
+            <Text style={styles.actionButtonText}>SOS</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

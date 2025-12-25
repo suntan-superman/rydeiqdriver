@@ -1,32 +1,25 @@
 /**
  * Emergency Voice Service
- * Global emergency listener that works even when voice is toggled off
  * Provides safety features for drivers
+ * Works through the existing voice command service to avoid conflicts
  */
 
-import Voice from '@react-native-voice/voice';
 import { Alert, Linking, Platform } from 'react-native';
 import speechService from './speechService';
 import { parseEmergencyCommand } from '@/utils/naturalLanguageParser';
 
 class EmergencyVoiceService {
   constructor() {
-    this.isListening = false;
     this.isEnabled = false;
     this.onEmergencyCallback = null;
-    this.checkInterval = null;
   }
 
   /**
    * Initialize emergency voice service
-   * This runs independently of the main voice command service
    */
   async initialize() {
     try {
-      // Set up event handlers
-      Voice.onSpeechResults = this.onSpeechResults.bind(this);
-      Voice.onSpeechError = this.onSpeechError.bind(this);
-
+      this.isEnabled = true;
       console.log('✅ Emergency voice service initialized');
       return true;
     } catch (error) {
@@ -36,29 +29,17 @@ class EmergencyVoiceService {
   }
 
   /**
-   * Start global emergency listener
-   * This should be called when the app starts and runs continuously
+   * Register emergency callback
+   * Emergency detection happens through the main voiceCommandService
    */
   async startGlobalListener(onEmergencyCallback) {
     try {
       this.onEmergencyCallback = onEmergencyCallback;
       this.isEnabled = true;
-
-      // Start periodic listening (every 30 seconds for 5 seconds)
-      // This allows emergency detection without draining battery
-      this.checkInterval = setInterval(() => {
-        if (this.isEnabled && !this.isListening) {
-          this.startListening();
-        }
-      }, 30000); // Check every 30 seconds
-
-      // Start first listening immediately
-      await this.startListening();
-
-      console.log('✅ Global emergency listener started');
+      console.log('✅ Emergency callback registered (using main voice service)');
       return true;
     } catch (error) {
-      console.error('❌ Error starting global emergency listener:', error);
+      console.error('❌ Error registering emergency callback:', error);
       return false;
     }
   }
@@ -69,79 +50,28 @@ class EmergencyVoiceService {
   async stopGlobalListener() {
     try {
       this.isEnabled = false;
-      
-      if (this.checkInterval) {
-        clearInterval(this.checkInterval);
-        this.checkInterval = null;
-      }
-
-      await this.stopListening();
-      
-      console.log('🔇 Global emergency listener stopped');
+      this.onEmergencyCallback = null;
+      console.log('🔇 Emergency callback unregistered');
     } catch (error) {
       console.error('❌ Error stopping global emergency listener:', error);
     }
   }
 
   /**
-   * Start listening for emergency keywords
+   * Check if text contains emergency keywords
+   * This is called by voiceCommandService for every voice input
    */
-  async startListening() {
-    try {
-      if (this.isListening) return;
+  checkForEmergency(text) {
+    if (!this.isEnabled) return null;
 
-      this.isListening = true;
-      await Voice.start('en-US');
-      
-      // Auto-stop after 5 seconds
-      setTimeout(async () => {
-        if (this.isListening) {
-          await this.stopListening();
-        }
-      }, 5000);
-    } catch (error) {
-      console.error('❌ Emergency listening error:', error);
-      this.isListening = false;
-    }
-  }
-
-  /**
-   * Stop listening
-   */
-  async stopListening() {
-    try {
-      if (!this.isListening) return;
-      
-      await Voice.stop();
-      this.isListening = false;
-    } catch (error) {
-      console.error('❌ Stop emergency listening error:', error);
-    }
-  }
-
-  /**
-   * Handle speech results
-   */
-  onSpeechResults(e) {
-    const results = e.value || [];
-    const bestMatch = results[0] || '';
-    
-    if (!bestMatch) return;
-
-    const parsed = parseEmergencyCommand(bestMatch);
+    const parsed = parseEmergencyCommand(text);
     
     if (parsed.action !== 'unknown') {
       console.log(`🚨 EMERGENCY DETECTED: ${parsed.action} (urgency: ${parsed.urgency})`);
-      this.handleEmergency(parsed, bestMatch);
+      return parsed;
     }
-  }
 
-  /**
-   * Handle speech error
-   */
-  onSpeechError(e) {
-    // Silently handle errors to avoid spamming logs
-    this.isListening = false;
+    return null;
   }
 
   /**
@@ -318,7 +248,6 @@ class EmergencyVoiceService {
    */
   async destroy() {
     await this.stopGlobalListener();
-    Voice.removeAllListeners();
     this.onEmergencyCallback = null;
     console.log('🗑️ Emergency voice service destroyed');
   }

@@ -477,4 +477,11 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FareCalculationCard;
+// Memoize to prevent recalculation on every parent render
+export default React.memo(FareCalculationCard, (prevProps, nextProps) => {
+  return (
+    prevProps.rideRequest?.id === nextProps.rideRequest?.id &&
+    prevProps.driverVehicle?.id === nextProps.driverVehicle?.id &&
+    prevProps.forceExpanded === nextProps.forceExpanded
+  );
+});

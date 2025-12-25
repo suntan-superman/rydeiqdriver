@@ -16,11 +16,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useSelector, useDispatch } from 'react-redux';
+// MIGRATED: Removed Redux - using React Query instead
+// import { useSelector, useDispatch } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
+// React Query hooks for profile and vehicle management
+import { useDriverProfile, useUpdateDriverProfile, useVehicleInfo, useUpdateVehicleInfo } from '@/hooks/queries';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '@/services/firebase/config';
 import { profilePictureService } from '@/services/profilePictureService';
@@ -28,10 +31,19 @@ import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
-  const dispatch = useDispatch();
+  // MIGRATED: Removed useDispatch - no Redux needed
   const { user } = useAuth();
   
-  // Real profile data from Firebase
+  // React Query hooks for fetching and updating profile data
+  const driverId = user?.uid || user?.id;
+  const { data: profileFromQuery, isLoading: profileLoading } = useDriverProfile(driverId);
+  const { data: vehicleFromQuery, isLoading: vehicleLoading } = useVehicleInfo(driverId);
+  
+  // Mutations for updating profile and vehicle
+  const { mutate: updateProfile } = useUpdateDriverProfile(driverId);
+  const { mutate: updateVehicle } = useUpdateVehicleInfo(driverId);
+  
+  // Real profile data from Firebase (kept for local state management)
   const [profileData, setProfileData] = useState({
     personalInfo: {
       firstName: '',
@@ -96,100 +108,29 @@ const ProfileScreen = () => {
     relationship: ''
   });
   
-  // Load profile data from Firebase
+  // Update local state from React Query data when available
   useEffect(() => {
-    const loadProfileData = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        setLoading(true);
-        
-        // Load driver data from drivers collection
-        const driverDoc = await getDoc(doc(db, 'driverApplications', user.id));
-        let driverData = {};
-        if (driverDoc.exists()) {
-          driverData = driverDoc.data();
-        } else {
-          // Initialize driver document with basic data
-          await setDoc(doc(db, 'driverApplications', user.id), {
-            email: user.email,
-            displayName: user.displayName || 'Driver',
-            phoneNumber: '',
-            address: '',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
+    if (profileFromQuery && profileFromQuery.id) {
+      setProfileData(prev => ({
+        ...prev,
+        personalInfo: {
+          ...prev.personalInfo,
+          firstName: profileFromQuery.firstName || '',
+          lastName: profileFromQuery.lastName || '',
+          email: profileFromQuery.email || '',
+          phone: profileFromQuery.phone || '',
+          profilePhoto: profileFromQuery.profilePhoto || null
         }
-        
-        // Load vehicle data from vehicle_info collection
-        const vehicleDoc = await getDoc(doc(db, 'vehicle_info', user.id));
-        let vehicleData = {};
-        if (vehicleDoc.exists()) {
-          vehicleData = vehicleDoc.data();
-        }
-        
-        // Map Firebase data to profile structure using CORRECT priority order
-        const mappedProfileData = {
-          personalInfo: {
-            firstName: driverData.personal_info?.firstName || driverData.firstName || driverData.displayName?.split(' ')[0] || '',
-            lastName: driverData.personal_info?.lastName || driverData.lastName || driverData.displayName?.split(' ').slice(1).join(' ') || '',
-            email: user.email || driverData.personal_info?.email || driverData.email || '',
-            phone: driverData.personal_info?.phoneNumber || driverData.phone || driverData.phoneNumber || '',
-            dateOfBirth: driverData.personal_info?.dateOfBirth || driverData.dateOfBirth || driverData.dob || '',
-            address: driverData.personal_info?.address ? 
-              `${driverData.personal_info.address}, ${driverData.personal_info.city}, ${driverData.personal_info.state} ${driverData.personal_info.zipCode}` :
-              driverData.address || driverData.homeAddress || '',
-            profilePhoto: driverData.documents?.profile_photo?.url || driverData.document_upload?.profile_photo?.url || driverData.profilePhoto || driverData.photoURL || null
-          },
-          vehicleInfo: {
-            make: driverData.vehicle_info?.make || vehicleData.make || driverData.vehicleInfo?.make || driverData.vehicle?.make || '',
-            model: driverData.vehicle_info?.model || vehicleData.model || driverData.vehicleInfo?.model || driverData.vehicle?.model || '',
-            year: driverData.vehicle_info?.year || vehicleData.year || driverData.vehicleInfo?.year || driverData.vehicle?.year || '',
-            color: driverData.vehicle_info?.color || vehicleData.color || driverData.vehicleInfo?.color || driverData.vehicle?.color || '',
-            licensePlate: driverData.vehicle_info?.licensePlate || vehicleData.licensePlate || driverData.vehicleInfo?.licensePlate || driverData.vehicle?.licensePlate || '',
-            vehicleType: driverData.vehicle_info?.vehicleType || vehicleData.vehicleType || driverData.vehicleInfo?.vehicleType || driverData.vehicle?.vehicleType || 'standard',
-            photos: driverData.vehicle_info?.photos || vehicleData.photos || driverData.vehicleInfo?.photos || driverData.vehicle?.photos || []
-          },
-          specialtyVehicleInfo: {
-            specialtyVehicleType: driverData.specialtyVehicleInfo?.specialtyVehicleType || driverData.vehicle_info?.specialtyVehicleType || '',
-            serviceCapabilities: driverData.specialtyVehicleInfo?.serviceCapabilities || driverData.vehicle_info?.serviceCapabilities || [],
-            certificationFiles: driverData.specialtyVehicleInfo?.certificationFiles || driverData.vehicle_info?.certificationFiles || {}
-          },
-          documents: {
-            driverLicense: driverData.documents?.drivers_license_front?.url || driverData.document_upload?.drivers_license_front?.url || driverData.driverLicense || null,
-            insurance: driverData.documents?.insurance_proof?.url || driverData.document_upload?.insurance_proof?.url || driverData.insurance || null,
-            registration: driverData.documents?.vehicle_registration?.url || driverData.document_upload?.vehicle_registration?.url || driverData.registration || null,
-            backgroundCheck: driverData.backgroundCheck?.currentStep || driverData.documents?.backgroundCheck || 'pending',
-            vehicleInspection: driverData.documents?.vehicleInspection || driverData.vehicleInspection || null
-          },
-          bankingInfo: {
-            accountHolderName: driverData.payout_setup?.accountHolderName || driverData.payoutInfo?.payout_setup?.accountHolderName || driverData.bankingInfo?.accountHolderName || driverData.accountHolderName || '',
-            routingNumber: driverData.payout_setup?.routingNumber || driverData.payoutInfo?.payout_setup?.routingNumber || driverData.bankingInfo?.routingNumber || driverData.routingNumber || '',
-            accountNumber: driverData.payout_setup?.accountNumber || driverData.payoutInfo?.payout_setup?.accountNumber || driverData.bankingInfo?.accountNumber || driverData.accountNumber || '',
-            bankName: driverData.payout_setup?.bankName || driverData.payoutInfo?.payout_setup?.bankName || driverData.bankingInfo?.bankName || driverData.bankName || '',
-            isVerified: driverData.payout_setup?.verificationMethod === 'microdeposit' || driverData.payoutInfo?.payout_setup?.verificationMethod === 'microdeposit' || driverData.bankingInfo?.isVerified || driverData.bankingVerified || false
-          },
-          emergencyContact: {
-            name: driverData.availability?.emergencyContact?.name || driverData.emergencyContact?.name || '',
-            phone: driverData.availability?.emergencyContact?.phone || driverData.emergencyContact?.phone || '',
-            relationship: driverData.availability?.emergencyContact?.relationship || driverData.emergencyContact?.relationship || ''
-          }
-        };
-        
-        setProfileData(mappedProfileData);
-      } catch (error) {
-        console.error('Error loading profile data:', error);
-        Alert.alert('Error', 'Failed to load profile data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadProfileData();
-  }, [user?.id]);
+      }));
+    }
+    if (vehicleFromQuery) {
+      setProfileData(prev => ({
+        ...prev,
+        vehicleInfo: vehicleFromQuery || prev.vehicleInfo
+      }));
+    }
+    setLoading(profileLoading || vehicleLoading);
+  }, [profileFromQuery, vehicleFromQuery, profileLoading, vehicleLoading]);
 
   // Vehicle type options
   const VEHICLE_TYPES = [
@@ -678,7 +619,7 @@ const ProfileScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? 8 : 0 }]}>
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary[500]} />
@@ -689,7 +630,7 @@ const ProfileScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: Platform.OS === 'android' ? 8 : 0 }]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       
       {/* Header */}

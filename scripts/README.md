@@ -1,4 +1,74 @@
-# Ride Cleanup Scripts
+# AnyRyde Scripts Documentation
+
+## 🔄 Multi-Codebase Sync Scripts (NEW - Video Recording Feature)
+
+### Quick Start: Master Sync Tool
+**`master-sync.js`** - Interactive menu-driven synchronization tool
+```bash
+node scripts/master-sync.js
+```
+
+One-stop solution with interactive menu for:
+- 📊 Extracting deployed functions from Firebase
+- 🔀 Merging functions from multiple codebases  
+- 📦 Creating sync packages for distribution
+- 🚀 Running complete automated workflow
+
+### Individual Sync Scripts
+
+#### 1. Extract All Firebase Functions
+**`extract-all-firebase-functions.js`**
+```bash
+node scripts/extract-all-firebase-functions.js
+```
+Downloads and catalogs all Cloud Functions currently deployed to Firebase.
+Creates template and function inventory.
+
+#### 2. Merge Firebase Functions
+**`merge-firebase-functions.js`**
+```bash
+node scripts/merge-firebase-functions.js
+```
+Consolidates functions from multiple codebases into a single master file.
+Handles duplicates and organizes by category.
+
+#### 3. Sync Firebase Backend
+**`sync-firebase-backend.js`**
+```bash
+node scripts/sync-firebase-backend.js [command]
+
+Commands:
+  info     - Show current backend files
+  download - Download rules from Firebase
+  compare  - Compare local vs deployed
+  package  - Create sync package
+```
+Syncs Firestore rules, indexes, and storage rules across codebases.
+
+#### 4. Migrate Video Recording Capability
+**`migrate-video-recording-capability.js`**
+```bash
+node scripts/migrate-video-recording-capability.js
+```
+Adds videoRecordingCapability field to all existing drivers.
+Safe to re-run (skips already migrated drivers).
+
+#### 5. Create Pilot Test Data
+**`create-video-pilot-test-data.js`**
+```bash
+node scripts/create-video-pilot-test-data.js
+```
+Creates test data for video recording pilot program:
+- 10 pilot drivers with video equipment
+- 5 sample ride requests
+- 1 sample video incident
+
+### Complete Documentation
+📖 **See**: `FIREBASE_MULTI_CODEBASE_SYNC_GUIDE.md` in project root for complete workflow guide.
+
+---
+
+## 🧹 Ride Cleanup Scripts
 
 These scripts help you bulk delete test rides from your Firebase collections during development and testing.
 

@@ -1,0 +1,121 @@
+﻿{
+  "indexes": [
+    {
+      "collectionGroup": "driverApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "isOnline", "order": "ASCENDING" },
+        { "fieldPath": "videoRecordingCapability.hasEquipment", "order": "ASCENDING" },
+        { "fieldPath": "videoRecordingCapability.certificationStatus", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "driverApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isOnline", "order": "ASCENDING" },
+        { "fieldPath": "videoRecordingCapability.hasEquipment", "order": "ASCENDING" },
+        { "fieldPath": "videoRecordingCapability.equipmentVerified", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rideRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "availableDrivers", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "videoRecordingRequested", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rideRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "availableDrivers", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videoIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reviewStatus", "order": "ASCENDING" },
+        { "fieldPath": "priority", "order": "DESCENDING" },
+        { "fieldPath": "reportedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videoIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedTo", "order": "ASCENDING" },
+        { "fieldPath": "reviewStatus", "order": "ASCENDING" },
+        { "fieldPath": "reportedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videoIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "driverId", "order": "ASCENDING" },
+        { "fieldPath": "reviewStatus", "order": "ASCENDING" },
+        { "fieldPath": "reportedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videoIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "riderId", "order": "ASCENDING" },
+        { "fieldPath": "reviewStatus", "order": "ASCENDING" },
+        { "fieldPath": "reportedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "activeRides",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "activeRecording.isRecording", "order": "ASCENDING" },
+        { "fieldPath": "activeRecording.incidentFlagged", "order": "ASCENDING" },
+        { "fieldPath": "activeRecording.startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "medicalRideSchedule",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "pickupTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "scheduledRides",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedDriverId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "pickupTime", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "videoIncidents",
+      "fieldPath": "accessLog",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "videoIncidents",
+      "fieldPath": "retentionExtensionHistory",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "activeRides",
+      "fieldPath": "activeRecording.toggleHistory",
+      "indexes": []
+    }
+  ]
+}

@@ -334,6 +334,9 @@ class CommunicationService {
     return onSnapshot(messagesQuery, (snapshot) => {
       const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(messages);
+    }, (error) => {
+      console.error('Error in messages subscription:', error);
+      callback([], error);
     });
   }
 
@@ -349,6 +352,9 @@ class CommunicationService {
     return onSnapshot(notificationsQuery, (snapshot) => {
       const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(notifications);
+    }, (error) => {
+      console.error('Error in notifications subscription:', error);
+      callback([], error);
     });
   }
 }

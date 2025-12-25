@@ -12,6 +12,7 @@ import {
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants';
+import { FONT_SIZES, SPACING, BUTTON_SIZES, BORDER_RADIUS, hp, wp } from '@/constants/responsiveSizes';
 import { speechService } from '@/services/speechService';
 
 /**
@@ -277,76 +278,76 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
+    padding: SPACING.MEDIUM,
+    paddingTop: hp('7%'),
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.secondary[200],
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: FONT_SIZES.TITLE,
     fontWeight: 'bold',
     color: COLORS.secondary[900],
   },
   closeButton: {
-    padding: 8,
+    padding: SPACING.SMALL,
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: SPACING.MEDIUM,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: SPACING.LARGE,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: FONT_SIZES.HEADING,
     fontWeight: '600',
     color: COLORS.secondary[900],
-    marginBottom: 8,
+    marginBottom: SPACING.SMALL,
   },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.SMALL,
     color: COLORS.secondary[600],
-    marginBottom: 16,
+    marginBottom: SPACING.MEDIUM,
   },
   masterToggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
+    padding: SPACING.MEDIUM,
+    borderRadius: BORDER_RADIUS.MEDIUM,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: hp('0.3%') },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: hp('0.5%'),
     elevation: 2,
   },
   masterToggleInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: SPACING.MEDIUM,
   },
   masterToggleLabel: {
-    fontSize: 16,
+    fontSize: FONT_SIZES.MEDIUM,
     fontWeight: '600',
     color: COLORS.secondary[900],
-    marginBottom: 4,
+    marginBottom: SPACING.TINY,
   },
   masterToggleDescription: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.SMALL,
     color: COLORS.secondary[600],
   },
   voiceOptions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACING.SMALL,
   },
   voiceOption: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 16,
+    gap: SPACING.SMALL,
+    padding: SPACING.MEDIUM,
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 2,

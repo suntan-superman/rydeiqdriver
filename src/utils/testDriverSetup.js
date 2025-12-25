@@ -1,4 +1,4 @@
-import { auth, db } from '@/services/firebase/config';
+import { auth, db } from '../services/firebase/config';
 import { 
   doc, 
   setDoc, 
@@ -8,8 +8,8 @@ import {
   serverTimestamp,
   GeoPoint 
 } from 'firebase/firestore';
-import RideRequestService from '@/services/rideRequestService';
-import DriverStatusService from '@/services/driverStatusService';
+import RideRequestService from '../services/rideRequestService';
+import DriverStatusService from '../services/driverStatusService';
 
 class TestDriverSetup {
   constructor() {

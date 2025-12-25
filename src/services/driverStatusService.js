@@ -26,19 +26,47 @@ class DriverStatusService {
   // Initialize service with current driver
   async initialize(driverId, userData = null) {
     this.currentDriverId = driverId;
-    await this.initializeDriverDocument();
     
-    // Initialize simple location service
+    // Initialize driver document with timeout
     try {
-      await SimpleLocationService.initialize(driverId);
-      // console.log('✅ Simple location service initialized');
+      await Promise.race([
+        this.initializeDriverDocument(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Driver document init timeout')), 3000)
+        )
+      ]);
     } catch (error) {
-      console.warn('⚠️ Could not initialize location service:', error);
+      console.warn('⚠️ Driver document initialization timeout/error:', error);
+      // Continue anyway
     }
     
-    // Update with user data if provided
+    // Initialize simple location service with timeout
+    try {
+      await Promise.race([
+        SimpleLocationService.initialize(driverId),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Location service init timeout')), 2000)
+        )
+      ]);
+      console.log('✅ Simple location service initialized');
+    } catch (error) {
+      console.warn('⚠️ Could not initialize location service:', error);
+      // Continue anyway
+    }
+    
+    // Update with user data if provided (with timeout)
     if (userData) {
-      await this.updateDriverInfo(userData);
+      try {
+        await Promise.race([
+          this.updateDriverInfo(userData),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Update driver info timeout')), 2000)
+          )
+        ]);
+      } catch (error) {
+        console.warn('⚠️ Update driver info timeout/error:', error);
+        // Continue anyway
+      }
     }
   }
 

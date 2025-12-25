@@ -1,4 +1,4 @@
-import { auth, db } from '@/services/firebase/config';
+import { auth, db } from '../services/firebase/config';
 
 class DebugHelper {
   constructor() {

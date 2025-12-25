@@ -1,5 +1,5 @@
-import RideRequestService from '@/services/rideRequestService';
-import DriverStatusService from '@/services/driverStatusService';
+import RideRequestService from '../services/rideRequestService';
+import DriverStatusService from '../services/driverStatusService';
 
 class InitializationTest {
   constructor() {

@@ -9,11 +9,15 @@ import {
   StatusBar,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/contexts/AuthContext';
+// MIGRATED: Use React Query hooks instead of mock data
+import { useEarnings, useEarningsHistory, useEarningsStats } from '@/hooks/queries';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -23,32 +27,51 @@ const EarningsScreen = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
 
-  // Mock earnings data
-  const earningsData = {
-    today: {
-      total: 187.50,
-      trips: 12,
-      hours: 6.5,
-      tips: 23.75
-    },
-    week: {
-      total: 1247.80,
-      trips: 89,
-      hours: 42.3,
-      tips: 167.90
-    },
-    month: {
-      total: 4892.45,
-      trips: 324,
-      hours: 178.5,
-      tips: 634.20
-    }
+  // React Query hooks for earnings data
+  const driverId = user?.uid || user?.id;
+  
+  // Determine date range based on selected period
+  const getDateRange = () => {
+    const now = new Date();
+    const ranges = {
+      today: {
+        startDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+        endDate: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+      },
+      week: {
+        startDate: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        endDate: now,
+      },
+      month: {
+        startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+        endDate: now,
+      },
+    };
+    return ranges[selectedPeriod];
   };
 
-  const currentData = earningsData[selectedPeriod];
-  const hourlyRate = (currentData.total / currentData.hours).toFixed(2);
+  const dateRange = getDateRange();
+
+  // Fetch earnings data from React Query
+  const { data: earningsData, isLoading: earningsLoading } = useEarnings(driverId, dateRange);
+  const { data: earningsHistory = [], isLoading: historyLoading } = useEarningsHistory(driverId, { dateRange });
+  const { data: earningsStats, isLoading: statsLoading } = useEarningsStats(driverId);
+
+  // Calculate current period data
+  const currentData = earningsData || {
+    total: 0,
+    breakdown: {}
+  };
+
+  const isLoading = earningsLoading || historyLoading || statsLoading;
+
+  // Fallback values
+  const total = currentData.total || 0;
+  const hourlyRate = earningsStats?.averagePerRide || 0;
+  const trips = earningsStats?.totalRides || 0;
 
   const periods = [
     { key: 'today', label: 'Today' },
@@ -56,12 +79,15 @@ const EarningsScreen = () => {
     { key: 'month', label: 'Month' }
   ];
 
-  const recentTrips = [
-    { id: 1, from: 'Downtown', to: 'Airport', amount: 28.50, tip: 5.00, time: '2:30 PM' },
-    { id: 2, from: 'Mall', to: 'University', amount: 15.75, tip: 2.50, time: '1:45 PM' },
-    { id: 3, from: 'Hospital', to: 'Residential', amount: 22.00, tip: 4.00, time: '12:15 PM' },
-    { id: 4, from: 'Office Complex', to: 'Restaurant', amount: 12.25, tip: 1.75, time: '11:30 AM' }
-  ];
+  // Use real earnings history or fallback to empty
+  const recentTrips = earningsHistory.slice(0, 4).map((trip, index) => ({
+    id: index + 1,
+    from: trip.pickupLocation || 'Unknown',
+    to: trip.dropoffLocation || 'Unknown',
+    amount: trip.earnings || 0,
+    tip: trip.tip || 0,
+    time: trip.time || 'N/A'
+  })) || [];
 
   const StatCard = ({ title, value, subtitle, icon, color = COLORS.primary[500] }) => (
     <View style={styles.statCard}>
@@ -146,9 +172,9 @@ const EarningsScreen = () => {
         {/* Total Earnings Card */}
         <View style={styles.totalEarningsCard}>
           <Text style={styles.totalEarningsLabel}>Total Earnings</Text>
-          <Text style={styles.totalEarningsAmount}>${currentData.total.toFixed(2)}</Text>
+          <Text style={styles.totalEarningsAmount}>${total.toFixed(2)}</Text>
           <Text style={styles.totalEarningsSubtext}>
-            {currentData.trips} {t('trips')} • ${hourlyRate}/{t('hourlyRate')}
+            {trips} {t('trips')} • ${hourlyRate}/{t('hourlyRate')}
           </Text>
         </View>
 
@@ -156,28 +182,28 @@ const EarningsScreen = () => {
         <View style={styles.statsGrid}>
           <StatCard
             title={t('Trip Earnings')}
-            value={`$${(currentData.total - currentData.tips).toFixed(2)}`}
-            subtitle={`${currentData.trips} ${t('Trips')}`}
+            value={`$${(total - (earningsStats?.totalTips || 0)).toFixed(2)}`}
+            subtitle={`${trips} ${t('Trips')}`}
             icon="car"
             color={COLORS.primary[500]}
           />
           <StatCard
             title={t('Tips')}
-            value={`$${currentData.tips.toFixed(2)}`}
+            value={`$${(earningsStats?.totalTips || 0).toFixed(2)}`}
             subtitle={t('Customer Tips')}
             icon="heart"
             color={COLORS.success}
           />
           <StatCard
             title={t('Hours Online')}
-            value={`${currentData.hours}h`}
+            value={`${earningsStats?.totalHours || 0}h`}
             subtitle={t('Active Time')}
             icon="time"
             color={COLORS.warning}
           />
           <StatCard
             title={t('Hourly Rate')}
-            value={`$${hourlyRate}`}
+            value={`$${hourlyRate.toFixed(2)}`}
             subtitle={t('per Hour')}
             icon="trending-up"
             color={COLORS.primary[600]}
@@ -223,9 +249,13 @@ const EarningsScreen = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.tripsCard}>
-            {recentTrips.map((trip) => (
-              <TripItem key={trip.id} trip={trip} />
-            ))}
+            {isLoading ? (
+              <ActivityIndicator size="large" color={COLORS.primary[500]} />
+            ) : (
+              recentTrips.map((trip) => (
+                <TripItem key={trip.id} trip={trip} />
+              ))
+            )}
           </View>
         </View>
 

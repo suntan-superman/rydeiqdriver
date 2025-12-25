@@ -16,22 +16,42 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+import { FONT_SIZES, SPACING, WIDTHS, BUTTON_SIZES, CARD_SIZES, BORDER_RADIUS, hp, wp, rf } from '@/constants/responsiveSizes';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
-import RideRequestScreen from '@/screens/ride/RideRequestScreen';
-import { profilePictureService } from '@/services/profilePictureService';
-import ScheduledRideRequests from '@/components/ScheduledRideRequests';
-import MyScheduledRides from '@/components/MyScheduledRides';
-import ReliabilityScoreCard from '@/components/driver/ReliabilityScoreCard';
-import CooldownBanner from '@/components/driver/CooldownBanner';
-import SpeechSettingsModal from '@/components/SpeechSettingsModal';
-import { speechService as voiceSpeechService } from '@/services/speechService';
-import scheduledRideReminderService from '@/services/scheduledRideReminderService';
-import emergencyVoiceService from '@/services/emergencyVoiceService';
-import EmergencyModal from '@/components/EmergencyModal';
+import { db } from '../../services/firebase/config';
+import { useDriverStatus, useAnalyticsDashboard, useUnreadCount } from '@/hooks/queries';
+import RideRequestScreen from '../ride/RideRequestScreen';
+import { profilePictureService } from '../../services/profilePictureService';
+import ScheduledRideRequests from '../../components/ScheduledRideRequests';
+import MyScheduledRides from '../../components/MyScheduledRides';
+import ReliabilityScoreCard from '../../components/driver/ReliabilityScoreCard';
+import CooldownBanner from '../../components/driver/CooldownBanner';
+import SpeechSettingsModal from '../../components/SpeechSettingsModal';
+import { speechService as voiceSpeechService } from '../../services/speechService';
+import scheduledRideReminderService from '../../services/scheduledRideReminderService';
+import emergencyVoiceService from '../../services/emergencyVoiceService';
+import EmergencyModal from '../../components/EmergencyModal';
+import EnhancedEmergencyModal from '../../components/EnhancedEmergencyModal';
+import SafetyAnalyticsDashboard from '../../components/safety/SafetyAnalyticsDashboard';
+import EmergencyContactsManager from '../../components/safety/EmergencyContactsManager';
+import CommunicationHub from '../../components/communication/CommunicationHub';
+import QuickResponsesManager from '../../components/communication/QuickResponsesManager';
+import EarningsOptimizationDashboard from '../../components/earnings/EarningsOptimizationDashboard';
+import EarningsGoalsManager from '../../components/earnings/EarningsGoalsManager';
+import RouteOptimizationWidget from '../../components/navigation/RouteOptimizationWidget';
+import RouteOptimizationDashboard from '../../components/navigation/RouteOptimizationDashboard';
+import AdvancedPerformanceDashboard from '../../components/analytics/AdvancedPerformanceDashboard';
+import VehicleManagementDashboard from '../../components/vehicle/VehicleManagementDashboard';
+import PredictiveAnalyticsDashboard from '../../components/ai/PredictiveAnalyticsDashboard';
+import SmartRecommendationsDashboard from '../../components/ai/SmartRecommendationsDashboard';
+import BehavioralLearningDashboard from '../../components/ai/BehavioralLearningDashboard';
+import MarketIntelligenceDashboard from '../../components/ai/MarketIntelligenceDashboard';
+import RiskAssessmentDashboard from '../../components/ai/RiskAssessmentDashboard';
+import DemandForecastingDashboard from '../../components/ai/DemandForecastingDashboard';
+import DynamicPricingDashboard from '../../components/ai/DynamicPricingDashboard';
+import AIRouteOptimizationDashboard from '../../components/ai/RouteOptimizationDashboard';
 // Safe service imports with error handling
 let RideRequestService;
 let RideRequestModal;
@@ -219,22 +239,48 @@ try {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Navigation Menu Component
-const NavigationMenu = ({ visible, onClose, navigation, user, profilePicture, imageLoadError }) => {
+const NavigationMenu = ({ visible, onClose, navigation, user, profilePicture, imageLoadError, onSafetyMenuPress, onCommunicationMenuPress, onEarningsOptimizationMenuPress, onRouteOptimizationMenuPress, onAdvancedPerformanceMenuPress, onVehicleManagementMenuPress }) => {
   const { signOut } = useAuth();
   
   // Profile picture props received
 
   const menuItems = [
-    { id: 'earnings', title: 'Earnings', icon: 'wallet', screen: 'Earnings' },
-    { id: 'trips', title: 'Trip History', icon: 'car', screen: 'TripHistory' },
+    // Core navigation only - other features accessible from home screen
     { id: 'profile', title: 'Profile', icon: 'person', screen: 'Profile' },
     { id: 'settings', title: 'Settings', icon: 'settings', screen: 'Settings' },
     { id: 'support', title: 'Support', icon: 'help-circle', screen: 'Support' },
+    // Removed: Earnings, Analytics, Performance Analytics, Vehicle Management, 
+    // Earnings Optimization, Route Optimization, Trip History, Rate Settings,
+    // Safety & Emergency, Communication Hub (all available on home screen or not essential)
   ];
 
-  const handleMenuItemPress = (screen) => {
+  const handleMenuItemPress = (item) => {
     onClose();
-    navigation.navigate(screen);
+    if (item.action === 'safety') {
+      onSafetyMenuPress();
+      return;
+    }
+    if (item.action === 'communication') {
+      onCommunicationMenuPress();
+      return;
+    }
+    if (item.action === 'earnings-optimization') {
+      onEarningsOptimizationMenuPress();
+      return;
+    }
+    if (item.action === 'route-optimization') {
+      onRouteOptimizationMenuPress();
+      return;
+    }
+    if (item.action === 'advanced-performance') {
+      onAdvancedPerformanceMenuPress();
+      return;
+    }
+    if (item.action === 'vehicle-management') {
+      onVehicleManagementMenuPress();
+      return;
+    }
+    navigation.navigate(item.screen);
   };
 
   const handleSignOut = () => {
@@ -307,7 +353,7 @@ const NavigationMenu = ({ visible, onClose, navigation, user, profilePicture, im
               <TouchableOpacity
                 key={item.id}
                 style={styles.menuItem}
-                onPress={() => handleMenuItemPress(item.screen)}
+                onPress={() => handleMenuItemPress(item)}
               >
                 <Ionicons name={item.icon} size={24} color={COLORS.secondary[700]} />
                 <Text style={styles.menuItemText}>{item.title}</Text>
@@ -335,7 +381,6 @@ const WEB_ONBOARDING_URL = 'https://anyryde.com/register';
 
 const HomeScreen = () => {
   const { user } = useAuth();
-  const dispatch = useDispatch();
   const navigation = useNavigation();
   
   // Driver status state
@@ -360,12 +405,30 @@ const HomeScreen = () => {
   
   // Quick Actions Modal States
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showAIAnalyticsModal, setShowAIAnalyticsModal] = useState(false);
+  const [showSmartRecommendationsModal, setShowSmartRecommendationsModal] = useState(false);
+  const [showBehavioralLearningModal, setShowBehavioralLearningModal] = useState(false);
+  const [showMarketIntelligenceModal, setShowMarketIntelligenceModal] = useState(false);
+  const [showRiskAssessmentModal, setShowRiskAssessmentModal] = useState(false);
+  const [showDemandForecastingModal, setShowDemandForecastingModal] = useState(false);
+  const [showDynamicPricingModal, setShowDynamicPricingModal] = useState(false);
+  const [showRouteOptimizationModal, setShowRouteOptimizationModal] = useState(false);
   const [showDriverToolsModal, setShowDriverToolsModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showSpeechSettings, setShowSpeechSettings] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() => voiceSpeechService?.getSettings()?.enabled || false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [showEnhancedEmergencyModal, setShowEnhancedEmergencyModal] = useState(false);
+  const [showSafetyAnalytics, setShowSafetyAnalytics] = useState(false);
+  const [showEmergencyContacts, setShowEmergencyContacts] = useState(false);
   const [showCommunicationModal, setShowCommunicationModal] = useState(false);
+  const [showCommunicationHub, setShowCommunicationHub] = useState(false);
+  const [showQuickResponsesManager, setShowQuickResponsesManager] = useState(false);
+  const [showEarningsOptimization, setShowEarningsOptimization] = useState(false);
+  const [showEarningsGoals, setShowEarningsGoals] = useState(false);
+  const [showRouteOptimization, setShowRouteOptimization] = useState(false);
+  const [showAdvancedPerformance, setShowAdvancedPerformance] = useState(false);
+  const [showVehicleManagement, setShowVehicleManagement] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAIPricingModal, setShowAIPricingModal] = useState(false);
@@ -425,13 +488,14 @@ const HomeScreen = () => {
         await scheduledRideReminderService.initialize();
         console.log('✅ Scheduled ride reminder service initialized');
 
-        // Initialize emergency voice service with callback
+        // Initialize emergency voice service
+        // Emergency detection happens automatically through voiceCommandService
         await emergencyVoiceService.initialize();
         await emergencyVoiceService.startGlobalListener((emergencyData) => {
-          console.log('🚨 Emergency detected:', emergencyData);
+          console.log('🚨 Emergency detected from voice:', emergencyData);
           setShowEmergencyModal(true);
         });
-        console.log('✅ Emergency voice service initialized');
+        console.log('✅ Emergency voice service initialized (passive mode)');
       } catch (error) {
         console.error('❌ Error initializing Phase 2 services:', error);
       }
@@ -894,13 +958,21 @@ const HomeScreen = () => {
 
           try {
             if (DriverStatusService && typeof DriverStatusService.initialize === 'function') {
-              await DriverStatusService.initialize(userId, {
-                email: user?.email || '',
-                displayName: user?.displayName || 'Driver'
-              });
+              // Add timeout to prevent infinite hang
+              await Promise.race([
+                DriverStatusService.initialize(userId, {
+                  email: user?.email || '',
+                  displayName: user?.displayName || 'Driver'
+                }),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('DriverStatusService initialization timeout')), 5000)
+                )
+              ]);
+              console.log('✅ DriverStatusService initialized successfully');
             }
           } catch (error) {
             console.warn('⚠️ DriverStatusService initialization failed:', error);
+            // Continue anyway - app should still work
           }
 
           try {
@@ -911,13 +983,20 @@ const HomeScreen = () => {
             console.warn('⚠️ driverBidNotificationService initialization failed:', error);
           }
 
-          // Initialize real-time location service
+          // Initialize real-time location service with timeout
           try {
             if (realTimeLocationService && typeof realTimeLocationService.initialize === 'function') {
-              await realTimeLocationService.initialize(userId);
+              await Promise.race([
+                realTimeLocationService.initialize(userId),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Location service initialization timeout')), 3000)
+                )
+              ]);
+              console.log('✅ RealTimeLocationService initialized successfully');
             }
           } catch (error) {
             console.warn('⚠️ realTimeLocationService initialization failed:', error);
+            // Continue anyway
           }
 
           // Listen for driver status changes
@@ -1704,6 +1783,20 @@ const HomeScreen = () => {
     }
   };
 
+  // Route Optimization Handler
+  const onRouteOptimizationMenuPress = () => {
+    setShowRouteOptimization(true);
+  };
+
+  // Advanced Performance Analytics Handler
+  const onAdvancedPerformanceMenuPress = () => {
+    setShowAdvancedPerformance(true);
+  };
+
+  const onVehicleManagementMenuPress = () => {
+    setShowVehicleManagement(true);
+  };
+
   // Pending approval banner
   const PendingApprovalBanner = () => (
     <View style={styles.pendingBanner}>
@@ -1881,6 +1974,14 @@ const HomeScreen = () => {
             />
           </TouchableOpacity>
         </View>
+
+        {/* Route Optimization Widget */}
+        {isApproved && user?.uid && (
+          <RouteOptimizationWidget
+            driverId={user.uid}
+            onOpenFullDashboard={onRouteOptimizationMenuPress}
+          />
+        )}
 
         {/* Earnings Today Card */}
         <View style={styles.earningsCard}>
@@ -2112,6 +2213,70 @@ const HomeScreen = () => {
             >
               <Ionicons name="help-circle" size={20} color={COLORS.primary[500]} />
               <Text style={styles.actionText}>Support</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowAIAnalyticsModal(true)}
+            >
+              <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>AI Analytics</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowSmartRecommendationsModal(true)}
+            >
+              <Ionicons name="bulb" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>AI Tips</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowBehavioralLearningModal(true)}
+            >
+              <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>AI Learning</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowMarketIntelligenceModal(true)}
+            >
+              <Ionicons name="analytics" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Market Intel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowRiskAssessmentModal(true)}
+            >
+              <Ionicons name="shield" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Risk Assessment</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowDemandForecastingModal(true)}
+            >
+              <Ionicons name="trending-up" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Demand Forecast</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowDynamicPricingModal(true)}
+            >
+              <Ionicons name="cash" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Dynamic Pricing</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => setShowRouteOptimizationModal(true)}
+            >
+              <Ionicons name="navigate" size={20} color={COLORS.primary[500]} />
+              <Text style={styles.actionText}>Route Optimization</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -3446,6 +3611,30 @@ const HomeScreen = () => {
         user={user}
         profilePicture={profilePicture}
         imageLoadError={imageLoadError}
+        onSafetyMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowEnhancedEmergencyModal(true);
+        }}
+        onCommunicationMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowCommunicationHub(true);
+        }}
+        onEarningsOptimizationMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowEarningsOptimization(true);
+        }}
+        onRouteOptimizationMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowRouteOptimization(true);
+        }}
+        onAdvancedPerformanceMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowAdvancedPerformance(true);
+        }}
+        onVehicleManagementMenuPress={() => {
+          setShowNavigationMenu(false);
+          setShowVehicleManagement(true);
+        }}
       />
 
       {/* Location Test Panel */}
@@ -3558,6 +3747,208 @@ const HomeScreen = () => {
         currentRide={null}
         driverLocation={null}
       />
+
+      {/* Enhanced Emergency Modal */}
+      <EnhancedEmergencyModal
+        visible={showEnhancedEmergencyModal}
+        onClose={() => setShowEnhancedEmergencyModal(false)}
+        currentRide={null}
+        driverLocation={null}
+        driverId={user?.uid}
+      />
+
+      {/* Safety Analytics Dashboard */}
+      <Modal
+        visible={showSafetyAnalytics}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafetyAnalyticsDashboard
+          driverId={user?.uid}
+          onClose={() => setShowSafetyAnalytics(false)}
+          visible={showSafetyAnalytics}
+        />
+      </Modal>
+
+      {/* Emergency Contacts Manager */}
+      <Modal
+        visible={showEmergencyContacts}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <EmergencyContactsManager
+          driverId={user?.uid}
+          onClose={() => setShowEmergencyContacts(false)}
+          visible={showEmergencyContacts}
+        />
+      </Modal>
+
+      {/* Communication Hub */}
+      <Modal
+        visible={showCommunicationHub}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <CommunicationHub
+          driverId={user?.uid}
+          onClose={() => setShowCommunicationHub(false)}
+          visible={showCommunicationHub}
+        />
+      </Modal>
+
+      {/* Quick Responses Manager */}
+      <Modal
+        visible={showQuickResponsesManager}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <QuickResponsesManager
+          driverId={user?.uid}
+          onClose={() => setShowQuickResponsesManager(false)}
+          visible={showQuickResponsesManager}
+        />
+      </Modal>
+
+      {/* Earnings Optimization Dashboard */}
+      <Modal
+        visible={showEarningsOptimization}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <EarningsOptimizationDashboard
+          driverId={user?.uid}
+          onClose={() => setShowEarningsOptimization(false)}
+          visible={showEarningsOptimization}
+        />
+      </Modal>
+
+      {/* Earnings Goals Manager */}
+      <Modal
+        visible={showEarningsGoals}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <EarningsGoalsManager
+          driverId={user?.uid}
+          onClose={() => setShowEarningsGoals(false)}
+          visible={showEarningsGoals}
+        />
+      </Modal>
+
+      {/* Route Optimization Dashboard */}
+      <Modal
+        visible={showRouteOptimization}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <RouteOptimizationDashboard
+          driverId={user?.uid}
+          onClose={() => setShowRouteOptimization(false)}
+          visible={showRouteOptimization}
+        />
+      </Modal>
+
+      {/* Advanced Performance Analytics Dashboard */}
+      <AdvancedPerformanceDashboard
+        visible={showAdvancedPerformance}
+        onClose={() => setShowAdvancedPerformance(false)}
+        driverId={user?.uid}
+      />
+
+      {/* Vehicle Management Dashboard */}
+      <VehicleManagementDashboard
+        visible={showVehicleManagement}
+        onClose={() => setShowVehicleManagement(false)}
+        driverId={user?.uid}
+      />
+
+      {/* AI Analytics Dashboard */}
+      <Modal
+        visible={showAIAnalyticsModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <PredictiveAnalyticsDashboard
+          onClose={() => setShowAIAnalyticsModal(false)}
+        />
+      </Modal>
+
+      {/* Smart Recommendations Dashboard */}
+      <Modal
+        visible={showSmartRecommendationsModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SmartRecommendationsDashboard
+          onClose={() => setShowSmartRecommendationsModal(false)}
+        />
+      </Modal>
+
+      {/* Behavioral Learning Dashboard */}
+      <Modal
+        visible={showBehavioralLearningModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <BehavioralLearningDashboard
+          onClose={() => setShowBehavioralLearningModal(false)}
+        />
+      </Modal>
+
+      {/* Market Intelligence Dashboard */}
+      <Modal
+        visible={showMarketIntelligenceModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <MarketIntelligenceDashboard
+          onClose={() => setShowMarketIntelligenceModal(false)}
+        />
+      </Modal>
+
+      {/* Risk Assessment Dashboard */}
+      <Modal
+        visible={showRiskAssessmentModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <RiskAssessmentDashboard
+          onClose={() => setShowRiskAssessmentModal(false)}
+        />
+      </Modal>
+
+      {/* Demand Forecasting Dashboard */}
+      <Modal
+        visible={showDemandForecastingModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <DemandForecastingDashboard
+          onClose={() => setShowDemandForecastingModal(false)}
+        />
+      </Modal>
+
+      {/* Dynamic Pricing Dashboard */}
+      <Modal
+        visible={showDynamicPricingModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <DynamicPricingDashboard
+          onClose={() => setShowDynamicPricingModal(false)}
+        />
+      </Modal>
+
+      {/* Route Optimization Dashboard */}
+      <Modal
+        visible={showRouteOptimizationModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <AIRouteOptimizationDashboard
+          onClose={() => setShowRouteOptimizationModal(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -3735,96 +4126,96 @@ const styles = StyleSheet.create({
   },
   statCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 6,
-    padding: 5, // Reduced by 20% from 6
+    borderRadius: BORDER_RADIUS.SMALL,
+    padding: SPACING.SMALL,
     alignItems: 'center',
     flex: 1,
-    marginHorizontal: 2, // Reduced by 20% from 3
+    marginHorizontal: SPACING.TINY_HORIZONTAL,
     elevation: 1,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: hp('0.3%'),
   },
   statValue: {
-    fontSize: 13, // Reduced by 20% from 16
+    fontSize: rf(1.6, 12), // Responsive with 12px min
     fontWeight: '700',
     color: COLORS.secondary[900],
-    marginTop: 3, // Reduced by 20% from 4
-    marginBottom: 2,
+    marginTop: SPACING.TINY,
+    marginBottom: hp('0.25%'),
   },
   statLabel: {
-    fontSize: 8, // Reduced by 20% from 10
+    fontSize: rf(1, 10), // Responsive with 10px min
     color: COLORS.secondary[500],
     fontWeight: '500',
   },
   activeRideCard: {
     backgroundColor: COLORS.primary[500],
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: BORDER_RADIUS.LARGE,
+    padding: SPACING.MEDIUM,
+    marginBottom: SPACING.MEDIUM,
   },
   activeRideHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.SMALL,
   },
   activeRideHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   activeRideTitle: {
-    fontSize: 18,
+    fontSize: FONT_SIZES.HEADING,
     fontWeight: '600',
     color: COLORS.white,
   },
   activeRideBadge: {
     backgroundColor: COLORS.primary[700],
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: SPACING.SMALL,
+    paddingVertical: SPACING.TINY,
+    borderRadius: BORDER_RADIUS.SMALL,
   },
   activeRideBadgeText: {
-    fontSize: 12,
+    fontSize: FONT_SIZES.SMALL,
     color: COLORS.white,
     fontWeight: '600',
   },
   closeActiveRide: {
-    marginLeft: 12,
-    padding: 4,
+    marginLeft: SPACING.SMALL,
+    padding: SPACING.TINY,
   },
   activeRideDetails: {
-    marginBottom: 16,
+    marginBottom: SPACING.MEDIUM,
   },
   activeRideText: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.SMALL,
     color: COLORS.white,
     opacity: 0.9,
-    marginBottom: 4,
+    marginBottom: SPACING.TINY,
   },
   continueRideButton: {
     backgroundColor: COLORS.white,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: BUTTON_SIZES.PADDING_VERTICAL,
+    borderRadius: BORDER_RADIUS.MEDIUM,
   },
   continueRideButtonText: {
-    fontSize: 16,
+    fontSize: FONT_SIZES.MEDIUM,
     fontWeight: '600',
     color: COLORS.primary[500],
-    marginRight: 8,
+    marginRight: SPACING.SMALL,
   },
   quickActions: {
-    marginBottom: 4,
+    marginBottom: SPACING.TINY,
   },
   quickActionsTitle: {
-    fontSize: 18,
+    fontSize: FONT_SIZES.HEADING,
     fontWeight: '600',
     color: COLORS.secondary[900],
-    marginBottom: 4,
+    marginBottom: SPACING.TINY,
   },
   actionsGrid: {
     flexDirection: 'row',
@@ -3833,25 +4224,25 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: BORDER_RADIUS.MEDIUM,
+    padding: SPACING.SMALL,
     alignItems: 'center',
-    width: (SCREEN_WIDTH - 52) / 3,
-    marginBottom: 6,
+    width: wp('29%'), // Responsive width (~30% of screen minus margins)
+    marginBottom: SPACING.SMALL,
     elevation: 1,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: hp('0.3%'),
   },
   actionCardActive: {
     backgroundColor: COLORS.success,
   },
   actionText: {
-    fontSize: 9,
+    fontSize: rf(1.1, 10), // Responsive with 10px min
     fontWeight: '500',
     color: COLORS.secondary[900],
-    marginTop: 6,
+    marginTop: SPACING.SMALL,
     textAlign: 'center',
   },
   actionTextActive: {

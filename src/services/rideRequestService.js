@@ -18,7 +18,74 @@ import {
 } from 'firebase/firestore';
 import FirebaseIndexHelper from '@/utils/firebaseIndexHelper';
 
+/**
+ * @fileoverview Service for managing ride request operations in the Driver app.
+ * Handles listening for incoming ride requests, bid submission, ride status updates,
+ * and driver eligibility checking.
+ * 
+ * This service is the primary interface between drivers and the ride request system,
+ * managing real-time Firestore listeners and the ride lifecycle.
+ * 
+ * @module RideRequestService
+ * @see {@link ../../../docs/features/bidding-system.md} for bidding flow
+ * @see {@link ../../../docs/database/firestore-schema.md} for data structures
+ */
+
+/**
+ * @typedef {Object} RideRequest
+ * @property {string} id - Firestore document ID
+ * @property {string} riderId - ID of the rider who requested
+ * @property {Object} pickup - Pickup location
+ * @property {string} pickup.address - Human-readable pickup address
+ * @property {Object} pickup.coordinates - {lat, lng}
+ * @property {Object} dropoff - Destination location
+ * @property {string} dropoff.address - Human-readable destination address
+ * @property {Object} dropoff.coordinates - {lat, lng}
+ * @property {string} status - Current status (pending, open_for_bids, accepted, etc.)
+ * @property {string[]} availableDrivers - Driver IDs eligible for this request
+ * @property {string} [requiredVehicleType] - Required vehicle type (standard, large, wheelchair, etc.)
+ * @property {string[]} [requiredCapabilities] - Required driver capabilities
+ * @property {Object} [riderInfo] - Rider information (name, rating)
+ */
+
+/**
+ * @typedef {Object} TransformedRideRequest
+ * @property {string} id - Ride request ID
+ * @property {string} customerId - Rider ID
+ * @property {string} customerName - Rider's display name
+ * @property {number} customerRating - Rider's rating
+ * @property {Object} pickup - Transformed pickup location
+ * @property {Object} destination - Transformed destination location
+ * @property {number} [estimatedFare] - Platform-calculated fare estimate
+ * @property {Date} [scheduledTime] - When the ride is scheduled
+ * @property {string} vehicleType - Required vehicle type
+ */
+
+/**
+ * Service for handling ride request operations in the Driver app.
+ * Manages real-time listeners for incoming requests, bid submission,
+ * and ride lifecycle transitions.
+ * 
+ * @example
+ * import rideRequestService from './rideRequestService';
+ * 
+ * // Initialize when driver logs in
+ * rideRequestService.initialize(driverId);
+ * 
+ * // Set callback for new ride requests
+ * rideRequestService.setNewRideRequestCallback((rideRequest) => {
+ *   // Show ride request modal to driver
+ *   showRideModal(rideRequest);
+ * });
+ * 
+ * // Cleanup when driver logs out
+ * rideRequestService.cleanup();
+ */
 class RideRequestService {
+  /**
+   * Creates a new RideRequestService instance.
+   * Initializes internal state for tracking listeners and declined rides.
+   */
   constructor() {
     this.db = db;
     this.auth = auth;
@@ -29,7 +96,13 @@ class RideRequestService {
     this.isInitialLoad = true; // Flag to skip existing rides on first load
   }
 
-  // Initialize service with current driver
+  /**
+   * Initialize the service with the current driver's ID.
+   * Must be called before any other methods. Sets up real-time listeners
+   * for incoming ride requests.
+   * 
+   * @param {string} driverId - The authenticated driver's Firebase UID
+   */
   initialize(driverId) {
     this.currentDriverId = driverId;
     this.startListeningForRideRequests();
@@ -40,12 +113,29 @@ class RideRequestService {
     }
   }
 
-  // Check if service is initialized
+  /**
+   * Check if the service has been initialized with a driver ID.
+   * 
+   * @returns {boolean} True if initialize() has been called successfully
+   */
   isInitialized() {
     return this.currentDriverId !== null;
   }
 
-  // Helper: Check if driver's vehicle type can fulfill the requested vehicle type
+  /**
+   * Check if driver's vehicle type can fulfill the requested vehicle type.
+   * Implements vehicle compatibility rules for ride matching.
+   * 
+   * Rules:
+   * - Exact match always works
+   * - Large vehicles can accept standard requests
+   * - Standard vehicles cannot accept large requests
+   * - Specialty vehicles (wheelchair, tow_truck) must match exactly
+   * 
+   * @param {string} driverVehicleType - Driver's vehicle type
+   * @param {string} requestedVehicleType - Ride request's required vehicle type
+   * @returns {boolean} True if driver can fulfill the request
+   */
   canVehicleTypeFulfillRequest(driverVehicleType, requestedVehicleType) {
     // If no driver vehicle type specified, assume standard
     const driverType = driverVehicleType || 'standard';
@@ -71,12 +161,28 @@ class RideRequestService {
     return false;
   }
 
-  // DEBUG: Check existing ride requests for this driver
+  /**
+   * Debug helper to check existing ride requests for this driver.
+   * Only logs in development mode.
+   * 
+   * @returns {Promise<void>}
+   * @private
+   */
   async debugCheckExistingRequests() {
     // Removed debug logging
   }
 
-  // Start listening for incoming ride requests
+  /**
+   * Start listening for incoming ride requests via Firestore real-time listeners.
+   * Queries for ride requests where this driver is in the availableDrivers array
+   * and status is 'open_for_bids' or 'pending'.
+   * 
+   * Only processes NEW ride requests after initial load to prevent showing
+   * stale requests when driver goes online.
+   * 
+   * @fires newRideRequestCallback - When a new eligible ride request is received
+   * @fires rideRequestCancelledCallback - When a ride request is cancelled
+   */
   startListeningForRideRequests() {
     if (!this.currentDriverId) {
       console.error('Driver ID not set. Call initialize() first.');
@@ -150,7 +256,11 @@ class RideRequestService {
     this.rideRequestListeners.set('rideRequests', unsubscribe);
   }
 
-  // Stop listening for new ride requests (when driver submits bid or goes offline)
+  /**
+   * Stop listening for new ride requests.
+   * Should be called when driver goes offline or logs out.
+   * Resets the initial load flag for the next session.
+   */
   stopListeningForRideRequests() {
     if (this.rideRequestListeners.has('rideRequests')) {
       this.rideRequestListeners.get('rideRequests')();
@@ -160,7 +270,12 @@ class RideRequestService {
     this.isInitialLoad = true;
   }
 
-  // Fallback method for when composite index is not available
+  /**
+   * Fallback method for listening to ride requests when composite indexes
+   * are not available. Uses a simplified query without timestamp filtering.
+   * 
+   * @private
+   */
   startListeningForRideRequestsFallback() {
     if (!this.currentDriverId) {
       return;
@@ -202,7 +317,19 @@ class RideRequestService {
     this.rideRequestListeners.set('rideRequests', unsubscribe);
   }
 
-  // Check if driver can fulfill ride request based on specialty vehicle capabilities
+  /**
+   * Check if driver can fulfill a specific ride request based on vehicle type
+   * and service capabilities.
+   * 
+   * Verifies:
+   * - Driver's vehicle type matches or is compatible with request
+   * - Driver has all required service capabilities
+   * - Driver has at least one optional preference (if any specified)
+   * 
+   * @param {RideRequest} rideRequest - The ride request to check
+   * @param {string} driverId - The driver's Firebase UID
+   * @returns {Promise<boolean>} True if driver can fulfill the request
+   */
   async canDriverFulfillRequest(rideRequest, driverId) {
     try {
       // Get driver's specialty vehicle information
@@ -273,7 +400,15 @@ class RideRequestService {
     }
   }
 
-  // Handle new ride request from rider
+  /**
+   * Handle a new incoming ride request from a rider.
+   * Checks if driver can fulfill the request, then transforms
+   * the data for UI compatibility and triggers the callback.
+   * 
+   * @param {RideRequest} rideRequest - Raw ride request from Firestore
+   * @returns {Promise<void>}
+   * @private
+   */
   async handleNewRideRequest(rideRequest) {
     // Check if driver can fulfill this request
     const canFulfill = await this.canDriverFulfillRequest(rideRequest, this.currentDriverId);

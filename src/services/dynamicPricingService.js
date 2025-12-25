@@ -569,6 +569,9 @@ class DynamicPricingService {
     return onSnapshot(pricingQuery, (snapshot) => {
       const updates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(updates);
+    }, (error) => {
+      console.error('Error in pricing updates subscription:', error);
+      callback([], error);
     });
   }
 
