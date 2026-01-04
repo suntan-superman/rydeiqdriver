@@ -88,8 +88,7 @@
     "node": ">=20.19.4"
   },
   "resolutions": {
-    "@expo/config-plugins": "~10.1.1",
-    "@react-native-voice/voice": "0.0.0-do-not-use"
+    "@expo/config-plugins": "~10.1.1"
   },
   "expo": {
     "install": {

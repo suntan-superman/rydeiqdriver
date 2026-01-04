@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { MaterialIcons, AntDesign, Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants';
+import { getCopyrightText } from '@/constants/appInfo';
 import { useAuth } from '@/contexts/AuthContext';
 import { playSuccessSound, playErrorSound } from '@/utils/soundEffects';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -354,7 +355,7 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.linkText}>Privacy Policy</Text>
           </Text>
           <Text style={styles.copyrightText}>
-            AnyRyde Driver © 2025
+            {getCopyrightText()}
           </Text>
         </View>
       </ScrollView>

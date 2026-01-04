@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { COLORS, TYPOGRAPHY, DIMENSIONS } from '@/constants';
+import { APP_INFO, getCompanyCopyright } from '@/constants/appInfo';
 
 const SupportScreen = () => {
   const navigation = useNavigation();
@@ -351,12 +352,12 @@ const SupportScreen = () => {
 
         {/* App Info */}
         <Card style={styles.appInfoCard}>
-          <Text style={styles.appInfoTitle}>{t('AnyRyde')}</Text>
+          <Text style={styles.appInfoTitle}>{t(APP_INFO.APP_NAME)}</Text>
           <Text style={styles.appInfoText}>
-            {t('Your Rides Your Rates Your Rules')}
+            {t(APP_INFO.APP_TAGLINE)}
           </Text>
           <Text style={styles.appInfoText}>
-            {t('Copyright 2025 AnyRyde')}
+            {getCompanyCopyright()}
           </Text>
         </Card>
 
